@@ -1,20 +1,20 @@
-import { streamText, stepCountIs } from 'ai';
+import { streamText, stepCountIs, jsonSchema, tool } from 'ai';
 import { model } from './model';
-import { getTools } from './tools';
+import { getServer } from './tools';
+import { convertToAISDKTools } from '@mcpc-tech/core'
 
 export async function agent(message: string) {
-  const tools = await getTools();
+  const tools = convertToAISDKTools((await getServer()), {
+    tool: tool,
+    jsonSchema: jsonSchema,
+  })
 
   const result = streamText({
     model,
     tools,
     prompt: message,
-    system: `You are a helpful assistant with Python code execution capabilities.
-
-You have access to a pythonRunner tool that executes Python code in a secure sandbox.
-Use it for data analysis, calculations, and algorithm validation.
-Always execute code when it helps answer accurately.`,
-    stopWhen: stepCountIs(50)
+    system: `You are a helpful assistant with Python code execution capabilities.`,
+    stopWhen: stepCountIs(101)
   });
 
   for await (const chunk of result.fullStream) {
@@ -27,7 +27,7 @@ Always execute code when it helps answer accurately.`,
         console.log(`[Args]: ${JSON.stringify(chunk.input, null, 2)}`);
         break;
       case 'tool-result':
-        console.log(`[Result]: ${chunk.output}`);
+        console.log(`[Result]: ${JSON.stringify(chunk.output, null, 2)}`);
         break;
       case 'error':
         console.error(`[Error]: ${chunk.error}`);

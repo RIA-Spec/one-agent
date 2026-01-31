@@ -1,4 +1,4 @@
-import * as readline from 'readline';
+import * as readline from 'node:readline';
 import { agent } from './agent.js';
 
 const rl = readline.createInterface({
@@ -15,7 +15,7 @@ function prompt(question: string): Promise<string> {
 }
 
 async function main() {
-  console.log('🤖 Agent Skills REPL');
+  console.log('INSIDE');
   console.log('Type your prompts below. Type "exit" to quit.\n');
 
   while (true) {
