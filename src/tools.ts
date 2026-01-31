@@ -70,7 +70,7 @@ const compose: ComposeDefinition = {
     mcpServers: {
       "code-runner": {
         command: "deno",
-        args: ["run", "--allow-all", "jsr:@mcpc/code-runner-mcp/bin"],
+        args: ["run", "--allow-all", "./node_modules/@mcpc/code-runner-mcp/src/stdio.server.js"],
         env: { "ALLOWED_TOOLS": "python" },
         transportType: "stdio",
       },
