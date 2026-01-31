@@ -24,6 +24,7 @@ Always execute code when it helps answer accurately.`,
         break;
       case 'tool-call':
         console.log(`\n[Tool: ${chunk.toolName}]`);
+        console.log(`[Args]: ${JSON.stringify(chunk.input, null, 2)}`);
         break;
       case 'tool-result':
         console.log(`[Result]: ${chunk.output}`);
