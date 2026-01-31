@@ -23,6 +23,9 @@ importers:
       '@mcpc/mcp-sampling-ai-provider':
         specifier: jsr:^0.1.21
         version: '@jsr/mcpc__mcp-sampling-ai-provider@0.1.21(hono@4.11.4)(zod@4.3.5)'
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.25.3
+        version: 1.25.3(hono@4.11.4)(zod@4.3.5)
       '@tencent/venus-ai-provider':
         specifier: 0.0.1-beta.3
         version: 0.0.1-beta.3(zod@4.3.5)
