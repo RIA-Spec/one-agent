@@ -5,7 +5,7 @@ import { getTools } from './tools';
 export async function agent(message: string) {
   const tools = await getTools();
 
-  const stream = streamText({
+  const result = streamText({
     model,
     tools,
     prompt: message,
@@ -17,10 +17,23 @@ Always execute code when it helps answer accurately.`,
     stopWhen: stepCountIs(50)
   });
 
-  for (const chunk of await stream.text) {
-    process.stdout.write(chunk);
+  for await (const chunk of result.fullStream) {
+    switch (chunk.type) {
+      case 'text-delta':
+        process.stdout.write(chunk.text);
+        break;
+      case 'tool-call':
+        console.log(`\n[Tool: ${chunk.toolName}]`);
+        break;
+      case 'tool-result':
+        console.log(`[Result]: ${chunk.output}`);
+        break;
+      case 'error':
+        console.error(`[Error]: ${chunk.error}`);
+        break;
+    }
   }
 
   console.log('\n');
-  return stream.finishReason;
+  return result.finishReason;
 }
