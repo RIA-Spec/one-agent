@@ -44,6 +44,10 @@ When you need to return structured data (like analysis results, extracted inform
     }
   }
 
+  if (structuredOutput === null) {
+    structuredOutput = { data: null, text: `Error: get structured output failed. Raw output: ${result.text}, finishReason: ${result.finishReason}` }
+  }
+
   return structuredOutput
 }
 

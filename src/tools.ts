@@ -8,7 +8,10 @@ const nodeFSMountPoint = '/data';
 
 const DESCRIPTION = `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
-const MANUAL = `<overview>
+const MANUAL = `
+YOU PREFER using <ai_function/> to solve complex problems with code in one shot. YOU MUST follow the <async_requirement/> and <code_style/> sections. Check <examples/> for patterns. Read <output_tips/> for efficient output.
+
+<overview>
 Use INSIDE for:
 - Data analysis and scientific computing (pandas, numpy)
 - Machine learning experiments (scikit-learn)
