@@ -1,27 +1,21 @@
-import { tool } from 'ai';
-import { z } from 'zod';
+import { tool, jsonSchema } from 'ai';
 import { mcpc } from '@mcpc-tech/core';
 import type { ComposeDefinition } from '@mcpc-tech/core';
 
-const DESCRIPTION = `
-A Python code execution assistant that runs code in a secure sandbox environment.
+const DESCRIPTION = `Execute Python code in a secure Pyodide sandbox with support for any PyPI package installation.
 
-Capabilities:
-- Execute Python code for data analysis, scientific computing, and machine learning
-- Dynamically install and use any PyPI package
-- Handle mathematical calculations, statistics, and text processing
+Use for:
+- Data analysis and scientific computing (pandas, numpy)
+- Machine learning experiments (scikit-learn)
+- Mathematical calculations and statistics
+- Text processing and NLP tasks
+- Algorithm validation and prototyping
 
-Available Tools:
-<tool name="python-code-runner" />
+The code runs in an isolated WebAssembly environment (Pyodide), making it safe to execute untrusted code. Always use print() to output results.
 
-Guidelines:
-1. Write clear, valid Python code
-2. Use print() to output results
-3. Provide importToPackageMap for packages with different import names
-`;
+For packages with different import names vs PyPI names (like sklearn, PIL, cv2), provide importToPackageMap parameter.`;
 
-const MANUAL = `
-## Python Code Runner Manual
+const MANUAL = `## Python Code Runner Manual
 
 ### Parameters
 
@@ -62,7 +56,11 @@ data = load_iris()
 print(data.feature_names)
 \`\`\`
 importToPackageMap: {"sklearn": "scikit-learn"}
-`;
+
+### Limitations
+- No compiled C/C++ extensions (unless wasm version exists)
+- Network requests may be restricted
+- File system access limited to configured mount points`;
 
 const compose: ComposeDefinition = {
   name: "python-runner",
@@ -96,43 +94,28 @@ async function getServer() {
   return server;
 }
 
-export const pythonRunner = tool({
-  description: `Execute Python code in a secure Pyodide sandbox.
-
-Use for:
-- Data analysis (pandas, numpy)
-- Machine learning (scikit-learn)
-- Mathematical calculations
-- Text processing
-
-Code runs in an isolated WebAssembly environment. Always use print() to output results.`,
-  inputSchema: z.object({
-    code: z.string().describe(`Python code to execute. Examples:
-- "import math; print(math.sqrt(16))"
-- "import pandas as pd; print(pd.DataFrame({'a': [1]}).describe())"
-- "from sklearn.datasets import load_iris; print(load_iris().feature_names)"`),
-    importToPackageMap: z.record(z.string(), z.string()).optional().describe(
-      `Package name mappings. Common: {"sklearn": "scikit-learn", "PIL": "Pillow", "cv2": "opencv-python"}`
-    ),
-  }),
-  execute: async ({ code, importToPackageMap }) => {
-    const s = await getServer();
-    const result = await s.callTool('python-code-runner', {
-      code,
-      ...(importToPackageMap && { importToPackageMap }),
-    });
-
-    if (result && typeof result === 'object' && 'content' in result) {
-      const content = (result as any).content;
-      if (Array.isArray(content) && content.length > 0) {
-        return content.map((c: any) => c.text || '').join('\n');
-      }
-    }
-    return JSON.stringify(result);
-  },
-});
-
 export async function getTools() {
-  await getServer();
-  return { pythonRunner };
+  const s = await getServer();
+  const mcpTools = s.getPublicTools();
+  
+  const tools: Record<string, any> = {};
+  
+  for (const t of mcpTools) {
+    tools[t.name] = tool({
+      description: t.description || '',
+      inputSchema: jsonSchema(t.inputSchema as any),
+      execute: async (args: any) => {
+        const result = await s.callTool(t.name, args);
+        if (result && typeof result === 'object' && 'content' in result) {
+          const content = (result as any).content;
+          if (Array.isArray(content) && content.length > 0) {
+            return content.map((c: any) => c.text || '').join('\n');
+          }
+        }
+        return JSON.stringify(result);
+      },
+    });
+  }
+  
+  return tools;
 }
