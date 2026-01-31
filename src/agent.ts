@@ -1,7 +1,7 @@
 import { streamText, stepCountIs, jsonSchema, tool } from 'ai';
-import { model } from './model';
 import { getServer } from './tools';
 import { convertToAISDKTools } from '@mcpc-tech/core'
+import { venus } from './model';
 
 export async function agent(message: string) {
   const tools = convertToAISDKTools((await getServer()), {
@@ -10,11 +10,14 @@ export async function agent(message: string) {
   })
 
   const result = streamText({
-    model,
+    model: venus("minimax-m2"),
     tools,
     prompt: message,
-    system: `You are a helpful assistant with Python code execution capabilities.`,
-    stopWhen: stepCountIs(101)
+    system: `You are a helpful assistant with Python code execution capabilities. Always read the manual and tool definitions carefully before executing any code.`,
+    stopWhen: stepCountIs(101),
+    onError: (e) => {
+      console.log('An error occurred during streaming.', e);
+    }
   });
 
   for await (const chunk of result.fullStream) {

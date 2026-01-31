@@ -23,6 +23,9 @@ importers:
       '@mcpc/mcp-sampling-ai-provider':
         specifier: jsr:^0.1.21
         version: '@jsr/mcpc__mcp-sampling-ai-provider@0.1.21(hono@4.11.4)(zod@4.3.5)'
+      '@tencent/venus-ai-provider':
+        specifier: 0.0.1-beta.3
+        version: 0.0.1-beta.3(zod@4.3.5)
       ai:
         specifier: ^6.0.44
         version: 6.0.44(zod@4.3.5)
@@ -936,6 +939,12 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@tencent/venus-ai-provider@0.0.1-beta.3':
+    resolution: {integrity: sha512-Dz+48JXlykboXuR5JljpX6xa5CIy9j8Q2ZmbLEcDKEl1Zbw1ERIqaauCvdct9rwKg9Aic+l8roBNsfQbBBfT+w==, tarball: https://mirrors.tencent.com/npm/@tencent/venus-ai-provider/-/@tencent/venus-ai-provider-0.0.1-beta.3.tgz}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4
 
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
@@ -2765,6 +2774,12 @@ snapshots:
       ajv: 8.17.1
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@tencent/venus-ai-provider@0.0.1-beta.3(zod@4.3.5)':
+    dependencies:
+      '@ai-sdk/provider': 2.0.1
+      '@ai-sdk/provider-utils': 3.0.20(zod@4.3.5)
+      zod: 4.3.5
 
   '@tybys/wasm-util@0.10.1':
     dependencies:

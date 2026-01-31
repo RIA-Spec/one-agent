@@ -1,7 +1,16 @@
 import { wrapLanguageModel, gateway, type LanguageModel } from 'ai';
 import { devToolsMiddleware } from '@ai-sdk/devtools';
+import { createOpenAICompatible } from '@tencent/venus-ai-provider';
 
-export const model: LanguageModel = wrapLanguageModel({
-  model: gateway('moonshotai/kimi-k2.5'),
+export const vercel = (modelId: string): LanguageModel => wrapLanguageModel({
+  model: gateway(modelId),
   middleware: devToolsMiddleware(),
 });
+
+// Venus model provider
+const venusProvider = createOpenAICompatible({
+  name: 'venus',
+  apiKey: process.env.OPENAI_API_KEY || '',
+});
+
+export const venus: (modelId: string) => LanguageModel = (modelId: string) => venusProvider(modelId);

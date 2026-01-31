@@ -8,13 +8,16 @@ const nodeFSMountPoint = '/data';
 
 const DESCRIPTION = `Execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
-const MANUAL = `INSIDE Python Runner - Use for:
+const MANUAL = `<overview>
+INSIDE Python Runner - Use for:
 - Data analysis and scientific computing (pandas, numpy)
 - Machine learning experiments (scikit-learn)
 - Mathematical calculations and statistics
 - Text processing and NLP tasks
 - Algorithm validation and prototyping
+</overview>
 
+<ai_function>
 Built-in ai(message) Function:
 Call LLM for intelligent data processing and structured decision-making:
   • Summarizing information and extracting key insights
@@ -29,7 +32,9 @@ ai() returns an object with:
   • text: Context-aware text response or explanation
 
 The AI uses an internal submit_result tool to return structured data.
+</ai_function>
 
+<async_requirement>
 IMPORTANT - Async Function Requirement:
 ai() is an ASYNC function and MUST be called inside an async function with asyncio:
 
@@ -42,7 +47,15 @@ ai() is an ASYNC function and MUST be called inside an async function with async
   asyncio.run(main())
 
 DO NOT use await directly in module-level code - it will cause "SyntaxError: 'await' outside function"!
+</async_requirement>
 
+<output_tips>
+Output Tips - Token Friendly:
+Print concise summaries, not raw data dumps. Like ai() text field - keep it meaningful and compact.
+  BAD: print(df) -> GOOD: print(f"{len(df)} rows, mean: {df['col'].mean():.2f}")
+</output_tips>
+
+<code_ai_combination>
 Code + AI Combination:
 Combine Python code with ai() for powerful dynamic workflows:
   • Process data with code → AI summarizes findings
@@ -50,7 +63,9 @@ Combine Python code with ai() for powerful dynamic workflows:
   • AI extracts structured arrays → Code iterates and processes
   • AI generates objects → Code uses for further computation
   • Create adaptive workflows with intelligent branching logic
+</code_ai_combination>
 
+<examples>
 Complete Working Examples:
 
 1. Boolean Decision:
@@ -59,7 +74,7 @@ import asyncio
 async def main():
     result = await ai("Is revenue > $100k? Return {data: true/false, text: reason}")
     if result['data']:
-        print("✓ Applying premium strategy")
+        print("Applying premium strategy")
     print(result['text'])
 
 asyncio.run(main())
@@ -83,10 +98,11 @@ async def main():
     data = {"Q1": 50000, "Q2": 75000}
     result = await ai("Analyze sales: " + str(data) + ". Return {growth: number, risk: string}")
     if result['data']['risk'] == 'high':
-        print("⚠️ Alert triggered")
+        print("Alert triggered")
     print(result['text'])
 
-asyncio.run(main())`;
+asyncio.run(main())
+</examples>`;
 
 const compose: ComposeDefinition = {
   name: "inside-runner",
@@ -116,7 +132,7 @@ Features:
   • Combine code computation with AI intelligence
   • File system access at /data (maps to ${nodeFSRoot})
 
-⚠️ CRITICAL: ai() MUST be used inside async function with asyncio.run():
+CRITICAL: ai() MUST be used inside async function with asyncio.run():
 
 import asyncio
 

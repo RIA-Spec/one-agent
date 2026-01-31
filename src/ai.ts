@@ -1,6 +1,6 @@
 import { generateText, tool as defineTool, stepCountIs, hasToolCall, tool } from 'ai';
 import { z } from 'zod';
-import { model } from './model.js';
+import { venus } from './model.js';
 
 export interface AIResult {
   data: any,
@@ -12,7 +12,7 @@ export async function ai(message: string): Promise<AIResult | null> {
   let structuredOutput: AIResult | null = null;
 
   const result = await generateText({
-    model: model,
+    model: venus("minimax-m2"),
     prompt: message,
     system: `You are a helpful AI assistant with the ability to:
 - Summarize information concisely and extract key insights

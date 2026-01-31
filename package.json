@@ -44,6 +44,7 @@
     "@mcpc-tech/core": "^0.3.34",
     "@mcpc/code-runner-mcp": "jsr:^0.1.2",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
+    "@tencent/venus-ai-provider": "0.0.1-beta.3",
     "ai": "^6.0.44",
     "gray-matter": "^4.0.3",
     "zod": "^4.3.5"
