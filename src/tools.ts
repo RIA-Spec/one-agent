@@ -6,14 +6,87 @@ import { runPy, getPythonPrompt } from '@mcpc/code-runner-mcp';
 const nodeFSRoot = '/Users/beet/Downloads'
 const nodeFSMountPoint = '/data';
 
-const DESCRIPTION = `Execute Python code in a secure Pyodide sandbox with support for any PyPI package installation and ai(message) async function support.`;
+const DESCRIPTION = `Execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
-const MANUAL = `Use for:
+const MANUAL = `INSIDE Python Runner - Use for:
 - Data analysis and scientific computing (pandas, numpy)
 - Machine learning experiments (scikit-learn)
 - Mathematical calculations and statistics
 - Text processing and NLP tasks
-- Algorithm validation and prototyping`;
+- Algorithm validation and prototyping
+
+Built-in ai(message) Function:
+Call LLM for intelligent data processing and structured decision-making:
+  • Summarizing information and extracting key insights
+  • Making data-driven decisions and recommendations  
+  • Structuring unstructured data into organized formats
+  • Generating efficient, context-aware responses
+  • Returning structured data (booleans, arrays, objects) for code logic
+
+Return Value:
+ai() returns an object with:
+  • data: Any structured data - booleans, arrays, objects, numbers, etc.
+  • text: Context-aware text response or explanation
+
+The AI uses an internal submit_result tool to return structured data.
+
+IMPORTANT - Async Function Requirement:
+ai() is an ASYNC function and MUST be called inside an async function with asyncio:
+
+  import asyncio
+  
+  async def main():
+      result = await ai("your prompt here")
+      print(result['text'])
+  
+  asyncio.run(main())
+
+DO NOT use await directly in module-level code - it will cause "SyntaxError: 'await' outside function"!
+
+Code + AI Combination:
+Combine Python code with ai() for powerful dynamic workflows:
+  • Process data with code → AI summarizes findings
+  • AI returns booleans/flags → Code makes conditional decisions
+  • AI extracts structured arrays → Code iterates and processes
+  • AI generates objects → Code uses for further computation
+  • Create adaptive workflows with intelligent branching logic
+
+Complete Working Examples:
+
+1. Boolean Decision:
+import asyncio
+
+async def main():
+    result = await ai("Is revenue > $100k? Return {data: true/false, text: reason}")
+    if result['data']:
+        print("✓ Applying premium strategy")
+    print(result['text'])
+
+asyncio.run(main())
+
+2. Array Extraction:
+import asyncio
+import pandas as pd
+
+async def main():
+    df = pd.read_csv('/data/sales.csv')
+    result = await ai("Extract top 3 product names as array: " + str(df.head()))
+    for product in result['data']:
+        print(f"Processing: {product}")
+
+asyncio.run(main())
+
+3. Structured Object:
+import asyncio
+
+async def main():
+    data = {"Q1": 50000, "Q2": 75000}
+    result = await ai("Analyze sales: " + str(data) + ". Return {growth: number, risk: string}")
+    if result['data']['risk'] == 'high':
+        print("⚠️ Alert triggered")
+    print(result['text'])
+
+asyncio.run(main())`;
 
 const compose: ComposeDefinition = {
   name: "inside-runner",
@@ -33,23 +106,29 @@ export async function getServer() {
       [{ name: "inside", version: "1.0.0" }, { capabilities: { tools: {} } }],
       [compose],
       (server) => {
-        console.log("\n=== BEFORE server.tool() ===");
-        console.log("Public:", server.getPublicToolNames());
-        console.log("Internal:", server.getInternalToolNames());
-
         server.tool(
-          "run",
-          `Run Python code with ai(message) async function support.
-In your code, you can use
-\`\`\` 
+          "py",
+          `INSIDE Python Runner - Execute Python with built-in ai() function.
+
+Features:
+  • Built-in async ai(message) function for intelligent analysis
+  • Returns structured data: booleans, arrays, objects for dynamic decisions
+  • Combine code computation with AI intelligence
+  • File system access at /data (maps to ${nodeFSRoot})
+
+⚠️ CRITICAL: ai() MUST be used inside async function with asyncio.run():
+
 import asyncio
 
 async def main():
-    result = await ai("Hello")
+    result = await ai("Your prompt here")
+    print(result['text'])
 
 asyncio.run(main())
-\`\`\` 
-to get response from LLM, it's a built-in function.
+
+DO NOT use 'await ai()' directly - will cause SyntaxError!
+See manual for complete examples.
+
 ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
 `,
           jsonSchema({
@@ -57,19 +136,20 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
             properties: {
               code: {
                 type: 'string',
-                description: 'Python source code to executePython code to execute. MUST use print() to see results.',
+                description: 'Python code to execute. MUST use print() to see results.',
               },
               packages: {
                 type: 'object',
                 additionalProperties: { type: 'string' },
                 description: 'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
               },
-            }
+            },
+            required: ['code']
           }),
           async ({ code, packages }: { code: string, packages?: Record<string, string> }, extra) => {
             const { ai } = await import('./ai.js');
             const stream = await runPy(code, {
-              handlers: { ai: ai },
+              handlers: { ai },
               packages,
               nodeFSRoot,
               nodeFSMountPoint,
@@ -85,10 +165,6 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
           },
           { internal: true }
         );
-
-        console.log("\n=== AFTER server.tool() ===");
-        console.log("Public:", server.getPublicToolNames());
-        console.log("Internal:", server.getInternalToolNames());
       }
     );
   }

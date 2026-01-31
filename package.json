@@ -42,7 +42,7 @@
     "@ai-sdk/anthropic": "^3.0.18",
     "@ai-sdk/devtools": "^0.0.6",
     "@mcpc-tech/core": "^0.3.34",
-    "@mcpc/code-runner-mcp": "jsr:^0.1.1",
+    "@mcpc/code-runner-mcp": "jsr:^0.1.2",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "ai": "^6.0.44",
     "gray-matter": "^4.0.3",
