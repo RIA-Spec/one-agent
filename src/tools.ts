@@ -6,10 +6,10 @@ import { runPy, getPythonPrompt } from '@mcpc/code-runner-mcp';
 const nodeFSRoot = '/Users/beet/Downloads'
 const nodeFSMountPoint = '/data';
 
-const DESCRIPTION = `Execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
+const DESCRIPTION = `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
 const MANUAL = `<overview>
-INSIDE Python Runner - Use for:
+Use INSIDE for:
 - Data analysis and scientific computing (pandas, numpy)
 - Machine learning experiments (scikit-learn)
 - Mathematical calculations and statistics
@@ -54,6 +54,15 @@ Output Tips - Token Friendly:
 Print concise summaries, not raw data dumps. Like ai() text field - keep it meaningful and compact.
   BAD: print(df) -> GOOD: print(f"{len(df)} rows, mean: {df['col'].mean():.2f}")
 </output_tips>
+
+<code_style>
+Code Style - Maximum Efficiency:
+For best token efficiency and generation speed:
+  • No comments - code should be self-explanatory
+  • Short variable names (df, arr, res, etc.)
+  • Minimal code - only what's needed
+  • Direct execution - no unnecessary abstractions
+</code_style>
 
 <code_ai_combination>
 Code + AI Combination:
@@ -108,8 +117,16 @@ const compose: ComposeDefinition = {
   name: "inside-runner",
   description: DESCRIPTION,
   manual: MANUAL,
-  deps: { mcpServers: {} },
-  options: { mode: "agentic" },
+  deps: {
+    mcpServers: {
+      playwright: {
+        transportType: 'stdio',
+        command: "npx",
+        args: ['-y', '@playwright/mcp@latest']
+      }
+    }
+  },
+  options: { mode: "agentic", refs: [] },
 };
 
 const DEV_MODE = true;
@@ -123,8 +140,8 @@ export async function getServer() {
       [compose],
       (server) => {
         server.tool(
-          "py",
-          `INSIDE Python Runner - Execute Python with built-in ai() function.
+          "run",
+          `INSIDE Runner - Execute Python with built-in ai() function.
 
 Features:
   • Built-in async ai(message) function for intelligent analysis
