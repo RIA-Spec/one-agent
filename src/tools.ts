@@ -21,7 +21,7 @@ Use INSIDE for:
 </overview>
 
 <ai_function>
-Built-in ai(message) Function:
+Built-in ai(prompt, example) Function:
 Call LLM for intelligent data processing and structured decision-making:
   • Summarizing information and extracting key insights
   • Making data-driven decisions and recommendations  
@@ -34,7 +34,7 @@ ai() returns an object with:
   • data: Any structured data - booleans, arrays, objects, numbers, etc.
   • text: Context-aware text response or explanation
 
-The AI uses an internal submit_result tool to return structured data.
+The AI validates returned data against the shape inferred from your example.
 </ai_function>
 
 <async_requirement>
@@ -44,8 +44,8 @@ ai() is an ASYNC function and MUST be called inside an async function with async
   import asyncio
   
   async def main():
-      result = await ai("your prompt here")
-      print(result['text'])
+      result = await ai('Summarize in 1 sentence: Python is a programming language.', '')
+      print(result['data'])
   
   asyncio.run(main())
 
@@ -84,10 +84,12 @@ Complete Working Examples:
 import asyncio
 
 async def main():
-    result = await ai("Is revenue > $100k? Return {data: true/false, text: reason}")
-    if result['data']:
-        print("Applying premium strategy")
-    print(result['text'])
+  total_errors = 12
+  threshold = 10
+  result = await ai(f'Should we alert? total_errors={total_errors}, threshold={threshold}. Return true/false.', True)
+  if result['data']:
+    print('Alert triggered')
+  print(result['text'])
 
 asyncio.run(main())
 
@@ -97,9 +99,9 @@ import pandas as pd
 
 async def main():
     df = pd.read_csv('/data/sales.csv')
-    result = await ai("Extract top 3 product names as array: " + str(df.head()))
+    result = await ai('Return the column names as an array: ' + str(list(df.columns)), ['col'])
     for product in result['data']:
-        print(f"Processing: {product}")
+        print(f'Column: {product}')
 
 asyncio.run(main())
 
@@ -107,11 +109,18 @@ asyncio.run(main())
 import asyncio
 
 async def main():
-    data = {"Q1": 50000, "Q2": 75000}
-    result = await ai("Analyze sales: " + str(data) + ". Return {growth: number, risk: string}")
-    if result['data']['risk'] == 'high':
-        print("Alert triggered")
-    print(result['text'])
+  items = [
+    'coffee $4',
+    'bus ticket $2.5',
+    'sandwich $8',
+    'movie ticket $15'
+  ]
+  result = await ai(
+    'Categorize these expenses into food/transport/other as 3 arrays: ' + str(items),
+    {'food': ['coffee $4'], 'transport': ['bus ticket $2.5'], 'other': ['movie ticket $15']}
+  )
+  print(result['data'])
+  print(result['text'])
 
 asyncio.run(main())
 </examples>`;
@@ -147,7 +156,7 @@ export async function getServer() {
           `INSIDE Runner - Execute Python with built-in ai() function.
 
 Features:
-  • Built-in async ai(message) function for intelligent analysis
+  • Built-in async ai(prompt, example) function for intelligent analysis
   • Returns structured data: booleans, arrays, objects for dynamic decisions
   • Combine code computation with AI intelligence
   • File system access at /data (maps to ${nodeFSRoot})
@@ -157,8 +166,8 @@ CRITICAL: ai() MUST be used inside async function with asyncio.run():
 import asyncio
 
 async def main():
-    result = await ai("Your prompt here")
-    print(result['text'])
+    result = await ai('Summarize in 1 sentence: Python is a programming language.', '')
+    print(result['data'])
 
 asyncio.run(main())
 
