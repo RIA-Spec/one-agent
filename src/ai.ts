@@ -1,12 +1,12 @@
 import { jsonSchema, stepCountIs, type StopCondition, streamText, tool } from "ai";
-import { venus, vercel } from "../model.js";
+import { venus, vercel } from "./model.js";
 import {
   type AIResult,
   buildPrompt,
   compileAiResultValidator,
   errorsTextFromAjv,
   exampleToJsonSchema,
-} from "../utils/schema.js";
+} from "./utils/schema.js";
 import { writeFileSync } from "node:fs";
 
 const isDebugMode = process.env.DEBUG === "1";
@@ -52,13 +52,12 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
   };
 
   const result = streamText({
-    model: venus("deepseek-v3.2"),
+    model: vercel("anthropic/claude-haiku-4.5"),
     prompt: buildPrompt(prompt, example, outputSchema),
     system: `You process requests and return structured data using the submit_result tool.
 
 Rules:
-- Call submit_result with data matching the expected schema
-- If validation fails, read the error message carefully and retry with corrected data
+- Call submit_result exactly once with data matching the expected schema
 - The data structure must match the example provided in the prompt`,
     tools: { submit_result: submitTool },
     stopWhen: [stepCountIs(10), hasSuccessfullySubmitted],

@@ -9,7 +9,7 @@ import type { TextContent, CallToolResult } from "@modelcontextprotocol/sdk/type
 
 /**
  * Unit tests for the run tool that executes Python code in Pyodide.
- * 
+ *
  * Note: Tests using ai() function (which requires asyncio) are skipped because
  * WebAssembly stack switching is not supported in vitest worker threads.
  * These tests work fine when running the tool directly with:
@@ -32,7 +32,7 @@ describe("run tool", () => {
   beforeAll(async () => {
     server = await getServer();
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-    
+
     await server.connect(serverTransport);
 
     client = new Client({
@@ -48,10 +48,7 @@ describe("run tool", () => {
   });
 
   it("executes simple Python calculation", async () => {
-    const code = readFileSync(
-      resolve(examplesDir, "simple_calc.py"),
-      "utf-8",
-    );
+    const code = readFileSync(resolve(examplesDir, "simple_calc.py"), "utf-8");
 
     const result = await client.callTool({
       name: "run",
@@ -65,16 +62,13 @@ describe("run tool", () => {
   }, 30000);
 
   it("executes Python with pandas and numpy", async () => {
-    const code = readFileSync(
-      resolve(examplesDir, "pandas_demo.py"),
-      "utf-8",
-    );
+    const code = readFileSync(resolve(examplesDir, "pandas_demo.py"), "utf-8");
 
     const result = await client.callTool({
       name: "run",
-      arguments: { 
+      arguments: {
         code,
-        packages: { "pandas": "pandas", "numpy": "numpy" }
+        packages: { pandas: "pandas", numpy: "numpy" },
       },
     });
 
@@ -135,10 +129,7 @@ describe("run tool", () => {
   }, 30000);
 
   it("handles Python errors gracefully", async () => {
-    const code = readFileSync(
-      resolve(examplesDir, "error_example.py"),
-      "utf-8",
-    );
+    const code = readFileSync(resolve(examplesDir, "error_example.py"), "utf-8");
 
     try {
       await client.callTool({

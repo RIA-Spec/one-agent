@@ -39,10 +39,14 @@ const client = new Client({
 await client.connect(clientTransport);
 
 try {
-  const result = await client.callTool({
-    name: "run",
-    arguments: { code },
-  }, undefined, { timeout: 600_000 });
+  const result = await client.callTool(
+    {
+      name: "run",
+      arguments: { code },
+    },
+    undefined,
+    { timeout: 600_000 },
+  );
 
   if (result.content) {
     console.log(result);

@@ -186,19 +186,18 @@ const compose: ComposeDefinition = {
   deps: {
     mcpServers: {
       playwright: {
-        transportType: 'stdio',
+        transportType: "stdio",
         command: "npx",
-        args: ['-y', '@playwright/mcp@latest'],
+        args: ["-y", "@playwright/mcp@latest"],
         env: {
-          PLAYWRIGHT_MCP_HEADLESS: "0"
-        }
-      }
+          PLAYWRIGHT_MCP_HEADLESS: "0",
+        },
+      },
     },
   },
   options: {
-    mode: "agentic", refs: [
-      `<tool name="playwright.__ALL__"/>`
-    ]
+    mode: "agentic",
+    refs: [`<tool name="playwright.__ALL__"/>`],
   },
 };
 
@@ -242,8 +241,7 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
             properties: {
               code: {
                 type: "string",
-                description:
-                  "Python code to execute. MUST use print() to see results.",
+                description: "Python code to execute. MUST use print() to see results.",
               },
               packages: {
                 type: "object",
@@ -255,7 +253,10 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
             required: ["code"],
           }),
           async (
-            { code, packages }: {
+            {
+              code,
+              packages,
+            }: {
               code: string;
               packages?: Record<string, string>;
             },

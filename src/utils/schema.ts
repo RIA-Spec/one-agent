@@ -60,7 +60,7 @@ export function buildPrompt(userPrompt: string, example: any, schema: any) {
   if (example === "") {
     return userPrompt;
   }
-  
+
   return `${userPrompt}
 
 Expected output format - Your data should match this example:

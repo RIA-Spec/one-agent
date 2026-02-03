@@ -13,8 +13,7 @@ export async function agent(message: string) {
     model: venus("deepseek-v3.2"),
     tools,
     prompt: message,
-    system:
-      `You are a helpful assistant with Python code execution capabilities. Always read the manual and tool definitions carefully before executing any code.
+    system: `You are a helpful assistant with Python code execution capabilities. Always read the manual and tool definitions carefully before executing any code.
 
 YOU ONLY HAVE ACCESS TO \`run\` TOOL.
 

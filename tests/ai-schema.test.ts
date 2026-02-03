@@ -39,8 +39,7 @@ describe("Ajv validation using inferred schema", () => {
 
     const validate = ajv.compile(outputSchema);
 
-    expect(validate({ data: { a: [1], b: [2], c: [3], extra: 1 }, text: "ok" }))
-      .toBe(true);
+    expect(validate({ data: { a: [1], b: [2], c: [3], extra: 1 }, text: "ok" })).toBe(true);
     expect(validate({ data: { a: [1], b: [2] }, text: "nope" })).toBe(false);
   });
 });
