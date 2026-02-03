@@ -14,7 +14,7 @@ const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
 // Use Markdown configuration file
-const composeFile = resolve(__dirname, "..", "inside-runner.md");
+const composeFile = resolve(__dirname, "..", "one-runner.md");
 
 const DEV_MODE = true;
 
@@ -23,14 +23,14 @@ let server: Awaited<ReturnType<typeof mcpc>> | null = null;
 export async function getServer() {
   if (!server || DEV_MODE) {
     server = await mcpc(
-      [{ name: "inside", version: "1.0.0" }, { capabilities: { tools: {} } }],
+      [{ name: "one", version: "1.0.0" }, { capabilities: { tools: {} } }],
       [composeFile],
       {
         plugins: [markdownLoaderPlugin() as any],
         setup: (server) => {
           server.tool(
             "run",
-            `INSIDE Runner - Execute Python with built-in ai() function.
+            `ONE Runner - Execute Python with built-in ai() function.
 
 Features:
   • Built-in async ai(prompt, example) function for intelligent analysis

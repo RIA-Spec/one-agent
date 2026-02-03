@@ -13,7 +13,7 @@
     "url": "git+https://github.com/author/library.git"
   },
   "bin": {
-    "inside-stdio": "./dist/stdio.mjs"
+    "one-stdio": "./dist/stdio.mjs"
   },
   "files": [
     "dist"
