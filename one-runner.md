@@ -14,167 +14,129 @@ refs:
   - '<tool name="playwright.__ALL__"/>'
 ---
 
-YOU PREFER using <ai_function/> with <tool_function/> to solve complex problems with code in one shot. YOU MUST follow the <async_requirement/> and <code_style/> sections. Check <examples/> for patterns. Read <output_tips/> for efficient output.
+# API Reference
 
-<overview>
-Use ONE for:
-- Data analysis and scientific computing (pandas, numpy)
-- Machine learning experiments (scikit-learn)
-- Mathematical calculations and statistics
-- Text processing and NLP tasks
-- Algorithm validation and prototyping
-</overview>
+## ai(prompt, example) -> {data, error}
 
-<ai_function>
-Built-in ai(prompt, example) Function:
-Call LLM for intelligent data processing and structured decision-making:
-• Summarizing information and extracting key insights
-• Making data-driven decisions and recommendations  
- • Structuring unstructured data into organized formats
-• Generating efficient, context-aware responses
-• Returning structured data (booleans, arrays, objects) for code logic
+Call LLM for structured data extraction and decision-making.
 
-Return Value:
-ai() returns an object with:
-• data: Any structured data - booleans, arrays, objects, numbers, etc.
-• error: Error message if validation fails, null otherwise
+**Parameters:**
 
-The AI validates returned data against the shape inferred from your example.
-</ai_function>
+- `prompt` (str): What you want the AI to do
+- `example`: Expected output shape - AI returns data matching this structure
 
-<tool_function>
-Built-in tool(name, args) Function:
-Call MCP server tools for extended capabilities:
-• Browser automation (Playwright - navigate, click, scrape)
-• File operations (read, write, search files)
-• API calls and web requests
-• Database queries and operations
-• Combine with ai() for intelligent data processing
+**Returns:**
 
-Parameters:
-• name: Tool name (str)
-• args: Tool arguments (use man to understand schema)
+- `data`: Structured result (bool, array, object, number, string)
+- `error`: Error message if validation fails, null otherwise
 
-Return Value:
-tool() returns an object with:
-• content: Array of content blocks (text, images, resources)
-• isError: Boolean indicating execution failure (optional)
+**Use Cases:**
 
-IMPORTANT: tool() is ASYNC and MUST be called with await inside async function!
-</tool_function>
+- Boolean decisions: `await ai('Should we alert?', True)`
+- Array extraction: `await ai('List top 3 items', ['item1'])`
+- Object structuring: `await ai('Categorize data', {'cat1': [], 'cat2': []})`
+- Batch analysis: `await ai('Analyze all items', [{'item': '', 'summary': ''}])`
 
-<async_requirement>
-IMPORTANT - Async Function Requirement:
-ai() is an ASYNC function and MUST be called inside an async function with asyncio:
+## tool(name, args) -> {content, isError}
 
+Call MCP server tools for external interactions.
+
+**Parameters:**
+
+- `name` (str): Tool name (e.g., 'playwright_browser_navigate')
+- `args` (dict): Tool-specific arguments
+
+**Returns:**
+
+- `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
+- `isError`: Boolean indicating failure (optional)
+
+**Available Tools:** Check Playwright tools for browser automation (navigate, click, type, snapshot, screenshot).
+
+# Async Pattern (REQUIRED)
+
+```python
 import asyncio
 
 async def main():
-result = await ai('Summarize in 1 sentence: Python is a programming language.', '')
-print(result['data'])
+    result = await ai('prompt', example)
+    data = await tool('tool_name', {'arg': 'value'})
+    print(result['data'])
 
 asyncio.run(main())
+```
 
-DO NOT use await directly in module-level code - it will cause "SyntaxError: 'await' outside function"!
-</async_requirement>
+**NEVER** use `await` at module level - causes SyntaxError!
 
-<output_tips>
-Output Tips - Token Friendly:
-Print concise summaries, not raw data dumps. Keep it meaningful and compact.
-BAD: print(df) -> GOOD: print(f"{len(df)} rows, mean: {df['col'].mean():.2f}")
-</output_tips>
+# Examples
 
-<code_style>
-Code Style - Maximum Efficiency:
-For best token efficiency and generation speed:
-• No comments - code should be self-explanatory
-• Short variable names (df, arr, res, etc.)
-• Minimal code - only what's needed
-• Direct execution - no unnecessary abstractions
-</code_style>
+## 1. Batch Analysis (PREFERRED - one ai() call)
 
-<code_ai_combination>
-Code + AI + Tools Combination:
-Combine Python code, ai(), and tool() for powerful dynamic workflows:
-• Process data with code → AI summarizes findings
-• AI returns booleans/flags → Code makes conditional decisions
-• AI extracts structured arrays → Code iterates and processes
-• AI generates objects → Code uses for further computation
-• tool() fetches external data → AI analyzes → Code acts on results
-• Create adaptive workflows with intelligent branching logic
-• Chain multiple tool calls with AI-driven decision making
-</code_ai_combination>
-
-<examples>
-Complete Working Examples:
-
-1. Boolean Decision:
-   import asyncio
+```python
+import asyncio
 
 async def main():
-total_errors = 12
-threshold = 10
-result = await ai(f'Should we alert? total_errors={total_errors}, threshold={threshold}. Return true/false.', True)
-if result['data']:
-print('Alert triggered')
+    news = ['News A', 'News B', 'News C']
+    result = await ai(
+        f'Analyze each news item and overall trend: {news}',
+        {
+            'analyses': [{'title': 'News A', 'summary': 'brief analysis'}],
+            'trend': 'overall trend summary'
+        }
+    )
+    for item in result['data']['analyses']:
+        print(f"{item['title']}: {item['summary']}")
+    print(f"Trend: {result['data']['trend']}")
 
 asyncio.run(main())
+```
 
-2. Array Extraction:
-   import asyncio
-   import pandas as pd
+## 2. Boolean Decision
+
+```python
+import asyncio
 
 async def main():
-df = pd.read_csv('/data/sales.csv')
-result = await ai('Return the column names as an array: ' + str(list(df.columns)), ['col'])
-for product in result['data']:
-print(f'Column: {product}')
+    errors, threshold = 12, 10
+    result = await ai(f'Should alert? errors={errors}, threshold={threshold}', True)
+    if result['data']:
+        print('Alert triggered')
 
 asyncio.run(main())
+```
 
-3. Structured Object:
-   import asyncio
+## 3. Browser Automation with AI Analysis
+
+```python
+import asyncio
 
 async def main():
-items = [
-'coffee $4',
-'bus ticket $2.5',
-'sandwich $8',
-'movie ticket $15'
-]
-result = await ai(
-'Categorize these expenses into food/transport/other as 3 arrays: ' + str(items),
-{'food': ['coffee $4'], 'transport': ['bus ticket $2.5'], 'other': ['movie ticket $15']}
-)
-print(result['data'])
+    await tool('playwright_browser_navigate', {'url': 'https://example.com'})
+    snapshot = await tool('playwright_browser_snapshot', {})
+    page_content = snapshot['content'][0]['text']
+
+    result = await ai(
+        f'Extract all links and categorize: {page_content[:2000]}',
+        {'nav_links': ['link1'], 'content_links': ['link2'], 'external_links': ['link3']}
+    )
+    print(result['data'])
 
 asyncio.run(main())
+```
 
-4. Using tool() Function:
-   import asyncio
+## 4. Error Handling
+
+```python
+import asyncio
 
 async def main():
-
-# Call an MCP tool (example with filesystem tool)
-
-result = await tool('read_file', {'path': '/data/report.txt'})
-content = result['content'][0]['text']
-print(f'File content: {content[:100]}...')
-
-asyncio.run(main())
-
-5. Combining tool() and ai():
-   import asyncio
-
-async def main():
-
-# Fetch data with tool, analyze with AI
-
-data = await tool('fetch', {'url': 'https://api.example.com/data'})
-raw = data['content'][0]['text']
-
-summary = await ai(f'Summarize key points: {raw[:500]}', '')
-print(f'Summary: {summary["data"]}')
+    result = await ai('Extract data', {'items': []})
+    if result['error']:
+        print(f"Error: {result['error']}")
+    elif result['data'] is None:
+        print('No data returned')
+    else:
+        print(result['data'])
 
 asyncio.run(main())
-</examples>
+```
