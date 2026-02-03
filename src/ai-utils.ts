@@ -56,20 +56,10 @@ export function exampleToJsonSchema(example: any): any {
 }
 
 export function buildPrompt(userPrompt: string, example: any, schema: any) {
-  return `Use the \`submit_result\` tool to return the final answer.
+  return `${userPrompt}
 
-Tool payload requirements:
-- \`data\`: MUST validate against the JSON Schema below
-- \`text\`: short explanation string
-
-Example instance (shape to match):
-${JSON.stringify(example)}
-
-JSON Schema (\`data\` must validate against this):
-${JSON.stringify(schema)}
-
-User request:
-${userPrompt}`;
+Expected output format - your data.value should match this example:
+${JSON.stringify(example, null, 2)}`;
 }
 
 export function errorsTextFromAjv(validateErrors: any) {

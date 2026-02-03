@@ -2,9 +2,15 @@ import { jsonSchema } from 'ai';
 import { mcpc } from '@mcpc-tech/core';
 import type { ComposeDefinition } from '@mcpc-tech/core';
 import { runPy, getPythonPrompt } from '@mcpc/code-runner-mcp';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+import { ai } from './ai';
 
-const nodeFSRoot = '/Users/beet/Downloads'
-const nodeFSMountPoint = '/data';
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const projectRoot = resolve(__dirname, '..');
+
+const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
+const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
 const DESCRIPTION = `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
@@ -131,11 +137,11 @@ const compose: ComposeDefinition = {
   manual: MANUAL,
   deps: {
     mcpServers: {
-      playwright: {
-        transportType: 'stdio',
-        command: "npx",
-        args: ['-y', '@playwright/mcp@latest']
-      }
+      // playwright: {
+      //   transportType: 'stdio',
+      //   command: "npx",
+      //   args: ['-y', '@playwright/mcp@latest']
+      // }
     }
   },
   options: { mode: "agentic", refs: [] },
@@ -159,7 +165,7 @@ Features:
   • Built-in async ai(prompt, example) function for intelligent analysis
   • Returns structured data: booleans, arrays, objects for dynamic decisions
   • Combine code computation with AI intelligence
-  • File system access at /data (maps to ${nodeFSRoot})
+  • File system access at ${nodeFSMountPoint} (maps to ${nodeFSRoot})
 
 CRITICAL: ai() MUST be used inside async function with asyncio.run():
 
@@ -192,7 +198,6 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
             required: ['code']
           }),
           async ({ code, packages }: { code: string, packages?: Record<string, string> }, extra) => {
-            const { ai } = await import('./ai.js');
             const stream = await runPy(code, {
               handlers: { ai },
               packages,

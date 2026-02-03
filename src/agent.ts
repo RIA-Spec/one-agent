@@ -1,7 +1,7 @@
 import { streamText, stepCountIs, jsonSchema, tool } from 'ai';
 import { getServer } from './tools';
 import { convertToAISDKTools } from '@mcpc-tech/core'
-import { venus } from './model';
+import { venus, vercel } from './model';
 
 export async function agent(message: string) {
   const tools = convertToAISDKTools((await getServer()), {
@@ -10,7 +10,7 @@ export async function agent(message: string) {
   })
 
   const result = streamText({
-    model: venus("minimax-m2"),
+    model: vercel("anthropic/claude-sonnet-4.5"),
     tools,
     prompt: message,
     system: `You are a helpful assistant with Python code execution capabilities. Always read the manual and tool definitions carefully before executing any code.`,
