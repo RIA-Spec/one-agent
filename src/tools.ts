@@ -4,7 +4,8 @@ import type { ComposeDefinition } from "@mcpc-tech/core";
 import { getPythonPrompt, runPy } from "@mcpc/code-runner-mcp";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { ai } from "./ai";
+import { ai } from "./functions/ai";
+import { getToolFn } from "./functions/tool";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -12,11 +13,11 @@ const projectRoot = resolve(__dirname, "..");
 const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
-const DESCRIPTION =
-  `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
+// const DESCRIPTION =
+//   `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
 const MANUAL = `
-YOU PREFER using <ai_function/> to solve complex problems with code in one shot. YOU MUST follow the <async_requirement/> and <code_style/> sections. Check <examples/> for patterns. Read <output_tips/> for efficient output.
+YOU PREFER using <ai_function/> with <tool_function/> to solve complex problems with code in one shot. YOU MUST follow the <async_requirement/> and <code_style/> sections. Check <examples/> for patterns. Read <output_tips/> for efficient output.
 
 <overview>
 Use INSIDE for:
@@ -43,6 +44,27 @@ ai() returns an object with:
 
 The AI validates returned data against the shape inferred from your example.
 </ai_function>
+
+<tool_function>
+Built-in tool(name, args) Function:
+Call MCP server tools for extended capabilities:
+  • Browser automation (Playwright - navigate, click, scrape)
+  • File operations (read, write, search files)
+  • API calls and web requests
+  • Database queries and operations
+  • Combine with ai() for intelligent data processing
+
+Parameters:
+  • name: Tool name (str)
+  • args: Tool arguments (use man to understand schema)
+
+Return Value:
+tool() returns an object with:
+  • content: Array of content blocks (text, images, resources)
+  • isError: Boolean indicating execution failure (optional)
+
+IMPORTANT: tool() is ASYNC and MUST be called with await inside async function!
+</tool_function>
 
 <async_requirement>
 IMPORTANT - Async Function Requirement:
@@ -75,13 +97,15 @@ For best token efficiency and generation speed:
 </code_style>
 
 <code_ai_combination>
-Code + AI Combination:
-Combine Python code with ai() for powerful dynamic workflows:
+Code + AI + Tools Combination:
+Combine Python code, ai(), and tool() for powerful dynamic workflows:
   • Process data with code → AI summarizes findings
   • AI returns booleans/flags → Code makes conditional decisions
   • AI extracts structured arrays → Code iterates and processes
   • AI generates objects → Code uses for further computation
+  • tool() fetches external data → AI analyzes → Code acts on results
   • Create adaptive workflows with intelligent branching logic
+  • Chain multiple tool calls with AI-driven decision making
 </code_ai_combination>
 
 <examples>
@@ -128,6 +152,30 @@ async def main():
   print(result['data'])
 
 asyncio.run(main())
+
+4. Using tool() Function:
+import asyncio
+
+async def main():
+  # Call an MCP tool (example with filesystem tool)
+  result = await tool('read_file', {'path': '/data/report.txt'})
+  content = result['content'][0]['text']
+  print(f'File content: {content[:100]}...')
+
+asyncio.run(main())
+
+5. Combining tool() and ai():
+import asyncio
+
+async def main():
+  # Fetch data with tool, analyze with AI
+  data = await tool('fetch', {'url': 'https://api.example.com/data'})
+  raw = data['content'][0]['text']
+  
+  summary = await ai(f'Summarize key points: {raw[:500]}', '')
+  print(f'Summary: {summary["data"]}')
+
+asyncio.run(main())
 </examples>`;
 
 const compose: ComposeDefinition = {
@@ -137,14 +185,21 @@ const compose: ComposeDefinition = {
   description: MANUAL,
   deps: {
     mcpServers: {
-      // playwright: {
-      //   transportType: 'stdio',
-      //   command: "npx",
-      //   args: ['-y', '@playwright/mcp@latest']
-      // }
+      playwright: {
+        transportType: 'stdio',
+        command: "npx",
+        args: ['-y', '@playwright/mcp@latest'],
+        env: {
+          PLAYWRIGHT_MCP_HEADLESS: "0"
+        }
+      }
     },
   },
-  options: { mode: "agentic", refs: [] },
+  options: {
+    mode: "agentic", refs: [
+      `<tool name="playwright.__ALL__"/>`
+    ]
+  },
 };
 
 const DEV_MODE = true;
@@ -207,7 +262,7 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
             extra,
           ) => {
             const stream = await runPy(code, {
-              handlers: { ai },
+              handlers: { ai, tool: getToolFn(server) },
               packages,
               nodeFSRoot,
               nodeFSMountPoint,

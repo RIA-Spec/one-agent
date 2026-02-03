@@ -31,7 +31,8 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
-    "test": "vitest",
+    "test": "DEBUG=1 node --experimental-wasm-stack-switching ./node_modules/vitest/vitest.mjs",
+    "run-py": "DEBUG=1 tsx --experimental-wasm-stack-switching --env-file=.env scripts/run-py.ts",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "pnpm run build"
   },
@@ -39,6 +40,7 @@
     "@types/node": "^25.0.3",
     "bumpp": "^10.3.2",
     "tsdown": "^0.18.1",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   },

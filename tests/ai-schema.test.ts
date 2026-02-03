@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import Ajv from "ajv";
-import { exampleToJsonSchema } from "../src/ai-utils.js";
+import { exampleToJsonSchema } from "../src/utils/schema.js";
 
 describe("exampleToJsonSchema", () => {
   it("infers booleans", () => {

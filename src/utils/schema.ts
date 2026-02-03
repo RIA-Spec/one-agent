@@ -56,10 +56,17 @@ export function exampleToJsonSchema(example: any): any {
 }
 
 export function buildPrompt(userPrompt: string, example: any, schema: any) {
+  // empty string misleads LLM
+  if (example === "") {
+    return userPrompt;
+  }
+  
   return `${userPrompt}
 
-Expected output format - your data should match this example:
-${JSON.stringify(example, null, 2)}`;
+Expected output format - Your data should match this example:
+${JSON.stringify(example, null, 2)}
+
+Schema: ${JSON.stringify(schema, null, 2)}`;
 }
 
 export function errorsTextFromAjv(validateErrors: any) {

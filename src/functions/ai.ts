@@ -5,14 +5,14 @@ import {
   streamText,
   tool,
 } from "ai";
-import { venus, vercel } from "./model.js";
+import { venus, vercel } from "../model.js";
 import {
   type AIResult,
   buildPrompt,
   compileAiResultValidator,
   errorsTextFromAjv,
   exampleToJsonSchema,
-} from "./ai-utils.js";
+} from "../utils/schema.js";
 import { writeFileSync } from "node:fs";
 
 const isDebugMode = process.env.DEBUG === "1";
@@ -63,13 +63,14 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
   };
 
   const result = streamText({
-    model: vercel("anthropic/claude-haiku-4.5"),
+    model: venus("deepseek-v3.2"),
     prompt: buildPrompt(prompt, example, outputSchema),
     system:
       `You process requests and return structured data using the submit_result tool.
 
 Rules:
-- Call submit_result exactly once with data matching the expected schema
+- Call submit_result with data matching the expected schema
+- If validation fails, read the error message carefully and retry with corrected data
 - The data structure must match the example provided in the prompt`,
     tools: { submit_result: submitTool },
     stopWhen: [
@@ -99,7 +100,7 @@ Rules:
         ? ` Last validation error: ${lastValidationError}.`
         : "") +
       (text ? ` Raw output: ${text}.` : "" +
-          toolCalls
+        toolCalls
         ? `Tool calls: ${(toolCalls.map((t) => t.toolName)).join(", ")}`
         : ""),
   };

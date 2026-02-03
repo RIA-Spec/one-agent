@@ -10,11 +10,17 @@ export async function agent(message: string) {
   });
 
   const result = streamText({
-    model: vercel("anthropic/claude-sonnet-4.5"),
+    model: venus("deepseek-v3.2"),
     tools,
     prompt: message,
     system:
-      `You are a helpful assistant with Python code execution capabilities. Always read the manual and tool definitions carefully before executing any code.`,
+      `You are a helpful assistant with Python code execution capabilities. Always read the manual and tool definitions carefully before executing any code.
+
+YOU ONLY HAVE ACCESS TO \`run\` TOOL.
+
+In your Python code, you can and prefer dynamically use:
+- tool(name, args) - to call MCP tools and interact with external services
+- ai(prompt, example) - to get structured output with schema validation`,
     stopWhen: stepCountIs(101),
     onError: (e) => {
       console.log("An error occurred during streaming.", e);
