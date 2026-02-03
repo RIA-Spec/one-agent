@@ -1,5 +1,5 @@
-import * as readline from 'node:readline';
-import { agent } from './agent.js';
+import * as readline from "node:readline";
+import { agent } from "./agent.js";
 
 const rl = readline.createInterface({
   input: process.stdin,
@@ -15,14 +15,14 @@ function prompt(question: string): Promise<string> {
 }
 
 async function main() {
-  console.log('INSIDE');
+  console.log("INSIDE");
   console.log('Type your prompts below. Type "exit" to quit.\n');
 
   while (true) {
-    const userInput = await prompt('You: ');
+    const userInput = await prompt("You: ");
 
-    if (userInput.toLowerCase() === 'exit') {
-      console.log('Goodbye!');
+    if (userInput.toLowerCase() === "exit") {
+      console.log("Goodbye!");
       rl.close();
       break;
     }
@@ -32,11 +32,11 @@ async function main() {
     }
 
     try {
-      console.log('\nAgent: ');
+      console.log("\nAgent: ");
       await agent(userInput);
       console.log();
     } catch (error) {
-      console.error('Error:', error instanceof Error ? error.message : error);
+      console.error("Error:", error instanceof Error ? error.message : error);
     }
   }
 }

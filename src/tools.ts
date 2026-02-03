@@ -1,18 +1,19 @@
-import { jsonSchema } from 'ai';
-import { mcpc } from '@mcpc-tech/core';
-import type { ComposeDefinition } from '@mcpc-tech/core';
-import { runPy, getPythonPrompt } from '@mcpc/code-runner-mcp';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
-import { ai } from './ai';
+import { jsonSchema } from "ai";
+import { mcpc } from "@mcpc-tech/core";
+import type { ComposeDefinition } from "@mcpc-tech/core";
+import { getPythonPrompt, runPy } from "@mcpc/code-runner-mcp";
+import { fileURLToPath } from "node:url";
+import { dirname, resolve } from "node:path";
+import { ai } from "./ai";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const projectRoot = resolve(__dirname, '..');
+const projectRoot = resolve(__dirname, "..");
 
 const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
-const DESCRIPTION = `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
+const DESCRIPTION =
+  `INSIDE - Use run() to execute Python code in a secure Pyodide sandbox with built-in ai() async function for intelligent data processing, analysis, and structured decision-making.`;
 
 const MANUAL = `
 YOU PREFER using <ai_function/> to solve complex problems with code in one shot. YOU MUST follow the <async_requirement/> and <code_style/> sections. Check <examples/> for patterns. Read <output_tips/> for efficient output.
@@ -38,7 +39,7 @@ Call LLM for intelligent data processing and structured decision-making:
 Return Value:
 ai() returns an object with:
   • data: Any structured data - booleans, arrays, objects, numbers, etc.
-  • text: Context-aware text response or explanation
+  • error: Error message if validation fails, null otherwise
 
 The AI validates returned data against the shape inferred from your example.
 </ai_function>
@@ -60,7 +61,7 @@ DO NOT use await directly in module-level code - it will cause "SyntaxError: 'aw
 
 <output_tips>
 Output Tips - Token Friendly:
-Print concise summaries, not raw data dumps. Like ai() text field - keep it meaningful and compact.
+Print concise summaries, not raw data dumps. Keep it meaningful and compact.
   BAD: print(df) -> GOOD: print(f"{len(df)} rows, mean: {df['col'].mean():.2f}")
 </output_tips>
 
@@ -95,7 +96,6 @@ async def main():
   result = await ai(f'Should we alert? total_errors={total_errors}, threshold={threshold}. Return true/false.', True)
   if result['data']:
     print('Alert triggered')
-  print(result['text'])
 
 asyncio.run(main())
 
@@ -126,15 +126,15 @@ async def main():
     {'food': ['coffee $4'], 'transport': ['bus ticket $2.5'], 'other': ['movie ticket $15']}
   )
   print(result['data'])
-  print(result['text'])
 
 asyncio.run(main())
 </examples>`;
 
 const compose: ComposeDefinition = {
   name: "inside-runner",
-  description: DESCRIPTION,
-  manual: MANUAL,
+  // description: DESCRIPTION,
+  // manual: MANUAL,
+  description: MANUAL,
   deps: {
     mcpServers: {
       // playwright: {
@@ -142,7 +142,7 @@ const compose: ComposeDefinition = {
       //   command: "npx",
       //   args: ['-y', '@playwright/mcp@latest']
       // }
-    }
+    },
   },
   options: { mode: "agentic", refs: [] },
 };
@@ -163,7 +163,7 @@ export async function getServer() {
 
 Features:
   • Built-in async ai(prompt, example) function for intelligent analysis
-  • Returns structured data: booleans, arrays, objects for dynamic decisions
+  • Returns {data, error} with structured data (booleans, arrays, objects) for dynamic decisions
   • Combine code computation with AI intelligence
   • File system access at ${nodeFSMountPoint} (maps to ${nodeFSRoot})
 
@@ -183,21 +183,29 @@ See manual for complete examples.
 ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
 `,
           jsonSchema({
-            type: 'object',
+            type: "object",
             properties: {
               code: {
-                type: 'string',
-                description: 'Python code to execute. MUST use print() to see results.',
+                type: "string",
+                description:
+                  "Python code to execute. MUST use print() to see results.",
               },
               packages: {
-                type: 'object',
-                additionalProperties: { type: 'string' },
-                description: 'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
+                type: "object",
+                additionalProperties: { type: "string" },
+                description:
+                  'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
               },
             },
-            required: ['code']
+            required: ["code"],
           }),
-          async ({ code, packages }: { code: string, packages?: Record<string, string> }, extra) => {
+          async (
+            { code, packages }: {
+              code: string;
+              packages?: Record<string, string>;
+            },
+            extra,
+          ) => {
             const stream = await runPy(code, {
               handlers: { ai },
               packages,
@@ -213,9 +221,9 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
               content: [{ type: "text", text: output || "(no output)" }],
             };
           },
-          { internal: true }
+          { internal: true },
         );
-      }
+      },
     );
   }
   return server;

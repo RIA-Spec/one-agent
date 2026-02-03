@@ -5,7 +5,7 @@ An AI agent with Python code execution capabilities using MCP.
 ## Usage
 
 ```typescript
-import { agent } from './src/agent';
+import { agent } from "./src/agent";
 
 await agent("Calculate fibonacci sequence up to 100");
 ```
