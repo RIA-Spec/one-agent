@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ai } from "./functions/ai";
 import { getToolFn } from "./functions/tool";
+import { createBashTool } from "./tools/bash.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -96,6 +97,10 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
             },
             { internal: true },
           );
+
+          // Register bash tool
+          const bashTool = createBashTool(nodeFSRoot);
+          server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute);
         },
       },
     );

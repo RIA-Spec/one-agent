@@ -1,6 +1,6 @@
 ---
 name: one-runner
-description: ONE - Python code runner with built-in ai() and tool() functions for intelligent data processing
+# description: ONE - Python code runner with built-in ai() and tool() functions for intelligent data processing
 mode: agentic
 deps:
   mcpServers:
@@ -51,7 +51,13 @@ Call MCP server tools for external interactions.
 - `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
 - `isError`: Boolean indicating failure (optional)
 
-**Available Tools:** Check Playwright tools for browser automation (navigate, click, type, snapshot, screenshot).
+**Available Tools:** bash (shell commands), Playwright tools (browser automation).
+
+# Environment Constraints
+
+- Python runs in WebAssembly sandbox (Pyodide)
+- No subprocess support (use `bash` tool for shell commands)
+- Both Python file I/O and bash work for file operations
 
 # Async Pattern (REQUIRED)
 
