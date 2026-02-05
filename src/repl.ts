@@ -1,5 +1,9 @@
 import * as readline from "node:readline";
 import { agent } from "./agent.js";
+import { startTracing } from "./tracing.js";
+
+// Initialize OpenTelemetry tracing
+startTracing();
 
 const rl = readline.createInterface({
   input: process.stdin,

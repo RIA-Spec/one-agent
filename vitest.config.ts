@@ -5,5 +5,6 @@ export default defineConfig({
     pool: "forks",
     execArgv: ["--experimental-wasm-stack-switching"],
     testTimeout: 60000,
+    setupFiles: ["./tests/setup.ts"],
   },
 });

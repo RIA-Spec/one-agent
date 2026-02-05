@@ -7,8 +7,7 @@ import {
   errorsTextFromAjv,
   exampleToJsonSchema,
 } from "./utils/schema.js";
-import { writeFileSync } from "node:fs";
-import { isDebugMode } from "./utils/env.js";
+import { getTracer } from "./tracing.js";
 
 const submitToolName = "submit_result";
 
@@ -53,6 +52,15 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
   const result = streamText({
     model: vercel("anthropic/claude-haiku-4.5"),
     prompt: buildPrompt(prompt, example, outputSchema),
+    experimental_telemetry: {
+      isEnabled: true,
+      functionId: "ai.streamText",
+      tracer: getTracer("one-agent-aer"),
+      metadata: {
+        functionType: "ai",
+        modelProvider: "anthropic",
+      },
+    },
     system: `You process requests and return structured data using the ${submitToolName} tool.
 
 Rules:
@@ -66,13 +74,6 @@ Rules:
   const text = await result.text;
   const toolCalls = await result.toolCalls;
   const finishReason = await result.finishReason;
-
-  if (isDebugMode) {
-    writeFileSync(
-      `/tmp/ai-debug-output-${Date.now()}.json`,
-      JSON.stringify({ steps: await result.steps, example }, null, 2),
-    );
-  }
 
   if (structuredOutput) return structuredOutput;
 

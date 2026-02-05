@@ -2,6 +2,7 @@ import type { ComposableMCPServer } from "@mcpc-tech/core";
 import { jsonSchema, streamText } from "ai";
 import { tool as aiTool } from "ai";
 import { venus } from "../model";
+import { getTracer } from "../tracing";
 
 export function getToolFn(server: ComposableMCPServer) {
   const tool = (name: string, args: any) => {
@@ -27,6 +28,16 @@ export function getToolFnNext(server: ComposableMCPServer) {
     const result = streamText({
       model: venus("deepseek-v3.2"),
       prompt,
+      experimental_telemetry: {
+        isEnabled: true,
+        functionId: "functions.tool.streamText",
+        tracer: getTracer("one-agent-aer-ai"),
+        metadata: {
+          functionType: "tool-invocation",
+          modelProvider: "deepseek",
+          toolName: name,
+        },
+      },
       tools,
       toolChoice: { type: "tool", toolName: name },
     });

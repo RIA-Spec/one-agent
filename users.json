@@ -1,0 +1,8 @@
+{
+  "users": [
+    { "name": "Alice", "age": 25, "score": 85 },
+    { "name": "Bob", "age": 30, "score": 92 },
+    { "name": "Charlie", "age": -35, "score": 78 },
+    { "name": "Diana", "age": 28, "score": 95 }
+  ]
+}

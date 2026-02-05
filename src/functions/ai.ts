@@ -7,9 +7,7 @@ import {
   errorsTextFromAjv,
   exampleToJsonSchema,
 } from "../utils/schema.js";
-import { writeFileSync } from "node:fs";
-
-const isDebugMode = process.env.DEBUG === "1";
+import { getTracer } from "../tracing.js";
 
 export async function ai(prompt: string, example: any): Promise<AIResult> {
   const { validate, outputSchema } = compileAiResultValidator(example);
@@ -54,6 +52,15 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
   const result = streamText({
     model: venus("deepseek-v3.2"),
     prompt: buildPrompt(prompt, example, outputSchema),
+    experimental_telemetry: {
+      isEnabled: true,
+      functionId: "functions.ai.streamText",
+      tracer: getTracer("one-agent-aer-ai"),
+      metadata: {
+        functionType: "structured-output",
+        modelProvider: "deepseek",
+      },
+    },
     system: `You process requests and return structured data using the submit_result tool.
 
 Rules:
@@ -67,13 +74,6 @@ Rules:
   const text = await result.text;
   const toolCalls = await result.toolCalls;
   const finishReason = await result.finishReason;
-
-  if (isDebugMode) {
-    writeFileSync(
-      `/tmp/ai-debug-output-${Date.now()}.json`,
-      JSON.stringify({ steps: await result.steps, example }, null, 2),
-    );
-  }
 
   if (structuredOutput) return structuredOutput;
 

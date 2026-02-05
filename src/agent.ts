@@ -2,8 +2,7 @@ import { jsonSchema, stepCountIs, streamText, tool } from "ai";
 import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { venus, vercel } from "./model";
-import { writeFileSync } from "node:fs";
-import { isDebugMode } from "./utils/env";
+import { getTracer } from "./tracing";
 
 export async function agent(message: string) {
   const tools = convertToAISDKTools(await getServer(), {
@@ -15,6 +14,15 @@ export async function agent(message: string) {
     model: venus("deepseek-v3.2"),
     tools,
     prompt: message,
+    experimental_telemetry: {
+      isEnabled: true,
+      functionId: "agent.streamText",
+      tracer: getTracer("one-agent"),
+      metadata: {
+        agentType: "one-runner",
+        modelProvider: "deepseek",
+      },
+    },
     system: `You are ONE - Python code runner with built-in ai() and tool() functions.
 
 <rules>
@@ -105,13 +113,6 @@ tool(name, args) -> {'content': [{type: 'text', text: '...'}], 'isError': bool}
         console.error(`[Error]: ${chunk.error}`);
         break;
     }
-  }
-
-  if (isDebugMode) {
-    writeFileSync(
-      `/tmp/ai-debug-output-${Date.now()}.json`,
-      JSON.stringify({ steps: await result.steps }, null, 2),
-    );
   }
 
   console.log("\n");
