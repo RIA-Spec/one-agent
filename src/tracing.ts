@@ -1,3 +1,4 @@
+import chalk from "chalk";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
@@ -30,10 +31,10 @@ const sdk = new NodeSDK({
 export function startTracing() {
   try {
     sdk.start();
-    console.log(`🔍 OpenTelemetry tracing started for service: ${serviceName}`);
-    console.log(`📊 Exporting traces to SigNoz: ${sigNozEndpoint}`);
+    console.log(chalk.cyan(`OpenTelemetry tracing started for service: ${serviceName}`));
+    console.log(chalk.cyan(`Exporting traces to SigNoz: ${sigNozEndpoint}`));
   } catch (error) {
-    console.error("Error starting OpenTelemetry SDK:", error);
+    console.error(chalk.red("Error starting OpenTelemetry SDK:"), error);
   }
 }
 
@@ -41,8 +42,8 @@ export function startTracing() {
 process.on("SIGTERM", () => {
   sdk
     .shutdown()
-    .then(() => console.log("🛑 OpenTelemetry SDK shut down successfully"))
-    .catch((error) => console.error("Error shutting down OpenTelemetry SDK:", error))
+    .then(() => console.log(chalk.green("OpenTelemetry SDK shut down successfully")))
+    .catch((error) => console.error(chalk.red("Error shutting down OpenTelemetry SDK:"), error))
     .finally(() => process.exit(0));
 });
 

@@ -37,19 +37,21 @@ Call LLM for structured data extraction and decision-making.
 - Object structuring: `await ai('Categorize data', {'cat1': [], 'cat2': []})`
 - Batch analysis: `await ai('Analyze all items', [{'item': '', 'summary': ''}])`
 
-## tool(name, args) -> {content, isError}
+## tool(name, prompt) -> {content, isError}
 
-Call MCP server tools for external interactions.
+Call MCP server tools with AI-powered parameter inference.
 
 **Parameters:**
 
 - `name` (str): Tool name (e.g., 'playwright_browser_navigate')
-- `args` (dict): Tool-specific arguments
+- `prompt` (str): Natural language description of what you want the tool to do
 
 **Returns:**
 
 - `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
 - `isError`: Boolean indicating failure (optional)
+
+**How it works:** AI automatically infers the required tool parameters from your prompt and executes the tool.
 
 **Available Tools:** bash (shell commands), Playwright tools (browser automation).
 
@@ -66,7 +68,7 @@ import asyncio
 
 async def main():
     result = await ai('prompt', example)
-    data = await tool('tool_name', {'arg': 'value'})
+    data = await tool('tool_name', 'description of what to do')
     print(result['data'])
 
 asyncio.run(main())
@@ -117,8 +119,8 @@ asyncio.run(main())
 import asyncio
 
 async def main():
-    await tool('playwright_browser_navigate', {'url': 'https://example.com'})
-    snapshot = await tool('playwright_browser_snapshot', {})
+    await tool('playwright_browser_navigate', 'Navigate to https://example.com')
+    snapshot = await tool('playwright_browser_snapshot', 'Take a snapshot of the current page')
     page_content = snapshot['content'][0]['text']
 
     result = await ai(

@@ -6,13 +6,6 @@ import { getTracer } from "../tracing";
 import { processStream } from "../utils/stream";
 
 export function getToolFn(server: ComposableMCPServer) {
-  const tool = (name: string, args: any) => {
-    return server.callTool(name, args);
-  };
-  return tool;
-}
-
-export function getToolFnNext(server: ComposableMCPServer) {
   const tool = async (name: string, prompt: string) => {
     const toolDef = server.getComposedTool(name);
     const tools = {

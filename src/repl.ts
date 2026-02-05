@@ -1,4 +1,5 @@
 import * as readline from "node:readline";
+import chalk from "chalk";
 import { agent } from "./agent.js";
 import { startTracing } from "./tracing.js";
 
@@ -19,14 +20,14 @@ function prompt(question: string): Promise<string> {
 }
 
 async function main() {
-  console.log("ONE (NEXT Mode - AI-inferred parameters)");
-  console.log('Type your prompts below. Type "exit" to quit.\n');
+  console.log(chalk.cyan.bold("ONE (NEXT Mode - AI-inferred parameters)"));
+  console.log(chalk.gray('Type your prompts below. Type "exit" to quit.\n'));
 
   while (true) {
     const userInput = await prompt("You: ");
 
     if (userInput.toLowerCase() === "exit") {
-      console.log("Goodbye!");
+      console.log(chalk.green("Goodbye!"));
       rl.close();
       break;
     }
@@ -36,11 +37,11 @@ async function main() {
     }
 
     try {
-      console.log("\nAgent: ");
+      console.log(chalk.blue.bold("\nAgent: "));
       await agent(userInput);
       console.log();
     } catch (error) {
-      console.error("Error:", error instanceof Error ? error.message : error);
+      console.error(chalk.red.bold("Error:"), error instanceof Error ? error.message : error);
     }
   }
 }

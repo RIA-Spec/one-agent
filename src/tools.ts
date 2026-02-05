@@ -5,7 +5,7 @@ import { markdownLoaderPlugin } from "@mcpc/plugin-markdown-loader";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { ai } from "./functions/ai";
-import { getToolFn, getToolFnNext } from "./functions/tool";
+import { getToolFn } from "./functions/tool";
 import { createBashTool } from "./tools/bash.js";
 import { writeFileSync } from "node:fs";
 
@@ -16,7 +16,7 @@ const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
 // Use Markdown configuration file
-const composeFile = resolve(__dirname, "..", "one-runner-next.md");
+const composeFile = resolve(__dirname, "..", "one-runner.md");
 
 const DEV_MODE = true;
 
@@ -85,8 +85,7 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
               const stream = await runPy(code, {
                 handlers: {
                   ai,
-                  // tool: getToolFn(server)
-                  tool: getToolFnNext(server),
+                  tool: getToolFn(server),
                 },
                 packages,
                 nodeFSRoot,

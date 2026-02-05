@@ -1,0 +1,158 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic:
+      - generic [ref=e6]:
+        - link "新闻" [ref=e7] [cursor=pointer]:
+          - /url: http://news.baidu.com
+        - link "hao123" [ref=e8] [cursor=pointer]:
+          - /url: https://www.hao123.com?src=from_pc
+        - link "地图" [ref=e9] [cursor=pointer]:
+          - /url: http://map.baidu.com
+        - link "贴吧" [ref=e10] [cursor=pointer]:
+          - /url: http://tieba.baidu.com/
+        - link "视频" [ref=e11] [cursor=pointer]:
+          - /url: https://haokan.baidu.com/?sfrom=baidu-top
+        - link "图片" [ref=e12] [cursor=pointer]:
+          - /url: http://image.baidu.com/
+        - link "网盘" [ref=e13] [cursor=pointer]:
+          - /url: https://pan.baidu.com?from=1026962h
+        - link "文库" [ref=e14] [cursor=pointer]:
+          - /url: https://wenku.baidu.com/?fr=bdpcindex
+        - link [ref=e15] [cursor=pointer]:
+          - /url: https://chat.baidu.com/search?isShowHello=1&pd=csaitab&setype=csaitab&extParamsJson=%7B%22enter_type%22%3A%22home_tab%22%7D
+          - img [ref=e16]
+        - link "更多" [ref=e18] [cursor=pointer]:
+          - /url: http://www.baidu.com/more/
+      - generic [ref=e19]:
+        - generic [ref=e20] [cursor=pointer]: 设置
+        - link "登录" [ref=e21] [cursor=pointer]:
+          - /url: https://passport.baidu.com/v2/?login&tpl=mn&u=http%3A%2F%2Fwww.baidu.com%2F&sms=5
+    - generic [ref=e24]:
+      - generic [ref=e25]:
+        - img [ref=e26]
+        - generic:
+          - link "点击一下，了解更多":
+            - /url: //www.baidu.com/s?wd=%E7%99%BE%E5%BA%A6%E7%83%AD%E6%90%9C&sa=ire_dl_gh_logo_texing&rsv_dl=igh_logo_pcs
+      - generic [ref=e31]:
+        - generic [ref=e34]:
+          - textbox "米兰冬奥会刚开赛就停电" [active] [ref=e36]
+          - generic [ref=e37]:
+            - generic [ref=e42] [cursor=pointer]:
+              - img [ref=e44]
+              - img [ref=e45]
+            - generic [ref=e47]:
+              - generic [ref=e48]:
+                - img [ref=e56] [cursor=pointer]
+                - generic [ref=e59]:
+                  - img [ref=e63] [cursor=pointer]
+                  - img [ref=e68] [cursor=pointer]
+              - button "百度一下" [ref=e72] [cursor=pointer]
+        - generic [ref=e74]:
+          - link "复杂问题就找文心助手 👉 立即体验" [ref=e76] [cursor=pointer]:
+            - /url: https://chat.baidu.com/search?extParams=%7B%22enter_type%22%3A%22home_operate%22%7D&isShowHello=1
+            - generic [ref=e78]: 复杂问题就找文心助手 👉
+            - generic [ref=e79]:
+              - generic [ref=e80]: 立即体验
+              - img [ref=e81]
+          - generic [ref=e83] [cursor=pointer]: AI生图
+          - generic [ref=e85] [cursor=pointer]: AI写作
+          - generic [ref=e87] [cursor=pointer]: AI翻译
+          - generic [ref=e89] [cursor=pointer]: AI编程
+          - generic [ref=e91] [cursor=pointer]:
+            - img [ref=e92]
+            - text: 更多
+      - generic [ref=e93]:
+        - generic [ref=e94]:
+          - link "百度热搜":
+            - /url: https://top.baidu.com/board?platform=pc&sa=pcindex_entry
+            - generic "百度热搜" [ref=e95] [cursor=pointer]: 
+          - generic [ref=e96] [cursor=pointer]:
+            - generic [ref=e97]: 
+            - text: 换一换
+        - list:
+          - listitem [ref=e98]:
+            - link " 中俄元首再话“立春”" [ref=e99] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E4%B8%AD%E4%BF%84%E5%85%83%E9%A6%96%E5%86%8D%E8%AF%9D%E2%80%9C%E7%AB%8B%E6%98%A5%E2%80%9D&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e100]: 
+              - text: 中俄元首再话“立春”
+          - listitem [ref=e102]:
+            - link "5 没有修辞全是人生 老辈子文学火了" [ref=e103] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E6%B2%A1%E6%9C%89%E4%BF%AE%E8%BE%9E%E5%85%A8%E6%98%AF%E4%BA%BA%E7%94%9F+%E8%80%81%E8%BE%88%E5%AD%90%E6%96%87%E5%AD%A6%E7%81%AB%E4%BA%86&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e104]: "5"
+              - text: 没有修辞全是人生 老辈子文学火了
+            - generic [ref=e105]: 新
+          - listitem [ref=e106]:
+            - link "1 中部第一城这次要冲击“一线城市”" [ref=e107] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E4%B8%AD%E9%83%A8%E7%AC%AC%E4%B8%80%E5%9F%8E%E8%BF%99%E6%AC%A1%E8%A6%81%E5%86%B2%E5%87%BB%E2%80%9C%E4%B8%80%E7%BA%BF%E5%9F%8E%E5%B8%82%E2%80%9D&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e108]: "1"
+              - text: 中部第一城这次要冲击“一线城市”
+            - generic [ref=e109]: 热
+          - listitem [ref=e110]:
+            - link "6 博主摆拍“孩子险被拐走”被罚" [ref=e111] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E5%8D%9A%E4%B8%BB%E6%91%86%E6%8B%8D%E2%80%9C%E5%AD%A9%E5%AD%90%E9%99%A9%E8%A2%AB%E6%8B%90%E8%B5%B0%E2%80%9D%E8%A2%AB%E7%BD%9A&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e112]: "6"
+              - text: 博主摆拍“孩子险被拐走”被罚
+          - listitem [ref=e114]:
+            - link "2 红包等级图火了！血亲100元老表20元" [ref=e115] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E7%BA%A2%E5%8C%85%E7%AD%89%E7%BA%A7%E5%9B%BE%E7%81%AB%E4%BA%86%EF%BC%81%E8%A1%80%E4%BA%B2100%E5%85%83%E8%80%81%E8%A1%A820%E5%85%83&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e116]: "2"
+              - text: 红包等级图火了！血亲100元老表20元
+            - generic [ref=e117]: 新
+          - listitem [ref=e118]:
+            - link "7 宁波通报小洛熙事件调查处置情况" [ref=e119] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E5%AE%81%E6%B3%A2%E9%80%9A%E6%8A%A5%E5%B0%8F%E6%B4%9B%E7%86%99%E4%BA%8B%E4%BB%B6%E8%B0%83%E6%9F%A5%E5%A4%84%E7%BD%AE%E6%83%85%E5%86%B5&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e120]: "7"
+              - text: 宁波通报小洛熙事件调查处置情况
+          - listitem [ref=e122]:
+            - link "3 最珍贵的抵达不是远方而是回家" [ref=e123] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E6%9C%80%E7%8F%8D%E8%B4%B5%E7%9A%84%E6%8A%B5%E8%BE%BE%E4%B8%8D%E6%98%AF%E8%BF%9C%E6%96%B9%E8%80%8C%E6%98%AF%E5%9B%9E%E5%AE%B6&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e124]: "3"
+              - text: 最珍贵的抵达不是远方而是回家
+          - listitem [ref=e126]:
+            - link "8 96年女生月入百万宣布30岁退休" [ref=e127] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=96%E5%B9%B4%E5%A5%B3%E7%94%9F%E6%9C%88%E5%85%A5%E7%99%BE%E4%B8%87%E5%AE%A3%E5%B8%8330%E5%B2%81%E9%80%80%E4%BC%91&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e128]: "8"
+              - text: 96年女生月入百万宣布30岁退休
+            - generic [ref=e129]: 新
+          - listitem [ref=e130]:
+            - link "4 女孩喂大鹅遭袭击当场霸气还击" [ref=e131] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E5%A5%B3%E5%AD%A9%E5%96%82%E5%A4%A7%E9%B9%85%E9%81%AD%E8%A2%AD%E5%87%BB%E5%BD%93%E5%9C%BA%E9%9C%B8%E6%B0%94%E8%BF%98%E5%87%BB&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e132]: "4"
+              - text: 女孩喂大鹅遭袭击当场霸气还击
+          - listitem [ref=e134]:
+            - link "9 人民日报评小洛熙事件" [ref=e135] [cursor=pointer]:
+              - /url: https://www.baidu.com/s?wd=%E4%BA%BA%E6%B0%91%E6%97%A5%E6%8A%A5%E8%AF%84%E5%B0%8F%E6%B4%9B%E7%86%99%E4%BA%8B%E4%BB%B6&sa=fyb_n_homepage&rsv_dl=fyb_n_homepage&from=super&cl=3&tn=baidutop10&fr=top1000&rsv_idx=2&hisfilter=1
+              - generic [ref=e136]: "9"
+              - text: 人民日报评小洛熙事件
+            - generic [ref=e137]: 新
+    - generic [ref=e139]:
+      - paragraph [ref=e140]:
+        - link "关于百度" [ref=e141] [cursor=pointer]:
+          - /url: //home.baidu.com
+      - paragraph [ref=e142]:
+        - link "About Baidu" [ref=e143] [cursor=pointer]:
+          - /url: http://ir.baidu.com
+      - paragraph [ref=e144]:
+        - link "使用百度前必读" [ref=e145] [cursor=pointer]:
+          - /url: //www.baidu.com/duty
+      - paragraph [ref=e146]:
+        - link "帮助中心" [ref=e147] [cursor=pointer]:
+          - /url: https://help.baidu.com/question?prod_id=1
+      - paragraph [ref=e148]:
+        - link "企业推广" [ref=e149] [cursor=pointer]:
+          - /url: https://e.baidu.com/?refer=1271
+      - paragraph [ref=e150]:
+        - link "京公网安备11000002000001号" [ref=e151] [cursor=pointer]:
+          - /url: http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=11000002000001
+      - paragraph [ref=e152]:
+        - link "京ICP证030173号" [ref=e153] [cursor=pointer]:
+          - /url: https://beian.miit.gov.cn
+      - paragraph [ref=e154]: 互联网新闻信息服务许可证11220180008
+      - generic [ref=e155]: 
+      - generic [ref=e156]: 
+  - generic [ref=e157]:
+    - generic:
+      - generic:
+        - generic:
+          - img
+    - img [ref=e162] [cursor=pointer]

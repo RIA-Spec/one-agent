@@ -1,9 +1,10 @@
+import chalk from "chalk";
 import { jsonSchema, stepCountIs, streamText, tool } from "ai";
 import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { venus, vercel } from "./model";
 import { getTracer } from "./tracing";
-import { AGENT_SYSTEM_PROMPT_NEXT } from "./prompts";
+import { AGENT_SYSTEM_PROMPT } from "./prompts";
 import { processStream } from "./utils/stream";
 
 export async function agent(message: string) {
@@ -19,16 +20,16 @@ export async function agent(message: string) {
     experimental_telemetry: {
       isEnabled: true,
       functionId: "agent.streamText",
-      tracer: getTracer("one-agent-next"),
+      tracer: getTracer("one-agent"),
       metadata: {
-        agentType: "one-runner-next",
+        agentType: "one-runner",
         modelProvider: "deepseek",
       },
     },
-    system: AGENT_SYSTEM_PROMPT_NEXT,
+    system: AGENT_SYSTEM_PROMPT,
     stopWhen: stepCountIs(101),
     onError: (e) => {
-      console.log("An error occurred during streaming.", e);
+      console.log(chalk.red.bold("An error occurred during streaming."), e);
     },
   });
 
