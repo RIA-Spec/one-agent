@@ -15,8 +15,8 @@ importers:
         specifier: ^0.0.6
         version: 0.0.6
       '@mcpc-tech/core':
-        specifier: ^0.3.34
-        version: 0.3.34(hono@4.11.4)(zod@4.3.5)
+        specifier: ^0.3.37
+        version: 0.3.37(hono@4.11.4)(zod@4.3.5)
       '@mcpc/code-runner-mcp':
         specifier: jsr:^0.1.2
         version: '@jsr/mcpc__code-runner-mcp@0.1.2(hono@4.11.4)(react@19.2.4)'
@@ -426,8 +426,8 @@ packages:
   '@mcpc-tech/acp-ai-provider@0.1.50':
     resolution: {integrity: sha512-BRZkTKd2F/XB0gcap9+Xgq6ajOQAKoTd4jrAT7j2Cr3nqSPElwp/B8xBGtSc68tiXDh53KAipyu3IsubUz+Ftw==}
 
-  '@mcpc-tech/core@0.3.34':
-    resolution: {integrity: sha512-W1Xu64VuKDbwcySeJn3cJd7dl+uWCP0c7x43kx75qFEdi0AFJ39rpbNilEGj3+QhNaGW+yK8MjGwn5mJ8ZOiBQ==}
+  '@mcpc-tech/core@0.3.37':
+    resolution: {integrity: sha512-K06PTBGEnVhohzu0RzhdHm0J1nxE2oDH5XGMERiS/LZkNXuVoX3U/n+7fu+E3Q6EbJF6gotBHBDzQcX0EBB7HA==}
 
   '@mcpc-tech/ripgrep-napi-android-arm-eabi@0.0.4':
     resolution: {integrity: sha512-Y52S9IdbqMYvet7hDGk/DRdKFM7ED6tSQmBtrWVzdeqVWPMayZvrKdlcceBykdKjbmgnlqtulzEtHBF2iXmXwA==}
@@ -2463,7 +2463,7 @@ snapshots:
       - hono
       - supports-color
 
-  '@mcpc-tech/core@0.3.34(hono@4.11.4)(zod@4.3.5)':
+  '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@4.3.5)':
     dependencies:
       '@ai-sdk/provider': 2.0.1
       '@mcpc-tech/acp-ai-provider': 0.1.50(hono@4.11.4)

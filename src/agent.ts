@@ -2,6 +2,8 @@ import { jsonSchema, stepCountIs, streamText, tool } from "ai";
 import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { venus, vercel } from "./model";
+import { writeFileSync } from "node:fs";
+import { isDebugMode } from "./utils/env";
 
 export async function agent(message: string) {
   const tools = convertToAISDKTools(await getServer(), {
@@ -32,7 +34,7 @@ export async function agent(message: string) {
 
 <when_to_use>
 ai() - Complex analysis, decisions, extraction, summarization. BATCH multiple analyses into ONE call.
-tool() - Browser automation, file ops, APIs. Read manual first, then use browser_snapshot to get page structure.
+tool() - Browser automation, file ops, bash commands, MCP tools.
 </when_to_use>
 
 <examples>
@@ -105,6 +107,13 @@ tool(name, args) -> {'content': [{type: 'text', text: '...'}], 'isError': bool}
     }
   }
 
+  if (isDebugMode) {
+    writeFileSync(
+      `/tmp/ai-debug-output-${Date.now()}.json`,
+      JSON.stringify({ steps: await result.steps }, null, 2),
+    );
+  }
+
   console.log("\n");
-  return result.finishReason;
+  return await result.finishReason;
 }

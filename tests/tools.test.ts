@@ -79,8 +79,8 @@ describe("run tool", () => {
     expect(output).toContain("Avg score: 90.0");
   }, 60000);
 
-  // Skip: WebAssembly stack switching not supported in vitest worker threads
-  it.skip("executes Python with ai() function - simple text", async () => {
+  // Now works with pool: "forks" instead of worker threads
+  it("executes Python with ai() function - simple text", async () => {
     const code = readFileSync(resolve(examplesDir, "use_ai.py"), "utf-8");
 
     const result = await client.callTool({
@@ -95,8 +95,8 @@ describe("run tool", () => {
     expect(output.toLowerCase()).toContain("python");
   }, 30000);
 
-  // Skip: WebAssembly stack switching not supported in vitest worker threads
-  it.skip("executes Python with ai() function - boolean decision", async () => {
+  // Now works with pool: "forks" instead of worker threads
+  it("executes Python with ai() function - boolean decision", async () => {
     const code = readFileSync(resolve(examplesDir, "ai_boolean.py"), "utf-8");
 
     const result = await client.callTool({
@@ -110,8 +110,8 @@ describe("run tool", () => {
     expect(output).toContain("Alert: Too many errors!");
   }, 30000);
 
-  // Skip: WebAssembly stack switching not supported in vitest worker threads
-  it.skip("executes Python with ai() function - structured array", async () => {
+  // Now works with pool: "forks" instead of worker threads
+  it("executes Python with ai() function - structured array", async () => {
     const code = readFileSync(resolve(examplesDir, "ai_array.py"), "utf-8");
 
     const result = await client.callTool({
@@ -146,8 +146,8 @@ describe("run tool", () => {
     }
   }, 30000);
 
-  // Skip: WebAssembly stack switching not supported in vitest worker threads
-  it.skip("executes inline Python code without file", async () => {
+  // Now works with pool: "forks" instead of worker threads
+  it("executes inline Python code without file", async () => {
     const code = `
 import asyncio
 

@@ -31,7 +31,8 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
-    "test": "DEBUG=1 node --experimental-wasm-stack-switching ./node_modules/vitest/vitest.mjs",
+    "repl": "DEBUG=1 node --env-file=.env --experimental-wasm-stack-switching ./dist/repl.mjs",
+    "test": "DEBUG=1 node --env-file=.env --experimental-wasm-stack-switching ./node_modules/vitest/vitest.mjs",
     "run-py": "DEBUG=1 tsx --experimental-wasm-stack-switching --env-file=.env scripts/run-py.ts",
     "typecheck": "tsc --noEmit",
     "fmt": "oxfmt",
@@ -41,7 +42,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.18",
     "@ai-sdk/devtools": "^0.0.6",
-    "@mcpc-tech/core": "^0.3.34",
+    "@mcpc-tech/core": "^0.3.37",
     "@mcpc/code-runner-mcp": "jsr:^0.1.2",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",

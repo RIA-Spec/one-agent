@@ -8,8 +8,9 @@ import {
   exampleToJsonSchema,
 } from "./utils/schema.js";
 import { writeFileSync } from "node:fs";
+import { isDebugMode } from "./utils/env.js";
 
-const isDebugMode = process.env.DEBUG === "1";
+const submitToolName = "submit_result";
 
 export async function ai(prompt: string, example: any): Promise<AIResult> {
   const { validate, outputSchema } = compileAiResultValidator(example);
@@ -39,14 +40,12 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
     },
   });
   const tools = {
-    submit_result: submitTool,
+    [submitToolName]: submitTool,
   };
 
   const hasSuccessfullySubmitted: StopCondition<typeof tools> = ({ steps }) => {
     const successfulRes = steps.find((step) =>
-      step.toolResults.find(
-        (res) => res.toolName === "submit_result" && res.output === "submitted",
-      ),
+      step.toolResults.find((res) => res.toolName === submitToolName && res.output === "submitted"),
     );
     return Boolean(successfulRes);
   };
@@ -54,12 +53,13 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
   const result = streamText({
     model: vercel("anthropic/claude-haiku-4.5"),
     prompt: buildPrompt(prompt, example, outputSchema),
-    system: `You process requests and return structured data using the submit_result tool.
+    system: `You process requests and return structured data using the ${submitToolName} tool.
 
 Rules:
-- Call submit_result exactly once with data matching the expected schema
+- Call ${submitToolName} with data matching the expected schema, when it fails, correct and resubmit.
 - The data structure must match the example provided in the prompt`,
-    tools: { submit_result: submitTool },
+    tools: { [submitToolName]: submitTool },
+    toolChoice: { type: "tool", toolName: submitToolName },
     stopWhen: [stepCountIs(10), hasSuccessfullySubmitted],
   });
 
