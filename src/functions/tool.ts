@@ -20,8 +20,7 @@ export function getToolFn(server: ComposableMCPServer) {
 
     const result = streamText({
       model: venus("deepseek-v3.2"),
-      system: `You are a tool execution agent. Use the provided tool to execute the user's request.
-You MUST follow the user's instructions exactly and only use the provided tool: ${name}.`,
+      system: `Execute user requests using the ${name} tool. Follow the input schema strictly and ONLY provide required fields unless explicitly instructed.`,
       prompt: JSON.stringify(prompt),
       experimental_telemetry: {
         isEnabled: true,

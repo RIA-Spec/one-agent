@@ -3,15 +3,15 @@ name: one-runner
 # description: ONE - Python code runner with built-in ai() and tool() functions for intelligent data processing
 mode: agentic
 deps:
-  mcpServers:
-    playwright:
-      transportType: stdio
-      command: npx
-      args: ["-y", "@playwright/mcp@latest"]
-      env:
-        PLAYWRIGHT_MCP_HEADLESS: "0"
-refs:
-  - '<tool name="playwright.__ALL__"/>'
+  mcpServers: {}
+    # playwright:
+    #   transportType: stdio
+    #   command: npx
+    #   args: ["-y", "@playwright/mcp@latest"]
+    #   env:
+    #     PLAYWRIGHT_MCP_HEADLESS: "0"
+refs: []
+#   - '<tool name="playwright.__ALL__"/>'
 ---
 
 # API Reference
