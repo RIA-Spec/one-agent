@@ -1,2 +1,0 @@
-Hello from ONE Runner!
-This is a test file.

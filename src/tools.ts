@@ -7,6 +7,7 @@ import { dirname, resolve } from "node:path";
 import { ai } from "./functions/ai";
 import { getToolFn, getToolFnNext } from "./functions/tool";
 import { createBashTool } from "./tools/bash.js";
+import { writeFileSync } from "node:fs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -80,6 +81,7 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
               },
               extra,
             ) => {
+              writeFileSync(`./data/${Date.now()}.py`, code);
               const stream = await runPy(code, {
                 handlers: {
                   ai,
@@ -104,7 +106,9 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
 
           // Register bash tool
           const bashTool = createBashTool(nodeFSRoot);
-          server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute);
+          server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute, {
+            internal: true,
+          });
         },
       },
     );

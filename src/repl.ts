@@ -19,7 +19,7 @@ function prompt(question: string): Promise<string> {
 }
 
 async function main() {
-  console.log("ONE");
+  console.log("ONE (NEXT Mode - AI-inferred parameters)");
   console.log('Type your prompts below. Type "exit" to quit.\n');
 
   while (true) {

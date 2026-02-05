@@ -8,6 +8,7 @@ import {
   exampleToJsonSchema,
 } from "../utils/schema.js";
 import { getTracer } from "../tracing.js";
+import { processStream } from "../utils/stream.js";
 
 export async function ai(prompt: string, example: any): Promise<AIResult> {
   const { validate, outputSchema } = compileAiResultValidator(example);
@@ -71,8 +72,9 @@ Rules:
     stopWhen: [stepCountIs(10), hasSuccessfullySubmitted],
   });
 
+  await processStream(result, "ai");
   const text = await result.text;
-  const toolCalls = await result.toolCalls;
+  const toolResults = await result.toolResults;
   const finishReason = await result.finishReason;
 
   if (structuredOutput) return structuredOutput;
@@ -84,8 +86,8 @@ Rules:
       (lastValidationError ? ` Last validation error: ${lastValidationError}.` : "") +
       (text
         ? ` Raw output: ${text}.`
-        : "" + toolCalls
-          ? `Tool calls: ${toolCalls.map((t) => t.toolName).join(", ")}`
+        : "" + toolResults
+          ? `Tool calls: ${toolResults.map((t) => t.toolName).join(", ")}`
           : ""),
   };
 }

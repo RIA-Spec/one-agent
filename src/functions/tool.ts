@@ -3,6 +3,7 @@ import { jsonSchema, streamText } from "ai";
 import { tool as aiTool } from "ai";
 import { venus } from "../model";
 import { getTracer } from "../tracing";
+import { processStream } from "../utils/stream";
 
 export function getToolFn(server: ComposableMCPServer) {
   const tool = (name: string, args: any) => {
@@ -14,7 +15,6 @@ export function getToolFn(server: ComposableMCPServer) {
 export function getToolFnNext(server: ComposableMCPServer) {
   const tool = async (name: string, prompt: string) => {
     const toolDef = server.getComposedTool(name);
-    console.log(toolDef);
     const tools = {
       [name]: aiTool({
         description: toolDef?.description ?? "",
@@ -27,7 +27,9 @@ export function getToolFnNext(server: ComposableMCPServer) {
 
     const result = streamText({
       model: venus("deepseek-v3.2"),
-      prompt,
+      system: `You are a tool execution agent. Use the provided tool to execute the user's request.
+You MUST follow the user's instructions exactly and only use the provided tool: ${name}.`,
+      prompt: JSON.stringify(prompt),
       experimental_telemetry: {
         isEnabled: true,
         functionId: "functions.tool.streamText",
@@ -42,9 +44,9 @@ export function getToolFnNext(server: ComposableMCPServer) {
       toolChoice: { type: "tool", toolName: name },
     });
 
-    const toolResults = await result.toolResults;
+    await processStream(result, "tool");
 
-    console.log(toolResults, tools, prompt, await result.text);
+    const toolResults = await result.toolResults;
 
     return toolResults.reverse().find((tr) => tr.toolName === name)?.output;
   };
