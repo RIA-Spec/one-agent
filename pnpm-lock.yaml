@@ -14,6 +14,9 @@ importers:
       '@ai-sdk/devtools':
         specifier: ^0.0.6
         version: 0.0.6
+      '@mariozechner/pi-tui':
+        specifier: ^0.52.6
+        version: 0.52.6
       '@mcpc-tech/core':
         specifier: ^0.3.37
         version: 0.3.37(hono@4.11.4)(zod@4.3.5)
@@ -458,6 +461,10 @@ packages:
 
   '@jsr/std__yaml@1.0.11':
     resolution: {integrity: sha512-uSVzU72mlSkYU2Gxm2ECUoVrd6cY1n7krZ8l75QWwyGuasP1LKyLvEO3veVujKwOwthLQD7oBQvPpYNwYzt15A==, tarball: https://npm.jsr.io/~/11/@jsr/std__yaml/1.0.11.tgz}
+
+  '@mariozechner/pi-tui@0.52.6':
+    resolution: {integrity: sha512-cLCSgkoJv25nll72YB+/f7ZDJL7Ttrs+HwxFLWYegxKq2h+4waxLIbZTiSn0QONSjIMg5SMRj3iOBAO/oJ9xow==}
+    engines: {node: '>=20.0.0'}
 
   '@mcpc-tech/acp-ai-provider@0.1.50':
     resolution: {integrity: sha512-BRZkTKd2F/XB0gcap9+Xgq6ajOQAKoTd4jrAT7j2Cr3nqSPElwp/B8xBGtSc68tiXDh53KAipyu3IsubUz+Ftw==}
@@ -1535,6 +1542,9 @@ packages:
   '@types/memcached@2.2.10':
     resolution: {integrity: sha512-AM9smvZN55Gzs2wRrqeMHVP7KE8KWgCJO/XL5yCly2xF6EKa4YlbpK+cLSAH4NG/Ah64HrlegmGqW8kYws7Vxg==}
 
+  '@types/mime-types@2.1.4':
+    resolution: {integrity: sha512-lfU4b34HOri+kAY5UheuFMWPDOI+OPceBSHZKp69gEyTL/mmJ4cnU6Y/rlme3UL3GyOn6Y42hyIEw0/q8sWx5w==}
+
   '@types/mysql@2.15.27':
     resolution: {integrity: sha512-YfWiV16IY0OeBfBCk8+hXKmdTKrKlwKN1MNKAPBu5JYxLwBEZl7QzeEpGnlZb3VMGJrrGmB84gXiH+ofs/TezA==}
 
@@ -2007,6 +2017,10 @@ packages:
     resolution: {integrity: sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg==}
     engines: {node: 6.* || 8.* || >= 10.*}
 
+  get-east-asian-width@1.4.0:
+    resolution: {integrity: sha512-QZjmEOC+IT1uk6Rx0sX22V6uHWVwbdbxf1faPqJ1QhLdGgsRGCZoyaQBm/piRdJy/D2um6hM1UP7ZEeQ4EkP+Q==}
+    engines: {node: '>=18'}
+
   get-intrinsic@1.3.0:
     resolution: {integrity: sha512-9fSjSaos/fRIVIp+xSJlE6lfwhES7LNtKaCBIamHsjr2na1BiABJPo0mOjjz8GJDURarmCPGqaiVg5mfjb98CQ==}
     engines: {node: '>= 0.4'}
@@ -2156,6 +2170,11 @@ packages:
 
   magic-string@0.30.21:
     resolution: {integrity: sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ==}
+
+  marked@15.0.12:
+    resolution: {integrity: sha512-8dD6FusOQSrpv9Z1rdNMdlSgQOIP880DHqnohobOmYLElGEqAL/JvxvuxZO16r4HtjTlfPRDC1hbvxC9dPN2nA==}
+    engines: {node: '>= 18'}
+    hasBin: true
 
   math-intrinsics@1.1.0:
     resolution: {integrity: sha512-/IXtbwEk5HTPyEwyKX6hGkYXxM9nbj64B+ilVJnC/R6B0pH5G4V3b0pVbL7DBj4tkhBAppbQUlf6F6Xl9LHu1g==}
@@ -3183,6 +3202,14 @@ snapshots:
       '@jsr/std__bytes': 1.0.6
 
   '@jsr/std__yaml@1.0.11': {}
+
+  '@mariozechner/pi-tui@0.52.6':
+    dependencies:
+      '@types/mime-types': 2.1.4
+      chalk: 5.6.2
+      get-east-asian-width: 1.4.0
+      marked: 15.0.12
+      mime-types: 3.0.2
 
   '@mcpc-tech/acp-ai-provider@0.1.50(hono@4.11.4)':
     dependencies:
@@ -4385,6 +4412,8 @@ snapshots:
     dependencies:
       '@types/node': 25.0.10
 
+  '@types/mime-types@2.1.4': {}
+
   '@types/mysql@2.15.27':
     dependencies:
       '@types/node': 25.0.10
@@ -4920,6 +4949,8 @@ snapshots:
 
   get-caller-file@2.0.5: {}
 
+  get-east-asian-width@1.4.0: {}
+
   get-intrinsic@1.3.0:
     dependencies:
       call-bind-apply-helpers: 1.0.2
@@ -5067,6 +5098,8 @@ snapshots:
   magic-string@0.30.21:
     dependencies:
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  marked@15.0.12: {}
 
   math-intrinsics@1.1.0: {}
 

@@ -14,7 +14,12 @@ export async function agent(message: string) {
   });
 
   const result = streamText({
-    model: venus("deepseek-v3.2"),
+    providerOptions: {
+      venus: {
+        thinkingEnabled: true,
+      },
+    },
+    model: venus("gemini-3-pro"),
     tools,
     prompt: message,
     experimental_telemetry: {

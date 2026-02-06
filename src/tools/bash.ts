@@ -10,7 +10,6 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { jsonSchema } from "ai";
 import {
@@ -22,11 +21,11 @@ import {
 } from "./utils.js";
 
 /**
- * Generate a unique temp file path for bash output
+ * Generate a unique temp file path for bash output in the working directory
  */
-function getTempFilePath(): string {
+function getTempFilePath(cwd: string): string {
   const id = randomBytes(8).toString("hex");
-  return join(tmpdir(), `one-bash-${id}.log`);
+  return join(cwd, `data/one-bash-${id}.log`);
 }
 
 interface BashToolDetails {
@@ -164,17 +163,17 @@ export function createBashTool(cwd: string) {
 
         const totalBytes = Buffer.byteLength(output, "utf-8");
 
-        // Write to temp file if output exceeds limit
-        if (totalBytes > DEFAULT_MAX_BYTES) {
-          tempFilePath = getTempFilePath();
+        // Apply tail truncation first to determine if we need temp file
+        const truncation = truncateTail(output);
+        let outputText = truncation.content || "(no output)";
+
+        // Write to temp file if truncation occurred
+        if (truncation.truncated) {
+          tempFilePath = getTempFilePath(cwd);
           tempFileStream = createWriteStream(tempFilePath);
           tempFileStream.write(output);
           tempFileStream.end();
         }
-
-        // Apply tail truncation
-        const truncation = truncateTail(output);
-        let outputText = truncation.content || "(no output)";
 
         // Build details with truncation info
         let details: BashToolDetails | undefined;

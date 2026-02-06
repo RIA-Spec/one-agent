@@ -56,7 +56,7 @@ function truncateLines(text: string, maxWidth: number = 100): string {
 }
 
 /**
- * Create a box around content with optional title
+ * Create a box around content with optional title and indentation
  */
 function createBox(content: string, options: BoxOptions = {}): string {
   const { title, padding = 1, borderColor = "cyan" } = options;
@@ -177,6 +177,62 @@ function truncate(text: string, maxLength: number): string {
 }
 
 /**
+ * Helper to format Python code in a box
+ */
+function formatPythonCode(code: string, packages: any, isNested: boolean): void {
+  const codeLines = code.split("\n");
+  const toolPrefix = isNested ? chalk.blue("  │  ") : "";
+
+  // Format long code smartly - only truncate if really long (>80 lines)
+  if (codeLines.length > 80) {
+    const firstPart = codeLines.slice(0, 50).join("\n");
+    const lastPart = codeLines.slice(-10).join("\n");
+    const omitted = codeLines.length - 60;
+    const combined =
+      firstPart + chalk.gray(`\n\n... (${omitted} lines omitted) ...\n\n`) + lastPart;
+    const truncated = truncateLines(combined, 100);
+    const highlighted = highlightPython(truncated);
+    const boxContent = createBox(highlighted, {
+      title: `Python Code (${codeLines.length} lines)`,
+      borderColor: "yellow",
+    });
+    console.log(
+      isNested
+        ? boxContent
+            .split("\n")
+            .map((l) => toolPrefix + l)
+            .join("\n")
+        : boxContent,
+    );
+  } else {
+    const truncated = truncateLines(code, 100);
+    const highlighted = highlightPython(truncated);
+    const title = codeLines.length > 40 ? `Python Code (${codeLines.length} lines)` : "Python Code";
+    const boxContent = createBox(highlighted, { title, borderColor: "yellow" });
+    console.log(
+      isNested
+        ? boxContent
+            .split("\n")
+            .map((l) => toolPrefix + l)
+            .join("\n")
+        : boxContent,
+    );
+  }
+
+  // Show packages if any
+  if (packages && Object.keys(packages).length > 0) {
+    console.log(toolPrefix + chalk.gray("\n📦 Packages:"));
+    const pkgStr = JSON.stringify(packages, null, 2);
+    console.log(
+      chalk.gray(
+        (isNested ? "  │    " : "  ") +
+          highlightJSON(pkgStr).replace(/\n/g, "\n" + (isNested ? "  │    " : "  ")),
+      ),
+    );
+  }
+}
+
+/**
  * Format tool output based on content type
  */
 function formatToolOutput(output: any, toolName: string): string {
@@ -214,15 +270,43 @@ function formatToolOutput(output: any, toolName: string): string {
 export async function processStream(result: StreamTextResult<any, any>, prefix?: string) {
   let isFirstText = true;
   let currentToolName = "";
+  let isFirstReasoning = true;
+
+  // Determine if this is a nested call (ai/tool functions)
+  const isNested = !!prefix;
+  const nestedLabel = prefix ? chalk.blue(`[${prefix.toUpperCase()}] `) : "";
 
   for await (const chunk of result.fullStream) {
     switch (chunk.type) {
       case "text-delta":
         if (isFirstText) {
           isFirstText = false;
-          // Add a newline before the first text to separate from prompt
+          if (isNested) {
+            console.log("\n" + chalk.blue("  ├─ ") + nestedLabel + chalk.blue.bold("Response:"));
+          }
         }
-        process.stdout.write(chunk.text);
+        if (isNested) {
+          process.stdout.write(chalk.blue("  │  ") + chalk.dim(chunk.text));
+        } else {
+          process.stdout.write(chunk.text);
+        }
+        break;
+
+      case "reasoning-delta":
+        if (isFirstReasoning) {
+          isFirstReasoning = false;
+          if (isNested) {
+            console.log("\n" + chalk.blue("  ├─ ") + nestedLabel + chalk.cyan.bold("Thinking..."));
+          } else {
+            console.log("\n" + chalk.cyan.bold("💭 Thinking..."));
+          }
+        }
+        const reasoningText = (chunk as any).text || (chunk as any).delta || "";
+        if (isNested) {
+          process.stdout.write(chalk.blue("  │  ") + chalk.dim.cyan(reasoningText));
+        } else {
+          process.stdout.write(chalk.cyan(reasoningText));
+        }
         break;
 
       case "tool-call": {
@@ -231,113 +315,63 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
         // Format arguments based on tool type
         const args = chunk.input as any;
 
+        // Add prefix for nested calls
+        const toolHeader = isNested
+          ? "\n" +
+            chalk.blue("  ├─ ") +
+            nestedLabel +
+            chalk.yellow.bold(`🔧 ${chunk.toolName.toUpperCase()}`)
+          : "\n" + chalk.yellow.bold(`🔧 ${chunk.toolName.toUpperCase()}`);
+
         // Handle nested one-runner -> run tool calls
         if (chunk.toolName === "one-runner" && args?.tool === "run" && args?.args?.code) {
-          const code = args.args.code as string;
-          const codeLines = code.split("\n");
-
-          console.log("\n" + chalk.yellow.bold(`🔧 ${args.tool.toUpperCase()}`));
-
-          // Format long code smartly - only truncate if really long (>80 lines)
-          if (codeLines.length > 80) {
-            const firstPart = codeLines.slice(0, 50).join("\n");
-            const lastPart = codeLines.slice(-10).join("\n");
-            const omitted = codeLines.length - 60;
-            const combined =
-              firstPart + chalk.gray(`\n\n... (${omitted} lines omitted) ...\n\n`) + lastPart;
-            const truncated = truncateLines(combined, 100);
-            const highlighted = highlightPython(truncated);
-            console.log(
-              createBox(highlighted, {
-                title: `Python Code (${codeLines.length} lines)`,
-                borderColor: "yellow",
-              }),
-            );
-          } else {
-            const truncated = truncateLines(code, 100);
-            const highlighted = highlightPython(truncated);
-            const title =
-              codeLines.length > 40 ? `Python Code (${codeLines.length} lines)` : "Python Code";
-            console.log(createBox(highlighted, { title, borderColor: "yellow" }));
-          }
-
-          // Show packages if any
-          if (args.args.packages && Object.keys(args.args.packages).length > 0) {
-            console.log(chalk.gray("\n📦 Packages:"));
-            const pkgStr = JSON.stringify(args.args.packages, null, 2);
-            console.log(chalk.gray("  " + highlightJSON(pkgStr).replace(/\n/g, "\n  ")));
-          }
+          console.log(toolHeader);
+          formatPythonCode(args.args.code, args.args.packages, isNested);
         }
         // Handle nested one-runner -> bash tool calls
         else if (chunk.toolName === "one-runner" && args?.tool === "bash" && args?.args?.command) {
           const command = args.args.command as string;
           const truncated = command.length > 80 ? command.slice(0, 77) + "..." : command;
-          console.log(
-            "\n" +
-              chalk.yellow.bold(`🔧 ${args.tool.toUpperCase()}`) +
-              chalk.gray(` $ ${truncated}`),
-          );
+          console.log(toolHeader + chalk.gray(` $ ${truncated}`));
         }
         // Handle other one-runner calls
         else if (chunk.toolName === "one-runner" && args?.tool) {
-          console.log("\n" + chalk.yellow.bold(`🔧 ${args.tool.toUpperCase()}`));
+          console.log(toolHeader);
           const toolArgs = args.args || {};
           const argsStr = JSON.stringify(toolArgs, null, 2);
           if (argsStr !== "{}") {
-            console.log(chalk.gray("  " + highlightJSON(argsStr).replace(/\n/g, "\n  ")));
+            console.log(
+              chalk.gray(
+                (isNested ? "  │    " : "  ") +
+                  highlightJSON(argsStr).replace(/\n/g, "\n" + (isNested ? "  │    " : "  ")),
+              ),
+            );
           }
         }
         // Direct run tool call
         else if (chunk.toolName === "run" && args?.code) {
-          const code = args.code as string;
-          const codeLines = code.split("\n");
-
-          console.log("\n" + chalk.yellow.bold(`🔧 RUN`));
-
-          // Format long code smartly - only truncate if really long (>80 lines)
-          if (codeLines.length > 80) {
-            const firstPart = codeLines.slice(0, 50).join("\n");
-            const lastPart = codeLines.slice(-10).join("\n");
-            const omitted = codeLines.length - 60;
-            const combined =
-              firstPart + chalk.gray(`\n\n... (${omitted} lines omitted) ...\n\n`) + lastPart;
-            const truncated = truncateLines(combined, 100);
-            const highlighted = highlightPython(truncated);
-            console.log(
-              createBox(highlighted, {
-                title: `Python Code (${codeLines.length} lines)`,
-                borderColor: "yellow",
-              }),
-            );
-          } else {
-            const truncated = truncateLines(code, 100);
-            const highlighted = highlightPython(truncated);
-            const title =
-              codeLines.length > 40 ? `Python Code (${codeLines.length} lines)` : "Python Code";
-            console.log(createBox(highlighted, { title, borderColor: "yellow" }));
-          }
-
-          // Show packages if any
-          if (args.packages && Object.keys(args.packages).length > 0) {
-            console.log(chalk.gray("\n📦 Packages:"));
-            const pkgStr = JSON.stringify(args.packages, null, 2);
-            console.log(chalk.gray("  " + highlightJSON(pkgStr).replace(/\n/g, "\n  ")));
-          }
+          console.log(toolHeader);
+          formatPythonCode(args.code, args.packages, isNested);
         }
         // Bash commands
         else if (chunk.toolName === "bash" && args?.command) {
           const command = args.command as string;
           const truncated = command.length > 80 ? command.slice(0, 77) + "..." : command;
-          console.log("\n" + chalk.yellow.bold(`🔧 BASH`) + chalk.gray(` $ ${truncated}`));
+          console.log(toolHeader + chalk.gray(` $ ${truncated}`));
         }
         // Generic tool args
         else {
-          console.log("\n" + chalk.yellow.bold(`🔧 ${chunk.toolName.toUpperCase()}`));
+          console.log(toolHeader);
           const argsStr = JSON.stringify(args, null, 2);
           if (argsStr.length > 500) {
-            console.log(chalk.gray("  " + truncate(argsStr, 200)));
+            console.log(chalk.gray((isNested ? "  │    " : "  ") + truncate(argsStr, 200)));
           } else if (argsStr !== "{}") {
-            console.log(chalk.gray("  " + highlightJSON(argsStr).replace(/\n/g, "\n  ")));
+            console.log(
+              chalk.gray(
+                (isNested ? "  │    " : "  ") +
+                  highlightJSON(argsStr).replace(/\n/g, "\n" + (isNested ? "  │    " : "  ")),
+              ),
+            );
           }
         }
         break;
@@ -348,25 +382,41 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
         const resultData = (chunk as any).result ?? (chunk as any).output;
         const output = formatToolOutput(resultData, currentToolName);
 
+        const resultPrefix = isNested ? chalk.blue("  │  ") : "";
+
         // Format based on tool type
         if (currentToolName === "run" || currentToolName === "bash") {
-          // Command output
           const lines = output.split("\n");
           const hasError =
             output.toLowerCase().includes("error") || output.toLowerCase().includes("traceback");
           const borderColor = hasError ? "red" : "green";
           const title = hasError ? "Error Output" : "Output";
 
+          // Create box
+          let boxContent: string;
           if (lines.length > 50) {
-            // Truncate long output
             const displayed =
               lines.slice(0, 40).join("\n") +
               chalk.gray(`\n\n... (${lines.length - 40} more lines)`);
-            console.log(
-              createBox(hasError ? chalk.red(displayed) : displayed, { title, borderColor }),
-            );
+            boxContent = createBox(hasError ? chalk.red(displayed) : displayed, {
+              title,
+              borderColor,
+            });
           } else {
-            console.log(createBox(hasError ? chalk.red(output) : output, { title, borderColor }));
+            boxContent = createBox(hasError ? chalk.red(output) : output, { title, borderColor });
+          }
+
+          // Apply indentation and dimming for nested calls
+          if (isNested) {
+            console.log(
+              boxContent
+                .split("\n")
+                .map((l) => resultPrefix + chalk.dim(l))
+                .join("\n"),
+            );
+            console.log(chalk.blue("  └─"));
+          } else {
+            console.log(boxContent);
           }
         } else {
           // Generic result
@@ -374,11 +424,18 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
             typeof resultData === "string"
               ? resultData
               : JSON.stringify(resultData, null, 2) || output;
+
           if (outputStr.length > 1000) {
-            console.log(chalk.green(`✓ Result: ${truncate(outputStr, 200)}`));
+            console.log(resultPrefix + chalk.green(`✓ Result: ${truncate(outputStr, 200)}`));
           } else {
-            console.log(chalk.green("✓ Result:"));
-            console.log(highlightJSON(outputStr));
+            console.log(resultPrefix + chalk.green("✓ Result:"));
+            const highlighted = highlightJSON(outputStr);
+            const lines = highlighted.split("\n");
+            console.log(lines.map((l) => resultPrefix + (isNested ? chalk.dim(l) : l)).join("\n"));
+          }
+
+          if (isNested) {
+            console.log(chalk.blue("  └─"));
           }
         }
         console.log(""); // Empty line after result
@@ -388,11 +445,29 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
       case "error":
         console.log("\n");
         const errorMsg = chunk.error instanceof Error ? chunk.error.message : String(chunk.error);
-        console.log(createBox(chalk.red.bold(errorMsg), { title: "Error", borderColor: "red" }));
+        const errorBox = createBox(chalk.red.bold(errorMsg), {
+          title: "Error",
+          borderColor: "red",
+        });
+        if (isNested) {
+          console.log(
+            errorBox
+              .split("\n")
+              .map((l) => chalk.blue("  │  ") + l)
+              .join("\n"),
+          );
+          console.log(chalk.blue("  └─"));
+        } else {
+          console.log(errorBox);
+        }
         console.log("");
         break;
     }
   }
 
+  if (isNested) {
+    // Add final closing line for nested calls that didn't close yet
+    console.log(chalk.blue("  └─"));
+  }
   console.log(""); // Final newline
 }

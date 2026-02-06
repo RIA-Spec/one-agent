@@ -1,5 +1,5 @@
 import type { ComposableMCPServer } from "@mcpc-tech/core";
-import { jsonSchema, streamText } from "ai";
+import { jsonSchema, stepCountIs, type StopCondition, streamText } from "ai";
 import { tool as aiTool } from "ai";
 import { venus } from "../model";
 import { getTracer } from "../tracing";
@@ -18,6 +18,18 @@ export function getToolFn(server: ComposableMCPServer) {
       }),
     };
 
+    const hasSuccessfullyCalled: StopCondition<typeof tools> = ({ steps }) => {
+      const successfulCall = steps.find((step) =>
+        step.toolResults.find(
+          (res) =>
+            res.toolName === name &&
+            // @ts-expect-error -
+            res.output?.isError !== true,
+        ),
+      );
+      return Boolean(successfulCall);
+    };
+
     const result = streamText({
       model: venus("deepseek-v3.2"),
       system: `Execute user requests using the ${name} tool. Follow the input schema strictly and ONLY provide required fields unless explicitly instructed.`,
@@ -34,13 +46,29 @@ export function getToolFn(server: ComposableMCPServer) {
       },
       tools,
       toolChoice: { type: "tool", toolName: name },
+      stopWhen: [stepCountIs(10), hasSuccessfullyCalled],
     });
 
     await processStream(result, "tool");
 
     const toolResults = await result.toolResults;
+    const toolResult = toolResults.reverse().find((tr) => tr.toolName === name);
 
-    return toolResults.reverse().find((tr) => tr.toolName === name)?.output;
+    if (!toolResult) {
+      console.log(
+        "No tool result found.",
+        await result.text,
+        await result.toolCalls,
+        await result.finishReason,
+      );
+      const text = await result.text;
+      return {
+        content: [{ type: "text", text }],
+        isError: true,
+      };
+    }
+
+    return toolResult.output;
   };
   return tool;
 }
