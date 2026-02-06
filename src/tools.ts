@@ -1,13 +1,12 @@
-import { jsonSchema } from "ai";
 import { mcpc } from "@mcpc-tech/core";
-import { getPythonPrompt, runPy } from "@mcpc/code-runner-mcp";
 import { markdownLoaderPlugin } from "@mcpc/plugin-markdown-loader";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { ai } from "./functions/ai";
-import { getToolFn } from "./functions/tool";
-import { createBashTool } from "./tools/bash.js";
-import { writeFileSync } from "node:fs";
+import { ai } from "./interfaces/ai";
+import { getToolFn } from "./interfaces/tool";
+import { createBashTool } from "./interfaces/tools/bash.js";
+import { createPythonAER } from "./aer/python.js";
+import { createBashAER } from "./aer/bash.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -15,8 +14,16 @@ const projectRoot = resolve(__dirname, "..");
 const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
-// Use Markdown configuration file
-const composeFile = resolve(__dirname, "..", "one-runner.md");
+// AER Mode: "bash" | "python"
+// Controls which Action Execution Runtime to enable (only one at a time)
+const AER_MODE = (process.env.AER_MODE || "python").toLowerCase();
+
+// Use Markdown configuration file based on AER mode
+const composeFile = resolve(
+  __dirname,
+  "..",
+  AER_MODE === "bash" ? "one-runner-bash.md" : "one-runner-python.md",
+);
 
 const DEV_MODE = true;
 
@@ -30,84 +37,67 @@ export async function getServer() {
       {
         plugins: [markdownLoaderPlugin() as any],
         setup: (server) => {
-          server.tool(
-            "run",
-            `ONE Runner - Execute Python with built-in ai() function.
+          // Register Python AER (Code Interpreter approach)
+          if (AER_MODE === "python") {
+            const pythonAER = createPythonAER({
+              nodeFSRoot,
+              nodeFSMountPoint,
+              aiHandler: ai,
+              toolHandler: getToolFn,
+            });
+            server.tool(
+              pythonAER.name,
+              pythonAER.description,
+              pythonAER.parameters,
+              async (args: any, extra: any) => pythonAER.execute(args, extra, server),
+              { internal: false },
+            );
+            console.log(`✓ Python AER enabled`);
 
-Features:
-  • Built-in async ai(prompt, example) function for intelligent analysis
-  • Returns {data, error} with structured data (booleans, arrays, objects) for dynamic decisions
-  • Combine code computation with AI intelligence
-  • File system access at ${nodeFSMountPoint} (maps to ${nodeFSRoot})
+            // Register low-level bash tool for Python mode (to call shell commands from Python)
+            const bashTool = createBashTool(nodeFSRoot);
+            server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute, {
+              internal: true,
+            });
+          }
+          // Register Bash AER (Unix Philosophy approach)
+          else if (AER_MODE === "bash") {
+            const bashAER = createBashAER({
+              cwd: projectRoot,
+              aiHandler: ai,
+              toolHandler: getToolFn,
+            });
+            server.tool(
+              bashAER.name,
+              bashAER.description,
+              bashAER.parameters,
+              async (args: any, extra: any) => bashAER.execute(args, extra, server),
+              { internal: false },
+            );
+            console.log(`✓ Bash AER enabled`);
+          } else {
+            console.warn(`⚠ Unknown AER_MODE: ${AER_MODE}, defaulting to Python`);
+            const pythonAER = createPythonAER({
+              nodeFSRoot,
+              nodeFSMountPoint,
+              aiHandler: ai,
+              toolHandler: getToolFn,
+            });
+            server.tool(
+              pythonAER.name,
+              pythonAER.description,
+              pythonAER.parameters,
+              async (args: any, extra: any) => pythonAER.execute(args, extra, server),
+              { internal: false },
+            );
+            console.log(`✓ Python AER enabled (default)`);
 
-CRITICAL: ai() MUST be used inside async function with asyncio.run():
-
-import asyncio
-
-async def main():
-    result = await ai('Summarize in 1 sentence: Python is a programming language.', '')
-    print(result['data'])
-
-asyncio.run(main())
-
-DO NOT use 'await ai()' directly - will cause SyntaxError!
-See manual for complete examples.
-
-${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}
-`,
-            jsonSchema({
-              type: "object",
-              properties: {
-                code: {
-                  type: "string",
-                  description: "Python code to execute. MUST use print() to see results.",
-                },
-                packages: {
-                  type: "object",
-                  additionalProperties: { type: "string" },
-                  description:
-                    'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
-                },
-              },
-              required: ["code"],
-            }),
-            async (
-              {
-                code,
-                packages,
-              }: {
-                code: string;
-                packages?: Record<string, string>;
-              },
-              extra,
-            ) => {
-              writeFileSync(`./data/${Date.now()}.py`, code);
-              const stream = await runPy(code, {
-                handlers: {
-                  ai,
-                  tool: getToolFn(server),
-                },
-                packages,
-                nodeFSRoot,
-                nodeFSMountPoint,
-              });
-              const decoder = new TextDecoder();
-              let output = "";
-              for await (const chunk of stream) {
-                output += decoder.decode(chunk);
-              }
-              return {
-                content: [{ type: "text", text: output || "(no output)" }],
-              };
-            },
-            { internal: true },
-          );
-
-          // Register bash tool
-          const bashTool = createBashTool(nodeFSRoot);
-          server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute, {
-            internal: true,
-          });
+            // Register low-level bash tool for Python mode (to call shell commands from Python)
+            const bashTool = createBashTool(nodeFSRoot);
+            server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute, {
+              internal: true,
+            });
+          }
         },
       },
     );

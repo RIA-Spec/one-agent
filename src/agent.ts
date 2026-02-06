@@ -2,7 +2,7 @@ import chalk from "chalk";
 import { jsonSchema, stepCountIs, streamText, tool } from "ai";
 import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
-import { venus, vercel } from "./model";
+import { venus } from "./model";
 import { getTracer } from "./tracing";
 import { AGENT_SYSTEM_PROMPT } from "./prompts";
 import { processStream } from "./utils/stream";

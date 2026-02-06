@@ -1,6 +1,70 @@
 # One Agent
 
-An AI agent with one tool: Python code execution.
+An AI agent with Action Execution Runtime (AER) support for Python and Bash.
+
+## Action Execution Runtime (AER)
+
+AER defines the environment and interfaces for agents to reason in action. Two approaches:
+
+### 1. Python AER (Code Interpreter) - Default
+
+**The Programmatic Approach**: Manage control flows using code execution (conditions, loops, branches).
+
+**Configuration**: Uses [one-runner-python.md](one-runner-python.md)
+
+```python
+import asyncio
+
+async def main():
+    log_content = open("build.log").read()
+    analysis = await ai(log_content + "Did the build succeed?", {"success": False})
+    if analysis['data']['success']:
+        tool("deploy", "deploy to production")
+    else:
+        tool("notify", "notify about failure")
+
+asyncio.run(main())
+```
+
+### 2. Bash AER (Unix Philosophy)
+
+**The Unix Philosophy**: Control flow using pipes (|) and redirection (>).
+
+**Configuration**: Uses [one-runner-bash.md](one-runner-bash.md)
+
+```bash
+cat api_docs.md | \
+  ai --prompt "Read this API documentation:" \
+     --prompt - \
+     --prompt "Generate a summary of how to test this API." \
+     --structure '{"summary": ""}' | \
+  jq -r '.summary' | \
+  tool bash -
+```
+
+## Environment Variables
+
+### AER Mode Selection
+
+Control which Action Execution Runtime to enable (only one at a time):
+
+```bash
+# Enable Python AER (default)
+export AER_MODE=python
+
+# Enable Bash AER
+export AER_MODE=bash
+```
+
+### File System Configuration
+
+```bash
+# Root directory for file operations
+export NODE_FS_ROOT=/path/to/root
+
+# Mount point path visible in Python/Bash
+export NODE_FS_MOUNT_POINT=/path/to/mount
+```
 
 ## Usage
 

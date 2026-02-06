@@ -1,22 +1,25 @@
 ---
 name: one-runner
-# description: ONE - Python code runner with built-in ai() and tool() functions for intelligent data processing
 mode: agentic
 deps:
-  mcpServers: {}
-    # playwright:
-    #   transportType: stdio
-    #   command: npx
-    #   args: ["-y", "@playwright/mcp@latest"]
-    #   env:
-    #     PLAYWRIGHT_MCP_HEADLESS: "0"
-refs: []
-#   - '<tool name="playwright.__ALL__"/>'
+  mcpServers:
+    playwright:
+      transportType: stdio
+      command: npx
+      args: ["-y", "chrome-devtools-mcp@latest", "--headless=false"]
+      env:
+        PLAYWRIGHT_MCP_HEADLESS: "0"
+refs:
+  - '<tool name="playwright.__ALL__"/>'
 ---
 
-# API Reference
+# Python Action Execution Runtime (AER)
 
-## ai(prompt, example) -> {data, error}
+**The Programmatic Approach**: Manage control flows using code execution (conditions, loops, branches).
+
+## API Reference
+
+### ai(prompt, example) -> {data, error}
 
 Call LLM for structured data extraction and decision-making.
 
@@ -37,13 +40,13 @@ Call LLM for structured data extraction and decision-making.
 - Object structuring: `await ai('Categorize data', {'cat1': [], 'cat2': []})`
 - Batch analysis: `await ai('Analyze all items', [{'item': '', 'summary': ''}])`
 
-## tool(name, prompt) -> {content, isError}
+### tool(name, prompt) -> {content, isError}
 
 Call MCP server tools with AI-powered parameter inference.
 
 **Parameters:**
 
-- `name` (str): Tool name (e.g., 'playwright_browser_navigate')
+- `name` (str): Tool name (e.g., 'playwright_browser_navigate', 'bash')
 - `prompt` (str): Natural language description of what you want the tool to do
 
 **Returns:**
@@ -51,17 +54,15 @@ Call MCP server tools with AI-powered parameter inference.
 - `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
 - `isError`: Boolean indicating failure (optional)
 
-**How it works:** AI automatically infers the required tool parameters from your prompt and executes the tool.
-
 **Available Tools:** bash (shell commands), Playwright tools (browser automation).
 
-# Environment Constraints
+## Environment Constraints
 
 - Python runs in WebAssembly sandbox (Pyodide)
 - No subprocess support (use `bash` tool for shell commands)
 - Both Python file I/O and bash work for file operations
 
-# Async Pattern (REQUIRED)
+## Async Pattern (REQUIRED)
 
 ```python
 import asyncio
@@ -76,9 +77,31 @@ asyncio.run(main())
 
 **NEVER** use `await` at module level - causes SyntaxError!
 
-# Examples
+## Examples
 
-## 1. Batch Analysis (PREFERRED - one ai() call)
+### 1. Conditional Logic with AI
+
+```python
+import asyncio
+
+async def main():
+    log_content = open("build.log").read() if os.path.exists("build.log") else "No log"
+
+    result = await ai(
+        f"Analyze this build log: {log_content}\nDid the build succeed?",
+        {"success": False, "reason": ""}
+    )
+
+    if result['data']['success']:
+        print("✓ Build succeeded! Deploying...")
+        await tool("bash", "git push production main")
+    else:
+        print(f"✗ Build failed: {result['data']['reason']}")
+
+asyncio.run(main())
+```
+
+### 2. Batch Analysis (PREFERRED - one ai() call)
 
 ```python
 import asyncio
@@ -99,40 +122,56 @@ async def main():
 asyncio.run(main())
 ```
 
-## 2. Boolean Decision
+### 3. Loop with Dynamic Decisions
 
 ```python
 import asyncio
 
 async def main():
-    errors, threshold = 12, 10
-    result = await ai(f'Should alert? errors={errors}, threshold={threshold}', True)
-    if result['data']:
-        print('Alert triggered')
+    urls = [
+        "https://api.example.com/data1",
+        "https://api.example.com/data2",
+        "https://api.example.com/data3"
+    ]
+
+    for url in urls:
+        response = await tool("bash", f"curl -s {url}")
+        data = response['content'][0]['text']
+
+        check = await ai(
+            f"Is this API response valid JSON? {data[:200]}",
+            {"valid": False, "action": ""}
+        )
+
+        if check['data']['valid']:
+            print(f"✓ {url}: Valid")
+        else:
+            print(f"✗ {url}: Invalid - {check['data']['action']}")
+            break
 
 asyncio.run(main())
 ```
 
-## 3. Browser Automation with AI Analysis
+### 4. Browser Automation with AI Analysis
 
 ```python
 import asyncio
 
 async def main():
     await tool('playwright_browser_navigate', 'Navigate to https://example.com')
-    snapshot = await tool('playwright_browser_snapshot', 'Take a snapshot of the current page')
+    snapshot = await tool('playwright_browser_snapshot', 'Take a snapshot')
     page_content = snapshot['content'][0]['text']
 
     result = await ai(
         f'Extract all links and categorize: {page_content[:2000]}',
-        {'nav_links': ['link1'], 'content_links': ['link2'], 'external_links': ['link3']}
+        {'nav_links': [], 'content_links': [], 'external_links': []}
     )
     print(result['data'])
 
 asyncio.run(main())
 ```
 
-## 4. Error Handling
+### 5. Error Handling
 
 ```python
 import asyncio

@@ -8,27 +8,26 @@ import { processStream } from "../utils/stream";
 export function getToolFn(server: ComposableMCPServer) {
   const tool = async (name: string, prompt: string) => {
     const toolDef = server.getComposedTool(name);
+
     const tools = {
       [name]: aiTool({
         description: toolDef?.description ?? "",
-        // @ts-expect-error -
+        // @ts-expect-error - schema type mismatch
         inputSchema: jsonSchema(toolDef?.inputSchema),
-        // @ts-expect-error -
+        // @ts-expect-error - execute type mismatch
         execute: toolDef?.execute,
       }),
     };
 
-    const hasSuccessfullyCalled: StopCondition<typeof tools> = ({ steps }) => {
-      const successfulCall = steps.find((step) =>
-        step.toolResults.find(
+    const hasSuccessfullyCalled: StopCondition<typeof tools> = ({ steps }) =>
+      steps.some((step) =>
+        step.toolResults.some(
           (res) =>
             res.toolName === name &&
-            // @ts-expect-error -
+            // @ts-expect-error - output type mismatch
             res.output?.isError !== true,
         ),
       );
-      return Boolean(successfulCall);
-    };
 
     const result = streamText({
       model: venus("deepseek-v3.2"),
@@ -51,24 +50,19 @@ export function getToolFn(server: ComposableMCPServer) {
 
     await processStream(result, "tool");
 
-    const toolResults = await result.toolResults;
-    const toolResult = toolResults.reverse().find((tr) => tr.toolName === name);
+    const toolResult = (await result.toolResults).reverse().find((tr) => tr.toolName === name);
 
-    if (!toolResult) {
-      console.log(
-        "No tool result found.",
-        await result.text,
-        await result.toolCalls,
-        await result.finishReason,
-      );
-      const text = await result.text;
-      return {
-        content: [{ type: "text", text }],
-        isError: true,
-      };
+    if (toolResult) {
+      return toolResult.output;
     }
 
-    return toolResult.output;
+    const errorText = await result.text;
+
+    return {
+      content: [{ type: "text", text: errorText }],
+      isError: true,
+    };
   };
+
   return tool;
 }

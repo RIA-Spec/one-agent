@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { createWriteStream } from "node:fs";
+import { createWriteStream, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { jsonSchema } from "ai";
 import {
@@ -161,8 +161,6 @@ export function createBashTool(cwd: string) {
           output += result.stderr;
         }
 
-        const totalBytes = Buffer.byteLength(output, "utf-8");
-
         // Apply tail truncation first to determine if we need temp file
         const truncation = truncateTail(output);
         let outputText = truncation.content || "(no output)";
@@ -170,6 +168,11 @@ export function createBashTool(cwd: string) {
         // Write to temp file if truncation occurred
         if (truncation.truncated) {
           tempFilePath = getTempFilePath(cwd);
+          // Ensure data directory exists
+          const dataDir = join(cwd, "data");
+          if (!existsSync(dataDir)) {
+            mkdirSync(dataDir, { recursive: true });
+          }
           tempFileStream = createWriteStream(tempFilePath);
           tempFileStream.write(output);
           tempFileStream.end();

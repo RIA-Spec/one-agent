@@ -1,5 +1,5 @@
 import { jsonSchema, stepCountIs, type StopCondition, streamText, tool } from "ai";
-import { venus, vercel } from "../model.js";
+import { venus } from "../model.js";
 import {
   type AIResult,
   buildPrompt,
