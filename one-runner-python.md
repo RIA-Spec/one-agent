@@ -19,7 +19,7 @@ refs:
 
 ## API Reference
 
-### ai(prompt, example) -> {data, error}
+### reason(prompt, example) -> {data, error}
 
 Call LLM for structured data extraction and decision-making.
 
@@ -35,12 +35,12 @@ Call LLM for structured data extraction and decision-making.
 
 **Use Cases:**
 
-- Boolean decisions: `await ai('Should we alert?', True)`
-- Array extraction: `await ai('List top 3 items', ['item1'])`
-- Object structuring: `await ai('Categorize data', {'cat1': [], 'cat2': []})`
-- Batch analysis: `await ai('Analyze all items', [{'item': '', 'summary': ''}])`
+- Boolean decisions: `await reason('Should we alert?', True)`
+- Array extraction: `await reason('List top 3 items', ['item1'])`
+- Object structuring: `await reason('Categorize data', {'cat1': [], 'cat2': []})`
+- Batch analysis: `await reason('Analyze all items', [{'item': '', 'summary': ''}])`
 
-### tool(name, prompt) -> {content, isError}
+### act(name, prompt) -> {content, isError}
 
 Call MCP server tools with AI-powered parameter inference.
 
@@ -59,7 +59,7 @@ Call MCP server tools with AI-powered parameter inference.
 ## Environment Constraints
 
 - Python runs in WebAssembly sandbox (Pyodide)
-- No subprocess support (use `bash` tool for shell commands)
+- No subprocess support (use `bash` via act for shell commands)
 - Both Python file I/O and bash work for file operations
 
 ## Async Pattern (REQUIRED)
@@ -68,8 +68,8 @@ Call MCP server tools with AI-powered parameter inference.
 import asyncio
 
 async def main():
-    result = await ai('prompt', example)
-    data = await tool('tool_name', 'description of what to do')
+    result = await reason('prompt', example)
+    data = await act('tool_name', 'description of what to do')
     print(result['data'])
 
 asyncio.run(main())
@@ -87,28 +87,28 @@ import asyncio
 async def main():
     log_content = open("build.log").read() if os.path.exists("build.log") else "No log"
 
-    result = await ai(
+    result = await reason(
         f"Analyze this build log: {log_content}\nDid the build succeed?",
         {"success": False, "reason": ""}
     )
 
     if result['data']['success']:
         print("✓ Build succeeded! Deploying...")
-        await tool("bash", "git push production main")
+        await act("bash", "git push production main")
     else:
         print(f"✗ Build failed: {result['data']['reason']}")
 
 asyncio.run(main())
 ```
 
-### 2. Batch Analysis (PREFERRED - one ai() call)
+### 2. Batch Analysis (PREFERRED - one reason() call)
 
 ```python
 import asyncio
 
 async def main():
     news = ['News A', 'News B', 'News C']
-    result = await ai(
+    result = await reason(
         f'Analyze each news item and overall trend: {news}',
         {
             'analyses': [{'title': 'News A', 'summary': 'brief analysis'}],
@@ -135,10 +135,10 @@ async def main():
     ]
 
     for url in urls:
-        response = await tool("bash", f"curl -s {url}")
+        response = await act("bash", f"curl -s {url}")
         data = response['content'][0]['text']
 
-        check = await ai(
+        check = await reason(
             f"Is this API response valid JSON? {data[:200]}",
             {"valid": False, "action": ""}
         )
@@ -158,11 +158,11 @@ asyncio.run(main())
 import asyncio
 
 async def main():
-    await tool('playwright_browser_navigate', 'Navigate to https://example.com')
-    snapshot = await tool('playwright_browser_snapshot', 'Take a snapshot')
+    await act('playwright_browser_navigate', 'Navigate to https://example.com')
+    snapshot = await act('playwright_browser_snapshot', 'Take a snapshot')
     page_content = snapshot['content'][0]['text']
 
-    result = await ai(
+    result = await reason(
         f'Extract all links and categorize: {page_content[:2000]}',
         {'nav_links': [], 'content_links': [], 'external_links': []}
     )
@@ -177,7 +177,7 @@ asyncio.run(main())
 import asyncio
 
 async def main():
-    result = await ai('Extract data', {'items': []})
+    result = await reason('Extract data', {'items': []})
     if result['error']:
         print(f"Error: {result['error']}")
     elif result['data'] is None:

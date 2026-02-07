@@ -19,24 +19,24 @@ Control flow using unix pipes (|) and redirection (>). Intermediate data is pers
 
 ## How to Use
 
-Write bash commands directly. Use `ai` and `tool` as commands in your pipelines.
+Write bash commands directly. Use `reason` and `act` as commands in your pipelines.
 
 **Example:**
 
 ```bash
-cat file.txt | ai --prompt "Analyze:" --prompt - | jq -r '.summary'
+cat file.txt | reason --prompt "Analyze:" --prompt - | jq -r '.summary'
 ```
 
 ## Built-in Commands
 
-### ai - AI Analysis Command
+### reason - AI Analysis Command
 
 Call AI for structured data extraction and decision-making in bash pipelines.
 
 **Syntax:**
 
 ```bash
-ai --prompt "text" --prompt - --structure '{"key": ""}'
+reason --prompt "text" --prompt - --structure '{"key": ""}'
 ```
 
 **Options:**
@@ -51,21 +51,21 @@ ai --prompt "text" --prompt - --structure '{"key": ""}'
 
 ```bash
 # Simple AI call
-echo "Python is awesome" | ai --prompt "Summarize:" --prompt - --structure '{"summary": ""}'
+echo "Python is awesome" | reason --prompt "Summarize:" --prompt - --structure '{"summary": ""}'
 
 # Extract structured data
-cat api_docs.md | ai --prompt "Extract API endpoints" --structure '{"endpoints": []}'
+cat api_docs.md | reason --prompt "Extract API endpoints" --structure '{"endpoints": []}'
 ```
 
-### tool - MCP Tool Command
+### act - MCP Tool Command
 
 Execute MCP server tools with AI-powered parameter inference.
 
 **Syntax:**
 
 ```bash
-tool --name "tool_name" --prompt "text"
-tool --name "tool_name" --prompt -
+act --name "tool_name" --prompt "text"
+act --name "tool_name" --prompt -
 ```
 
 **Options:**
@@ -80,10 +80,10 @@ tool --name "tool_name" --prompt -
 
 ```bash
 # Execute with direct prompt
-tool --name bash --prompt "ls -la"
+act --name bash --prompt "ls -la"
 
 # Use stdin
-echo "Navigate to google.com" | tool --name playwright_browser_navigate --prompt -
+echo "Navigate to google.com" | act --name playwright_browser_navigate --prompt -
 ```
 
 ## Pipeline Examples
@@ -93,12 +93,12 @@ echo "Navigate to google.com" | tool --name playwright_browser_navigate --prompt
 ```bash
 # Read API docs → AI analysis → Extract summary → Execute tests
 cat api_docs.md | \
-  ai --prompt "Read this API documentation:" \
+  reason --prompt "Read this API documentation:" \
      --prompt - \
      --prompt "Generate a summary of how to test this API." \
      --structure '{"summary": "", "test_commands": []}' | \
   jq -r '.test_commands[]' | \
-  tool --name bash --prompt -
+  act --name bash --prompt -
 ```
 
 ### 2. Log Analysis Pipeline
@@ -106,11 +106,11 @@ cat api_docs.md | \
 ```bash
 # Analyze logs → Decide action → Execute
 tail -100 app.log | \
-  ai --prompt "Analyze these logs for critical errors:" \
+  reason --prompt "Analyze these logs for critical errors:" \
      --prompt - \
      --structure '{"critical": false, "action": ""}' | \
   jq -r 'select(.critical) | .action' | \
-  tool --name bash --prompt -
+  act --name bash --prompt -
 ```
 
 ### 3. Data Processing Pipeline
@@ -118,13 +118,13 @@ tail -100 app.log | \
 ```bash
 # Extract data → Transform with AI → Process each item
 cat data.csv | \
-  ai --prompt "Extract top 5 highest value items from CSV:" \
+  reason --prompt "Extract top 5 highest value items from CSV:" \
      --prompt - \
      --structure '{"items": [{"name": "", "value": 0}]}' | \
   jq -r '.items[] | "\(.name),\(.value)"' | \
   while IFS=, read name value; do
     echo "Processing: $name ($value)"
-    tool --name bash --prompt "echo Processed $name >> results.log"
+    act --name bash --prompt "echo Processed $name >> results.log"
   done
 ```
 
@@ -133,12 +133,12 @@ cat data.csv | \
 ```bash
 # Fetch data → AI extracts errors → Filter → Log
 curl -s https://api.example.com/data | \
-  ai --prompt "Extract all error messages from this API response:" \
+  reason --prompt "Extract all error messages from this API response:" \
      --prompt - \
      --structure '{"errors": [{"code": "", "message": ""}]}' | \
   jq '.errors[] | select(.code | startswith("5"))' | \
   jq -r '.message' | \
-  xargs -I {} tool --name bash --prompt "echo 'Server Error: {}' >> error.log"
+  xargs -I {} act --name bash --prompt "echo 'Server Error: {}' >> error.log"
 ```
 
 ### 5. Conditional Branching
@@ -146,16 +146,16 @@ curl -s https://api.example.com/data | \
 ```bash
 # Check condition with AI → Execute based on result
 cat test_results.json | \
-  ai --prompt "Did all tests pass?" \
+  reason --prompt "Did all tests pass?" \
      --prompt - \
      --structure '{"all_passed": false, "action": ""}' | \
   jq -r 'if .all_passed then "deploy" else "notify" end' | \
   case $(cat) in
     deploy)
-      tool --name bash --prompt "git push production main"
+      act --name bash --prompt "git push production main"
       ;;
     notify)
-      tool --name bash --prompt "echo 'Tests failed' | mail -s 'Build Failed' dev@example.com"
+      act --name bash --prompt "echo 'Tests failed' | mail -s 'Build Failed' dev@example.com"
       ;;
   esac
 ```
@@ -164,9 +164,9 @@ cat test_results.json | \
 
 ```bash
 # Navigate → Snapshot → AI analysis → Extract data
-tool --name playwright_browser_navigate --prompt "Navigate to https://news.ycombinator.com" && \
-tool --name playwright_browser_snapshot --prompt "Take snapshot" | \
-  ai --prompt "Extract top 5 post titles and URLs from this page:" \
+act --name playwright_browser_navigate --prompt "Navigate to https://news.ycombinator.com" && \
+act --name playwright_browser_snapshot --prompt "Take snapshot" | \
+  reason --prompt "Extract top 5 post titles and URLs from this page:" \
      --prompt - \
      --structure '{"posts": [{"title": "", "url": ""}]}' | \
   jq -r '.posts[] | "\(.title): \(.url)"'
@@ -178,7 +178,7 @@ tool --name playwright_browser_snapshot --prompt "Take snapshot" | \
 # Process multiple files in a loop
 for file in *.log; do
   cat "$file" | \
-    ai --prompt "Summarize errors in log:" \
+    reason --prompt "Summarize errors in log:" \
        --prompt - \
        --structure '{"error_count": 0, "severity": ""}' | \
     jq -r '"\($file): \(.error_count) errors (\(.severity))"'

@@ -2,11 +2,11 @@ import asyncio
 
 async def main():
     print("Launching browser and opening Google...")
-    await tool('playwright_browser_navigate', 'Navigate to https://www.google.com')
+    await act('playwright_browser_navigate', 'Navigate to https://www.google.com')
     
-    await tool('playwright_browser_wait_for', 'Wait for 3 seconds for page to load')
+    await act('playwright_browser_wait_for', 'Wait for 3 seconds for page to load')
     
-    snapshot = await tool('playwright_browser_snapshot', 'Take a snapshot of the current page')
+    snapshot = await act('playwright_browser_snapshot', 'Take a snapshot of the current page')
     
 
     if snapshot is None:
@@ -21,7 +21,7 @@ async def main():
         page_content = str(snapshot)
     
     print("Using AI to analyze page structure...")
-    result = await ai(
+    result = await reason(
         f'Analyze Google homepage content and extract key information: {page_content[:3000]}',
         {
             'title': 'Page title',

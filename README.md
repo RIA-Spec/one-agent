@@ -17,11 +17,11 @@ import asyncio
 
 async def main():
     log_content = open("build.log").read()
-    analysis = await ai(log_content + "Did the build succeed?", {"success": False})
+    analysis = await reason(log_content + "Did the build succeed?", {"success": False})
     if analysis['data']['success']:
-        tool("deploy", "deploy to production")
+        act("deploy", "deploy to production")
     else:
-        tool("notify", "notify about failure")
+        act("notify", "notify about failure")
 
 asyncio.run(main())
 ```
@@ -34,12 +34,12 @@ asyncio.run(main())
 
 ```bash
 cat api_docs.md | \
-  ai --prompt "Read this API documentation:" \
+  reason --prompt "Read this API documentation:" \
      --prompt - \
      --prompt "Generate a summary of how to test this API." \
      --structure '{"summary": ""}' | \
   jq -r '.summary' | \
-  tool bash -
+  act bash -
 ```
 
 ## Environment Variables

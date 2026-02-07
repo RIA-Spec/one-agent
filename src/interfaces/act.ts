@@ -1,9 +1,9 @@
 import type { ComposableMCPServer } from "@mcpc-tech/core";
 import { jsonSchema, stepCountIs, type StopCondition, streamText } from "ai";
 import { tool as aiTool } from "ai";
-import { venus } from "../model";
-import { getTracer } from "../tracing";
-import { processStream } from "../utils/stream";
+import { venus } from "../model.js";
+import { getTracer } from "../tracing.js";
+import { processStream } from "../utils/stream.js";
 
 export function getToolFn(server: ComposableMCPServer) {
   const tool = async (name: string, prompt: string) => {
@@ -30,12 +30,12 @@ export function getToolFn(server: ComposableMCPServer) {
       );
 
     const result = streamText({
-      model: venus("deepseek-v3.2"),
+      model: venus("gemini-3-flash"),
       system: `Execute user requests using the ${name} tool. Follow the input schema strictly and ONLY provide required fields unless explicitly instructed.`,
       prompt: JSON.stringify(prompt),
       experimental_telemetry: {
         isEnabled: true,
-        functionId: "functions.tool.streamText",
+        functionId: "functions.act.streamText",
         tracer: getTracer("one-agent-aer-ai"),
         metadata: {
           functionType: "tool-invocation",
@@ -48,7 +48,7 @@ export function getToolFn(server: ComposableMCPServer) {
       stopWhen: [stepCountIs(10), hasSuccessfullyCalled],
     });
 
-    await processStream(result, "tool");
+    await processStream(result, "act");
 
     const toolResult = (await result.toolResults).reverse().find((tr) => tr.toolName === name);
 

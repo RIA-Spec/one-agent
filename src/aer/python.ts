@@ -2,7 +2,7 @@
  * Python AER - Code-based Action Execution Runtime
  *
  * Agent controls flow via Python logic (conditions, loops, branches).
- * Built-in async ai() and tool() functions for AI reasoning and MCP tool calls.
+ * Built-in async reason() and act() functions for AI reasoning and MCP tool calls.
  */
 
 import { jsonSchema } from "ai";
@@ -12,25 +12,25 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 export interface PythonAERConfig {
   nodeFSRoot: string;
   nodeFSMountPoint: string;
-  aiHandler: (prompt: string, example: any) => Promise<any>;
-  toolHandler: (server: any) => (name: string, prompt: string) => Promise<any>;
+  reasonHandler: (prompt: string, example: any) => Promise<any>;
+  actHandler: (server: any) => (name: string, prompt: string) => Promise<any>;
 }
 
 export function createPythonAER(config: PythonAERConfig) {
-  const { nodeFSRoot, nodeFSMountPoint, aiHandler, toolHandler } = config;
+  const { nodeFSRoot, nodeFSMountPoint, reasonHandler, actHandler } = config;
 
   return {
     name: "run",
-    description: `Python AER - Execute Python with built-in ai() and tool() functions.
+    description: `Python AER - Execute Python with built-in reason() and act() functions.
 
-ai(prompt, example) → {data, error}  (async, use with asyncio.run)
-tool(name, prompt) → result           (sync)
+  reason(prompt, example) → {data, error}  (async, use with asyncio.run)
+  act(name, prompt) → result               (sync)
 File system: ${nodeFSMountPoint} → ${nodeFSRoot}
 
 Usage:
   import asyncio
   async def main():
-      result = await ai('Summarize: ...', '')
+      result = await reason('Summarize: ...', '')
       print(result['data'])
   asyncio.run(main())
 
@@ -56,7 +56,7 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}`,
       writeFileSync(`./data/${Date.now()}.py`, code);
 
       const stream = await runPy(code, {
-        handlers: { ai: aiHandler, tool: toolHandler(server) },
+        handlers: { reason: reasonHandler, act: actHandler(server) },
         packages,
         nodeFSRoot,
         nodeFSMountPoint,

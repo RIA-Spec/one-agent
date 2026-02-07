@@ -10,7 +10,7 @@ import {
 import { getTracer } from "../tracing.js";
 import { processStream } from "../utils/stream.js";
 
-export async function ai(prompt: string, example: any): Promise<AIResult> {
+export async function reason(prompt: string, example: any): Promise<AIResult> {
   const { validate, outputSchema } = compileAiResultValidator(example);
   const dataSchema = exampleToJsonSchema(example);
 
@@ -51,11 +51,11 @@ export async function ai(prompt: string, example: any): Promise<AIResult> {
   };
 
   const result = streamText({
-    model: venus("deepseek-v3.2"),
+    model: venus("gemini-3-flash"),
     prompt: buildPrompt(prompt, example, outputSchema),
     experimental_telemetry: {
       isEnabled: true,
-      functionId: "functions.ai.streamText",
+      functionId: "functions.reason.streamText",
       tracer: getTracer("one-agent-aer-ai"),
       metadata: {
         functionType: "structured-output",
@@ -72,7 +72,7 @@ Rules:
     stopWhen: [stepCountIs(10), hasSuccessfullySubmitted],
   });
 
-  await processStream(result, "ai");
+  await processStream(result, "reason");
   const text = await result.text;
   const toolResults = await result.toolResults;
   const finishReason = await result.finishReason;

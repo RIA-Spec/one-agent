@@ -1,7 +1,7 @@
 /**
  * Bash AER - Unix pipe-based Action Execution Runtime
  *
- * `ai` and `tool` commands block until results are ready (like curl).
+ * `reason` and `act` commands block until results are ready (like curl).
  * IPC: child writes req file → parent polls & processes → writes resp file → child reads.
  */
 
@@ -19,13 +19,13 @@ import { jsonSchema } from "ai";
 
 export interface BashAERConfig {
   cwd: string;
-  aiHandler: (prompt: string, example: any) => Promise<any>;
-  toolHandler: (server: any) => (name: string, prompt: string) => Promise<any>;
+  reasonHandler: (prompt: string, example: any) => Promise<any>;
+  actHandler: (server: any) => (name: string, prompt: string) => Promise<any>;
 }
 
-/** Generate CJS script for ai/tool commands */
-function makeScript(dataDir: string, type: "ai" | "tool"): string {
-  const isAi = type === "ai";
+/** Generate CJS script for reason/act commands */
+function makeScript(dataDir: string, type: "reason" | "act"): string {
+  const isReason = type === "reason";
   return `const fs = require('fs');
 const { randomBytes } = require('crypto');
 const args = process.argv.slice(2);
@@ -33,7 +33,7 @@ const needsStdin = args.some((a, i) => a === '--prompt' && args[i + 1] === '-');
 
 function run(stdin) {
   ${
-    isAi
+    isReason
       ? `
   let prompts = [], structure = '';
   for (let i = 0; i < args.length; i++) {
@@ -75,16 +75,16 @@ if (needsStdin) {
 /** Process pending request files */
 async function processRequests(
   dataDir: string,
-  aiHandler: BashAERConfig["aiHandler"],
-  toolHandler: BashAERConfig["toolHandler"],
+  reasonHandler: BashAERConfig["reasonHandler"],
+  actHandler: BashAERConfig["actHandler"],
   server: any,
 ) {
   for (const file of readdirSync(dataDir)) {
     const reqFile = join(dataDir, file);
 
-    if (file.startsWith("one-ai-req-") && file.endsWith(".txt")) {
-      const id = file.match(/one-ai-req-(.+)\.txt$/)?.[1];
-      const respFile = join(dataDir, `one-ai-resp-${id}.txt`);
+    if (file.startsWith("one-reason-req-") && file.endsWith(".txt")) {
+      const id = file.match(/one-reason-req-(.+)\.txt$/)?.[1];
+      const respFile = join(dataDir, `one-reason-resp-${id}.txt`);
       if (existsSync(respFile)) continue;
       try {
         const req = JSON.parse(readFileSync(reqFile, "utf-8"));
@@ -94,7 +94,7 @@ async function processRequests(
         const log = console.log,
           err = console.error;
         console.log = console.error = () => {};
-        const result = await aiHandler(req.prompt, req.example);
+        const result = await reasonHandler(req.prompt, req.example);
         console.log = log;
         console.error = err;
         const raw = result.error ? { error: result.error } : (result.data ?? result);
@@ -105,28 +105,28 @@ async function processRequests(
           unlinkSync(reqFile);
         } catch {}
         writeFileSync(
-          join(dataDir, `one-ai-resp-${id}.txt`),
+          join(dataDir, `one-reason-resp-${id}.txt`),
           JSON.stringify({ error: e.message }, null, 2),
         );
       }
     }
 
-    if (file.startsWith("one-tool-req-") && file.endsWith(".txt")) {
-      const id = file.match(/one-tool-req-(.+)\.txt$/)?.[1];
-      const respFile = join(dataDir, `one-tool-resp-${id}.txt`);
+    if (file.startsWith("one-act-req-") && file.endsWith(".txt")) {
+      const id = file.match(/one-act-req-(.+)\.txt$/)?.[1];
+      const respFile = join(dataDir, `one-act-resp-${id}.txt`);
       if (existsSync(respFile)) continue;
       try {
         const req = JSON.parse(readFileSync(reqFile, "utf-8"));
         try {
           unlinkSync(reqFile);
         } catch {}
-        const result = await toolHandler(server)(req.toolName, req.prompt);
+        const result = await actHandler(server)(req.toolName, req.prompt);
         writeFileSync(respFile, result.content.map((c: any) => c.text).join("\n"));
       } catch (e: any) {
         try {
           unlinkSync(reqFile);
         } catch {}
-        if (id) writeFileSync(join(dataDir, `one-tool-resp-${id}.txt`), `Error: ${e.message}`);
+        if (id) writeFileSync(join(dataDir, `one-act-resp-${id}.txt`), `Error: ${e.message}`);
       }
     }
   }
@@ -135,12 +135,12 @@ async function processRequests(
 export function createBashAER(config: BashAERConfig) {
   return {
     name: "bash",
-    description: `Bash AER - Execute bash with built-in ai and tool commands (block until done, like curl).
+    description: `Bash AER - Execute bash with built-in reason and act commands (block until done, like curl).
 
-  ai --prompt "text" [--prompt -] [--structure '{"key":""}']
-  tool --name "name" --prompt "text" [--prompt -]
+  reason --prompt "text" [--prompt -] [--structure '{"key":""}']
+  act --name "name" --prompt "text" [--prompt -]
 
-Example: echo "Hi" | ai --prompt "Translate:" --prompt - --structure '{"t":""}' | jq -r '.t'`,
+Example: echo "Hi" | reason --prompt "Translate:" --prompt - --structure '{"t":""}' | jq -r '.t'`,
     parameters: jsonSchema({
       type: "object",
       properties: {
@@ -154,26 +154,26 @@ Example: echo "Hi" | ai --prompt "Translate:" --prompt - --structure '{"t":""}' 
       _extra?: any,
       server?: any,
     ) => {
-      const { cwd, aiHandler, toolHandler } = config;
+      const { cwd, reasonHandler, actHandler } = config;
       const dataDir = join(cwd, "data");
       if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 
       // Write helper scripts
-      const aiCjs = join(dataDir, "ai.cjs"),
-        toolCjs = join(dataDir, "tool.cjs");
-      writeFileSync(aiCjs, makeScript(dataDir, "ai"));
-      writeFileSync(toolCjs, makeScript(dataDir, "tool"));
-      writeFileSync(join(dataDir, "ai"), `#!/bin/bash\nexec node "${aiCjs}" "$@"\n`, {
+      const reasonCjs = join(dataDir, "reason.cjs"),
+        actCjs = join(dataDir, "act.cjs");
+      writeFileSync(reasonCjs, makeScript(dataDir, "reason"));
+      writeFileSync(actCjs, makeScript(dataDir, "act"));
+      writeFileSync(join(dataDir, "reason"), `#!/bin/bash\nexec node "${reasonCjs}" "$@"\n`, {
         mode: 0o755,
       });
-      writeFileSync(join(dataDir, "tool"), `#!/bin/bash\nexec node "${toolCjs}" "$@"\n`, {
+      writeFileSync(join(dataDir, "act"), `#!/bin/bash\nexec node "${actCjs}" "$@"\n`, {
         mode: 0o755,
       });
 
       // Poll for requests while bash runs
       let active = true;
       const poll = setInterval(() => {
-        if (active) processRequests(dataDir, aiHandler, toolHandler, server);
+        if (active) processRequests(dataDir, reasonHandler, actHandler, server);
       }, 50);
 
       try {

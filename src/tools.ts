@@ -2,8 +2,8 @@ import { mcpc } from "@mcpc-tech/core";
 import { markdownLoaderPlugin } from "@mcpc/plugin-markdown-loader";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { ai } from "./interfaces/ai";
-import { getToolFn } from "./interfaces/tool";
+import { reason } from "./interfaces/reason";
+import { getToolFn } from "./interfaces/act";
 import { createBashTool } from "./interfaces/tools/bash.js";
 import { createPythonAER } from "./aer/python.js";
 import { createBashAER } from "./aer/bash.js";
@@ -42,8 +42,8 @@ export async function getServer() {
             const pythonAER = createPythonAER({
               nodeFSRoot,
               nodeFSMountPoint,
-              aiHandler: ai,
-              toolHandler: getToolFn,
+              reasonHandler: reason,
+              actHandler: getToolFn,
             });
             server.tool(
               pythonAER.name,
@@ -64,8 +64,8 @@ export async function getServer() {
           else if (AER_MODE === "bash") {
             const bashAER = createBashAER({
               cwd: projectRoot,
-              aiHandler: ai,
-              toolHandler: getToolFn,
+              reasonHandler: reason,
+              actHandler: getToolFn,
             });
             server.tool(
               bashAER.name,
@@ -80,8 +80,8 @@ export async function getServer() {
             const pythonAER = createPythonAER({
               nodeFSRoot,
               nodeFSMountPoint,
-              aiHandler: ai,
-              toolHandler: getToolFn,
+              reasonHandler: reason,
+              actHandler: getToolFn,
             });
             server.tool(
               pythonAER.name,

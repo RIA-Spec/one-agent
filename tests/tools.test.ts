@@ -10,7 +10,7 @@ import type { TextContent, CallToolResult } from "@modelcontextprotocol/sdk/type
 /**
  * Unit tests for the run tool that executes Python code in Pyodide.
  *
- * Note: Tests using ai() function (which requires asyncio) are skipped because
+ * Note: Tests using reason() function (which requires asyncio) are skipped because
  * WebAssembly stack switching is not supported in vitest worker threads.
  * These tests work fine when running the tool directly with:
  * node --experimental-wasm-stack-switching dist/repl.mjs
@@ -80,7 +80,7 @@ describe("run tool", () => {
   }, 60000);
 
   // Now works with pool: "forks" instead of worker threads
-  it("executes Python with ai() function - simple text", async () => {
+  it("executes Python with reason() function - simple text", async () => {
     const code = readFileSync(resolve(examplesDir, "use_ai.py"), "utf-8");
 
     const result = await client.callTool({
@@ -96,7 +96,7 @@ describe("run tool", () => {
   }, 30000);
 
   // Now works with pool: "forks" instead of worker threads
-  it("executes Python with ai() function - boolean decision", async () => {
+  it("executes Python with reason() function - boolean decision", async () => {
     const code = readFileSync(resolve(examplesDir, "ai_boolean.py"), "utf-8");
 
     const result = await client.callTool({
@@ -111,7 +111,7 @@ describe("run tool", () => {
   }, 30000);
 
   // Now works with pool: "forks" instead of worker threads
-  it("executes Python with ai() function - structured array", async () => {
+  it("executes Python with reason() function - structured array", async () => {
     const code = readFileSync(resolve(examplesDir, "ai_array.py"), "utf-8");
 
     const result = await client.callTool({
@@ -153,7 +153,7 @@ import asyncio
 
 async def main():
     nums = [1, 2, 3, 4, 5]
-    result = await ai('Calculate the sum: ' + str(nums), 15)
+    result = await reason('Calculate the sum: ' + str(nums), 15)
     print(f"AI calculated sum: {result['data']}")
 
 asyncio.run(main())
