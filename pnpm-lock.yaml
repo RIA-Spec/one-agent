@@ -59,6 +59,9 @@ importers:
       chalk:
         specifier: ^5.6.2
         version: 5.6.2
+      diff:
+        specifier: ^8.0.3
+        version: 8.0.3
       gray-matter:
         specifier: ^4.0.3
         version: 4.0.3
@@ -1828,6 +1831,10 @@ packages:
 
   diff-match-patch@1.0.5:
     resolution: {integrity: sha512-IayShXAgj/QMXgB0IWmKx+rOPuGMhqm5w6jvFxmVenXKIzRqTAAsbBPT3kWQeGANj3jGgvcvv4yK6SxqYmikgw==}
+
+  diff@8.0.3:
+    resolution: {integrity: sha512-qejHi7bcSD4hQAZE0tNAawRK1ZtafHDmMTMkrrIGgSLl7hTnQHmKCeB45xAcbfTqK2zowkM3j3bHt/4b/ARbYQ==}
+    engines: {node: '>=0.3.1'}
 
   dom-serializer@2.0.0:
     resolution: {integrity: sha512-wIkAryiqt/nV5EQKqQpo3SToSOV9J0DnbJqwK7Wv/Trc92zIAYZ4FlMu+JPFW1DfGFt81ZTCGgDEabffXeLyJg==}
@@ -4740,6 +4747,8 @@ snapshots:
   destr@2.0.5: {}
 
   diff-match-patch@1.0.5: {}
+
+  diff@8.0.3: {}
 
   dom-serializer@2.0.0:
     dependencies:

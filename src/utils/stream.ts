@@ -130,7 +130,10 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
         const data = (chunk as any).result ?? (chunk as any).output;
         const output = formatToolOutput(data);
         const indent = nested ? P : "";
-        const isError = /error|traceback/i.test(output);
+        // Check for isError flag (from act) or error field (from reason)
+        const isError =
+          data?.isError === true ||
+          (typeof data === "object" && data !== null && "error" in data && data.error != null);
 
         if (isError) {
           console.log(indent + chalk.red("✗ Error:"));
