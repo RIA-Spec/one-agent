@@ -15,4 +15,7 @@ const venusProvider = createOpenAICompatible({
 });
 
 export const venus: (modelId: string) => LanguageModel = (modelId: string) =>
-  venusProvider(modelId);
+  wrapLanguageModel({
+    model: venusProvider(modelId),
+    middleware: devToolsMiddleware(),
+  });

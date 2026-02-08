@@ -9,11 +9,14 @@ export function getToolFn(server: ComposableMCPServer) {
   const tool = async (name: string, prompt: string) => {
     const toolDef = server.getComposedTool(name);
 
+    // remove $schema to avoid issues with google/json-schema compatibility
+    const { $schema, ...inputSchema } = (toolDef?.inputSchema ?? {}) as any;
+
     const tools = {
       [name]: aiTool({
         description: toolDef?.description ?? "",
         // @ts-expect-error - schema type mismatch
-        inputSchema: jsonSchema(toolDef?.inputSchema),
+        inputSchema: jsonSchema(inputSchema),
         // @ts-expect-error - execute type mismatch
         execute: toolDef?.execute,
       }),
