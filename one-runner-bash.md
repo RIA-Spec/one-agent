@@ -6,7 +6,7 @@ deps:
     playwright:
       transportType: stdio
       command: npx
-      args: ["-y", "chrome-devtools-mcp@latest", "--headless=false"]
+      args: ["-y", "@playwright/mcp@latest"]
       env:
         PLAYWRIGHT_MCP_HEADLESS: "0"
 refs:

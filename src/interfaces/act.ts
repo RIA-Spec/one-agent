@@ -8,6 +8,9 @@ import { processStream } from "../utils/stream.js";
 export function getToolFn(server: ComposableMCPServer) {
   const tool = async (name: string, prompt: string) => {
     const toolDef = server.getComposedTool(name);
+    if (!toolDef) {
+      throw new Error(`Tool ${name} not found on server`);
+    }
 
     // remove $schema to avoid issues with google/json-schema compatibility
     const { $schema, ...inputSchema } = (toolDef?.inputSchema ?? {}) as any;
@@ -15,9 +18,7 @@ export function getToolFn(server: ComposableMCPServer) {
     const tools = {
       [name]: aiTool({
         description: toolDef?.description ?? "",
-        // @ts-expect-error - schema type mismatch
         inputSchema: jsonSchema(inputSchema),
-        // @ts-expect-error - execute type mismatch
         execute: toolDef?.execute,
       }),
     };

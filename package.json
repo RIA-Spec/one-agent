@@ -61,6 +61,7 @@
     "zod": "^4.3.5"
   },
   "devDependencies": {
+    "@playwright/mcp": "^0.0.64",
     "@types/node": "^25.0.3",
     "@vitest/ui": "4.0.17",
     "bumpp": "^10.3.2",
