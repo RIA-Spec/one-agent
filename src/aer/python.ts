@@ -42,7 +42,8 @@ ${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}`,
         packages: {
           type: "object",
           additionalProperties: { type: "string" },
-          description: 'Import-to-PyPI map, e.g. {"sklearn": "scikit-learn"}',
+          description:
+            'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
         },
       },
       required: ["code"],
