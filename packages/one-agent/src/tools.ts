@@ -8,6 +8,8 @@ import { createBashTool } from "./interfaces/tools/bash.js";
 import { createReadTool, createWriteTool, createEditTool } from "./interfaces/tools/index.js";
 import { createPythonAER } from "./aer/python.js";
 import { createBashAER } from "./aer/bash.js";
+import { convertToAISDKTools } from "@mcpc-tech/core";
+import { tool, jsonSchema } from "ai";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -101,4 +103,15 @@ export async function getServer() {
     );
   }
   return server;
+}
+
+/**
+ * Helper function for Chat SDK integration.
+ * Returns AI SDK compatible tools object from the MCP server.
+ */
+export async function getOneTools() {
+  return convertToAISDKTools(await getServer(), {
+    tool: tool,
+    jsonSchema: jsonSchema,
+  });
 }

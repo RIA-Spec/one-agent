@@ -2,7 +2,7 @@ import Ajv from "ajv";
 
 export type AIResult = {
   data: any;
-  error?: string;
+  error?: string | null;
 };
 
 const ajv = new Ajv({ allErrors: true, strict: false });

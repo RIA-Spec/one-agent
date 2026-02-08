@@ -30,7 +30,7 @@ export async function reason(prompt: string, example: any): Promise<AIResult> {
     execute: (result) => {
       const output = result as AIResult;
       if (validate(result)) {
-        structuredOutput = output;
+        structuredOutput = { ...output, error: null };
         return `submitted`;
       }
       lastValidationError = errorsTextFromAjv(validate.errors);

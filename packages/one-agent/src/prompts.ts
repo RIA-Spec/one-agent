@@ -31,7 +31,6 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
 </code_rules>
 
 <examples>
-<browsing_website>
 import asyncio
 async def main():
     page = await act('playwright_browser_navigate', 'Navigate to https://example.com')
@@ -56,7 +55,8 @@ async def main():
     r = await reason('Should alert? errors=15, threshold=10', True)
     if r['data']:
         print('Alert!')
-asyncio.run(main())
+asyncio.run(main()
+    print('Alert!')
 </make_decision>
 </examples>
 

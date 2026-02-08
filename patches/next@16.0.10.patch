@@ -1,0 +1,14 @@
+diff --git a/dist/cli/next-dev.js b/dist/cli/next-dev.js
+index dec729e..e3a8f7c 100644
+--- a/dist/cli/next-dev.js
++++ b/dist/cli/next-dev.js
+@@ -242,6 +242,9 @@ const nextDev = async (options, portSource, directory)=>{
+             }
+             child = (0, _child_process.fork)(startServerPath, {
+                 stdio: 'inherit',
++                // PATCH: Add --experimental-wasm-stack-switching via execArgv instead of NODE_OPTIONS
++                // because Node.js doesn't allow this flag in NODE_OPTIONS environment variable
++                execArgv: ['--experimental-wasm-stack-switching'],
+                 env: {
+                     ...defaultEnv,
+                     ...bundler === _bundler.Bundler.Turbopack ? {
