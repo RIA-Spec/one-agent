@@ -34,73 +34,82 @@ let server: Awaited<ReturnType<typeof mcpc>> | null = null;
 
 export async function getServer() {
   if (!server || DEV_MODE) {
-    server = await mcpc(
-      [{ name: "one", version: "1.0.0" }, { capabilities: { tools: {} } }],
-      [composeFile],
-      {
-        plugins: [markdownLoaderPlugin() as any],
-        setup: (server) => {
-          // Register Bash AER (Unix Philosophy approach) - early return
-          if (AER_MODE === "bash") {
-            const bashAER = createBashAER({
-              cwd: projectRoot,
+    // Temporarily switch cwd to one-agent package root so that
+    // npx can find locally installed MCP servers (e.g. @playwright/mcp)
+    // when the process is launched from a different workspace package.
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(projectRoot);
+      server = await mcpc(
+        [{ name: "one", version: "1.0.0" }, { capabilities: { tools: {} } }],
+        [composeFile],
+        {
+          plugins: [markdownLoaderPlugin() as any],
+          setup: (server) => {
+            // Register Bash AER (Unix Philosophy approach) - early return
+            if (AER_MODE === "bash") {
+              const bashAER = createBashAER({
+                cwd: projectRoot,
+                reasonHandler: reason,
+                actHandler: getToolFn,
+              });
+              server.tool(
+                bashAER.name,
+                bashAER.description,
+                bashAER.parameters,
+                async (args: any, extra: any) => bashAER.execute(args, extra, server),
+                { internal: false },
+              );
+              console.log(`✓ Bash AER enabled`);
+              return;
+            }
+
+            // Register Python AER (Code Interpreter approach) - default mode
+            if (AER_MODE !== "python") {
+              console.warn(`⚠ Unknown AER_MODE: ${AER_MODE}, defaulting to Python`);
+            }
+
+            const pythonAER = createPythonAER({
+              nodeFSRoot,
+              nodeFSMountPoint,
               reasonHandler: reason,
               actHandler: getToolFn,
             });
             server.tool(
-              bashAER.name,
-              bashAER.description,
-              bashAER.parameters,
-              async (args: any, extra: any) => bashAER.execute(args, extra, server),
+              pythonAER.name,
+              pythonAER.description,
+              pythonAER.parameters,
+              async (args: any, extra: any) => pythonAER.execute(args, extra, server),
               { internal: false },
             );
-            console.log(`✓ Bash AER enabled`);
-            return;
-          }
+            console.log(`✓ Python AER enabled`);
 
-          // Register Python AER (Code Interpreter approach) - default mode
-          if (AER_MODE !== "python") {
-            console.warn(`⚠ Unknown AER_MODE: ${AER_MODE}, defaulting to Python`);
-          }
+            // Register low-level tools for Python mode
+            const bashTool = createBashTool(nodeFSRoot);
+            server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute, {
+              internal: true,
+            });
 
-          const pythonAER = createPythonAER({
-            nodeFSRoot,
-            nodeFSMountPoint,
-            reasonHandler: reason,
-            actHandler: getToolFn,
-          });
-          server.tool(
-            pythonAER.name,
-            pythonAER.description,
-            pythonAER.parameters,
-            async (args: any, extra: any) => pythonAER.execute(args, extra, server),
-            { internal: false },
-          );
-          console.log(`✓ Python AER enabled`);
+            const readTool = createReadTool(nodeFSRoot);
+            server.tool("read", readTool.description, readTool.parameters, readTool.execute, {
+              internal: true,
+            });
 
-          // Register low-level tools for Python mode
-          const bashTool = createBashTool(nodeFSRoot);
-          server.tool("bash", bashTool.description, bashTool.parameters, bashTool.execute, {
-            internal: true,
-          });
+            const writeTool = createWriteTool(nodeFSRoot);
+            server.tool("write", writeTool.description, writeTool.parameters, writeTool.execute, {
+              internal: true,
+            });
 
-          const readTool = createReadTool(nodeFSRoot);
-          server.tool("read", readTool.description, readTool.parameters, readTool.execute, {
-            internal: true,
-          });
-
-          const writeTool = createWriteTool(nodeFSRoot);
-          server.tool("write", writeTool.description, writeTool.parameters, writeTool.execute, {
-            internal: true,
-          });
-
-          const editTool = createEditTool(nodeFSRoot);
-          server.tool("edit", editTool.description, editTool.parameters, editTool.execute, {
-            internal: true,
-          });
+            const editTool = createEditTool(nodeFSRoot);
+            server.tool("edit", editTool.description, editTool.parameters, editTool.execute, {
+              internal: true,
+            });
+          },
         },
-      },
-    );
+      );
+    } finally {
+      process.chdir(originalCwd);
+    }
   }
   return server;
 }

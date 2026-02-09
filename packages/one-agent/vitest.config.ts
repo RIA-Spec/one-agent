@@ -1,5 +1,10 @@
 import { defineConfig } from "vitest/config";
 
+// Load .env so forked worker processes inherit the env vars
+try {
+  process.loadEnvFile(".env");
+} catch {}
+
 export default defineConfig({
   test: {
     pool: "forks",

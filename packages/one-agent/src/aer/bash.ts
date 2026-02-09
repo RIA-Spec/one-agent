@@ -16,6 +16,8 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { jsonSchema } from "ai";
+import { emitProgress } from "../progress.js";
+import { codeToAST } from "./code-to-ast.js";
 
 export interface BashAERConfig {
   cwd: string;
@@ -78,6 +80,7 @@ async function processRequests(
   reasonHandler: BashAERConfig["reasonHandler"],
   actHandler: BashAERConfig["actHandler"],
   server: any,
+  stepCounter?: { value: number },
 ) {
   for (const file of readdirSync(dataDir)) {
     const reqFile = join(dataDir, file);
@@ -86,6 +89,10 @@ async function processRequests(
       const id = file.match(/one-reason-req-(.+)\.txt$/)?.[1];
       const respFile = join(dataDir, `one-reason-resp-${id}.txt`);
       if (existsSync(respFile)) continue;
+
+      const stepIdx = stepCounter ? stepCounter.value++ : -1;
+      if (stepIdx >= 0) emitProgress({ type: "step-start", stepIndex: stepIdx });
+
       try {
         const req = JSON.parse(readFileSync(reqFile, "utf-8"));
         try {
@@ -100,6 +107,7 @@ async function processRequests(
         const raw = result.error ? { error: result.error } : (result.data ?? result);
         const data = typeof raw === "string" ? JSON.parse(raw) : raw;
         writeFileSync(respFile, JSON.stringify(data, null, 2));
+        if (stepIdx >= 0) emitProgress({ type: "step-end", stepIndex: stepIdx, status: "ok" });
       } catch (e: any) {
         try {
           unlinkSync(reqFile);
@@ -108,6 +116,13 @@ async function processRequests(
           join(dataDir, `one-reason-resp-${id}.txt`),
           JSON.stringify({ error: e.message }, null, 2),
         );
+        if (stepIdx >= 0)
+          emitProgress({
+            type: "step-end",
+            stepIndex: stepIdx,
+            status: "error",
+            error: (e as Error).message?.substring(0, 100),
+          });
       }
     }
 
@@ -115,6 +130,10 @@ async function processRequests(
       const id = file.match(/one-act-req-(.+)\.txt$/)?.[1];
       const respFile = join(dataDir, `one-act-resp-${id}.txt`);
       if (existsSync(respFile)) continue;
+
+      const stepIdx = stepCounter ? stepCounter.value++ : -1;
+      if (stepIdx >= 0) emitProgress({ type: "step-start", stepIndex: stepIdx });
+
       try {
         const req = JSON.parse(readFileSync(reqFile, "utf-8"));
         try {
@@ -122,11 +141,19 @@ async function processRequests(
         } catch {}
         const result = await actHandler(server)(req.toolName, req.prompt);
         writeFileSync(respFile, result.content.map((c: any) => c.text).join("\n"));
+        if (stepIdx >= 0) emitProgress({ type: "step-end", stepIndex: stepIdx, status: "ok" });
       } catch (e: any) {
         try {
           unlinkSync(reqFile);
         } catch {}
         if (id) writeFileSync(join(dataDir, `one-act-resp-${id}.txt`), `Error: ${e.message}`);
+        if (stepIdx >= 0)
+          emitProgress({
+            type: "step-end",
+            stepIndex: stepIdx,
+            status: "error",
+            error: (e as Error).message?.substring(0, 100),
+          });
       }
     }
   }
@@ -170,10 +197,19 @@ Example: echo "Hi" | reason --prompt "Translate:" --prompt - --structure '{"t":"
         mode: 0o755,
       });
 
+      // TS-side AST extraction → emit plan before execution starts
+      const steps = codeToAST(command, "bash");
+      if (steps.length > 0) {
+        emitProgress({ type: "plan", steps });
+      }
+
+      // Step counter for tracking progress during execution
+      const stepCounter = { value: 0 };
+
       // Poll for requests while bash runs
       let active = true;
       const poll = setInterval(() => {
-        if (active) processRequests(dataDir, reasonHandler, actHandler, server);
+        if (active) processRequests(dataDir, reasonHandler, actHandler, server, stepCounter);
       }, 50);
 
       try {
