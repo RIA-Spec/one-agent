@@ -128,18 +128,12 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
       execute: async ({ writer: dataStream }) => {
-        let cleanupProgress: (() => void) | undefined;
-
         console.log(
           `[Chat API] Using ONE Agent with model: ${normalizedChatModel}`
         );
 
-        const {
-          getOneTools,
-          AGENT_SYSTEM_PROMPT,
-          venus,
-          setProgressCallback,
-        } = await import("@one/agent");
+        const { getOneTools, AGENT_SYSTEM_PROMPT, venus, setProgressCallback } =
+          await import("@one/agent");
 
         setProgressCallback((event) => {
           dataStream.write({
@@ -147,7 +141,7 @@ export async function POST(request: Request) {
             data: event,
           } as any);
         });
-        cleanupProgress = () => setProgressCallback(null);
+        const cleanupProgress = () => setProgressCallback(null);
 
         const oneTools = await getOneTools();
 
@@ -175,7 +169,7 @@ export async function POST(request: Request) {
         dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
         // Clean up progress callback after stream completes
-        cleanupProgress?.();
+        cleanupProgress();
 
         if (titlePromise) {
           try {
