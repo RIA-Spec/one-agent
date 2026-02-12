@@ -1,7 +1,14 @@
 "use client";
 
 import type React from "react";
-import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { ASTStep, ExecutionStepEvent } from "@/lib/types";
 
 export interface StepState {
@@ -23,8 +30,12 @@ export interface ExecutionProgress {
 function countTrackable(steps: ASTStep[]): number {
   let count = 0;
   for (const s of steps) {
-    if (s.type === "act" || s.type === "reason") count++;
-    if (s.children) count += countTrackable(s.children);
+    if (s.type === "act" || s.type === "reason") {
+      count++;
+    }
+    if (s.children) {
+      count += countTrackable(s.children);
+    }
   }
   return count;
 }
@@ -38,9 +49,14 @@ interface ExecutionProgressContextValue {
   reset: () => void;
 }
 
-const ExecutionProgressContext = createContext<ExecutionProgressContextValue | null>(null);
+const ExecutionProgressContext =
+  createContext<ExecutionProgressContextValue | null>(null);
 
-export function ExecutionProgressProvider({ children }: { children: React.ReactNode }) {
+export function ExecutionProgressProvider({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const [progress, setProgress] = useState<ExecutionProgress | null>(null);
   // Use ref to avoid stale closures in handleEvent
   const progressRef = useRef<ExecutionProgress | null>(null);
@@ -51,7 +67,9 @@ export function ExecutionProgressProvider({ children }: { children: React.ReactN
         const trackableCount = countTrackable(event.steps);
         const newProgress: ExecutionProgress = {
           steps: event.steps,
-          stepStates: Array.from({ length: trackableCount }, () => ({ status: "pending" as const })),
+          stepStates: Array.from({ length: trackableCount }, () => ({
+            status: "pending" as const,
+          })),
         };
         progressRef.current = newProgress;
         setProgress(newProgress);
@@ -59,7 +77,9 @@ export function ExecutionProgressProvider({ children }: { children: React.ReactN
       }
       case "step-start": {
         const current = progressRef.current;
-        if (!current) return;
+        if (!current) {
+          return;
+        }
         const newStates = [...current.stepStates];
         if (event.stepIndex < newStates.length) {
           newStates[event.stepIndex] = { status: "running" };
@@ -71,7 +91,9 @@ export function ExecutionProgressProvider({ children }: { children: React.ReactN
       }
       case "step-end": {
         const current = progressRef.current;
-        if (!current) return;
+        if (!current) {
+          return;
+        }
         const newStates = [...current.stepStates];
         if (event.stepIndex < newStates.length) {
           newStates[event.stepIndex] = {
@@ -84,6 +106,9 @@ export function ExecutionProgressProvider({ children }: { children: React.ReactN
         setProgress(updated);
         break;
       }
+      default: {
+        return;
+      }
     }
   }, []);
 
@@ -92,7 +117,10 @@ export function ExecutionProgressProvider({ children }: { children: React.ReactN
     setProgress(null);
   }, []);
 
-  const value = useMemo(() => ({ progress, handleEvent, reset }), [progress, handleEvent, reset]);
+  const value = useMemo(
+    () => ({ progress, handleEvent, reset }),
+    [progress, handleEvent, reset]
+  );
 
   return (
     <ExecutionProgressContext.Provider value={value}>
@@ -104,7 +132,9 @@ export function ExecutionProgressProvider({ children }: { children: React.ReactN
 export function useExecutionProgress() {
   const context = useContext(ExecutionProgressContext);
   if (!context) {
-    throw new Error("useExecutionProgress must be used within an ExecutionProgressProvider");
+    throw new Error(
+      "useExecutionProgress must be used within an ExecutionProgressProvider"
+    );
   }
   return context;
 }

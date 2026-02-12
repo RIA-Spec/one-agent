@@ -3,8 +3,8 @@ import Script from "next/script";
 import { Suspense } from "react";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DataStreamProvider } from "@/components/data-stream-provider";
-import { ExecutionProgressProvider } from "@/hooks/use-execution-progress";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { ExecutionProgressProvider } from "@/hooks/use-execution-progress";
 import { auth } from "../(auth)/auth";
 
 export default function Layout({ children }: { children: React.ReactNode }) {

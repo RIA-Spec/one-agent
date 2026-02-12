@@ -40,6 +40,22 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+const ONE_AGENT_MODELS = new Set(["one-agent", "one-agent-reasoning"]);
+const STANDARD_ACTIVE_TOOLS = [
+  "getWeather",
+  "createDocument",
+  "updateDocument",
+  "requestSuggestions",
+];
+
+function isReasoningChatModel(modelId: string) {
+  return modelId.includes("reasoning") || modelId.includes("thinking");
+}
+
+function isOneAgentChatModel(modelId: string) {
+  return ONE_AGENT_MODELS.has(modelId);
+}
+
 function getStreamContext() {
   try {
     return createResumableStreamContext({ waitUntil: after });
@@ -132,13 +148,8 @@ export async function POST(request: Request) {
       });
     }
 
-    const isReasoningModel =
-      selectedChatModel.includes("reasoning") ||
-      selectedChatModel.includes("thinking");
-
-    const isOneAgent =
-      selectedChatModel === "one-agent" ||
-      selectedChatModel === "one-agent-reasoning";
+    const isReasoningModel = isReasoningChatModel(selectedChatModel);
+    const isOneAgent = isOneAgentChatModel(selectedChatModel);
 
     console.log(
       `[Chat API] Selected model: ${selectedChatModel}, isOneAgent: ${isOneAgent}`
@@ -150,18 +161,24 @@ export async function POST(request: Request) {
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
       execute: async ({ writer: dataStream }) => {
         let result: ReturnType<typeof streamText>;
-        let cleanupProgress: (() => void) | null = null;
+        let cleanupProgress: (() => void) | undefined;
 
         if (isOneAgent) {
           console.log("[Chat API] Using ONE Agent with Venus provider");
           // ONE Agent integration - lazy load to avoid Pyodide initialization at build time
-          const { getOneTools, AGENT_SYSTEM_PROMPT, venus, setProgressCallback } = await import(
-            "@one/agent"
-          );
+          const {
+            getOneTools,
+            AGENT_SYSTEM_PROMPT,
+            venus,
+            setProgressCallback,
+          } = await import("@one/agent");
 
           // Hook up real-time execution progress to dataStream
           setProgressCallback((event) => {
-            dataStream.write({ type: "data-execution-step" as const, data: event } as any);
+            dataStream.write({
+              type: "data-execution-step" as const,
+              data: event,
+            } as any);
           });
           cleanupProgress = () => setProgressCallback(null);
 
@@ -184,7 +201,14 @@ export async function POST(request: Request) {
             },
           });
         } else {
-          // Default Chat SDK flow
+          // Standard non-agent chat flow
+          const standardTools = {
+            getWeather,
+            createDocument: createDocument({ session, dataStream }),
+            updateDocument: updateDocument({ session, dataStream }),
+            requestSuggestions: requestSuggestions({ session, dataStream }),
+          };
+
           result = streamText({
             model: getLanguageModel(selectedChatModel),
             system: systemPrompt({ selectedChatModel, requestHints }),
@@ -192,12 +216,7 @@ export async function POST(request: Request) {
             stopWhen: stepCountIs(5),
             experimental_activeTools: isReasoningModel
               ? []
-              : [
-                  "getWeather",
-                  "createDocument",
-                  "updateDocument",
-                  "requestSuggestions",
-                ],
+              : STANDARD_ACTIVE_TOOLS,
             providerOptions: isReasoningModel
               ? {
                   anthropic: {
@@ -205,12 +224,7 @@ export async function POST(request: Request) {
                   },
                 }
               : undefined,
-            tools: {
-              getWeather,
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({ session, dataStream }),
-            },
+            tools: standardTools,
             experimental_telemetry: {
               isEnabled: isProductionEnvironment,
               functionId: "stream-text",

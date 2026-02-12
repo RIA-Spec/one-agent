@@ -474,14 +474,18 @@ done`;
       const steps: ASTStep[] = [
         { type: "act", name: "setup", args: [], line: 1 },
         {
-          type: "loop", name: "for items", args: [], line: 2,
+          type: "loop",
+          name: "for items",
+          args: [],
+          line: 2,
           children: [
             { type: "act", name: "tool", args: [], line: 3 },
             {
-              type: "condition", name: "if x", args: [], line: 4,
-              children: [
-                { type: "reason", name: "analyze", args: [], line: 5 },
-              ],
+              type: "condition",
+              name: "if x",
+              args: [],
+              line: 4,
+              children: [{ type: "reason", name: "analyze", args: [], line: 5 }],
             },
           ],
         },
@@ -490,9 +494,7 @@ done`;
     });
 
     it("returns 0 for only structural nodes", () => {
-      const steps: ASTStep[] = [
-        { type: "loop", name: "for x", args: [], line: 1 },
-      ];
+      const steps: ASTStep[] = [{ type: "loop", name: "for x", args: [], line: 1 }];
       expect(countTrackableSteps(steps)).toBe(0);
     });
 
@@ -519,7 +521,10 @@ done`;
       const steps: ASTStep[] = [
         { type: "act", name: "setup", args: [], line: 1 },
         {
-          type: "loop", name: "for items", args: [], line: 2,
+          type: "loop",
+          name: "for items",
+          args: [],
+          line: 2,
           children: [
             { type: "act", name: "tool", args: [], line: 3 },
             { type: "reason", name: "analyze", args: [], line: 4 },
@@ -540,13 +545,17 @@ done`;
     it("handles deeply nested tree", () => {
       const steps: ASTStep[] = [
         {
-          type: "loop", name: "outer", args: [], line: 1,
+          type: "loop",
+          name: "outer",
+          args: [],
+          line: 1,
           children: [
             {
-              type: "condition", name: "if x", args: [], line: 2,
-              children: [
-                { type: "act", name: "deep", args: [], line: 3 },
-              ],
+              type: "condition",
+              name: "if x",
+              args: [],
+              line: 2,
+              children: [{ type: "act", name: "deep", args: [], line: 3 }],
             },
           ],
         },

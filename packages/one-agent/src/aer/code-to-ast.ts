@@ -57,11 +57,7 @@ export interface FlatDisplayNode {
   trackableIndex?: number;
 }
 
-export function flattenAST(
-  steps: ASTStep[],
-  depth = 0,
-  counter = { value: 0 },
-): FlatDisplayNode[] {
+export function flattenAST(steps: ASTStep[], depth = 0, counter = { value: 0 }): FlatDisplayNode[] {
   const result: FlatDisplayNode[] = [];
   for (const step of steps) {
     if (step.type === "act" || step.type === "reason") {
@@ -238,10 +234,7 @@ function parsePyBlock(
 /**
  * Collect a multi-line Python call starting at `idx` until parens balance.
  */
-function collectPyCall(
-  lines: string[],
-  idx: number,
-): { text: string; endLine: number } {
+function collectPyCall(lines: string[], idx: number): { text: string; endLine: number } {
   let text = "";
   let depth = 0;
   let started = false;

@@ -1,6 +1,12 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
+import { ChevronDown } from "lucide-react";
 import { useState } from "react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
@@ -21,10 +27,8 @@ import { MessageActions } from "./message-actions";
 import { MessageEditor } from "./message-editor";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
-import { Weather } from "./weather";
 import { ToolRunFlow } from "./tool-run-flow";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ChevronDown } from "lucide-react";
+import { Weather } from "./weather";
 
 const PurePreviewMessage = ({
   addToolApprovalResponse,
@@ -345,7 +349,8 @@ const PurePreviewMessage = ({
             if (type === "tool-run" || type === "tool-bash") {
               const { toolCallId, state } = part;
               const aerMode = type === "tool-bash" ? "bash" : "python";
-              const codeOrCommand = type === "tool-bash" ? part.input?.command : part.input?.code;
+              const codeOrCommand =
+                type === "tool-bash" ? part.input?.command : part.input?.code;
 
               return (
                 <Tool defaultOpen={true} key={toolCallId}>
@@ -356,22 +361,25 @@ const PurePreviewMessage = ({
                       <div className="p-3">
                         <ToolRunFlow
                           code={codeOrCommand}
+                          isError={part.output?.isError}
                           mode={aerMode}
                           state={
-                            state === "input-available" || state === "input-streaming"
+                            state === "input-available" ||
+                            state === "input-streaming"
                               ? "streaming"
                               : state === "output-available"
                                 ? "available"
                                 : "pending"
                           }
-                          isError={part.output?.isError}
                         />
                       </div>
                     )}
 
                     <Collapsible defaultOpen={false}>
                       <CollapsibleTrigger className="flex w-full items-center justify-between border-t px-3 py-2 text-sm font-medium hover:bg-muted/50 transition-colors">
-                        <span className="text-muted-foreground text-[10px] uppercase tracking-wide">Code & Result</span>
+                        <span className="text-muted-foreground text-[10px] uppercase tracking-wide">
+                          Code & Result
+                        </span>
                         <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 [[data-state=open]>&]:rotate-180" />
                       </CollapsibleTrigger>
                       <CollapsibleContent>
@@ -398,7 +406,9 @@ const PurePreviewMessage = ({
                             </div>
                             <ToolOutput
                               errorText={
-                                part.output?.isError ? "Execution Error" : undefined
+                                part.output?.isError
+                                  ? "Execution Error"
+                                  : undefined
                               }
                               output={
                                 <div className="rounded p-2">

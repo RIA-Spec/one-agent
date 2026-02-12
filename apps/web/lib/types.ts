@@ -60,7 +60,12 @@ export interface ASTStep {
 export type ExecutionStepEvent =
   | { type: "plan"; steps: ASTStep[] }
   | { type: "step-start"; stepIndex: number }
-  | { type: "step-end"; stepIndex: number; status: "ok" | "error"; error?: string };
+  | {
+      type: "step-end";
+      stepIndex: number;
+      status: "ok" | "error";
+      error?: string;
+    };
 
 export type ChatMessage = UIMessage<
   MessageMetadata,
