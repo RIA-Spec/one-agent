@@ -539,7 +539,7 @@ function parseBashTree(code: string): ASTStep[] {
 
     // Close keywords (done, fi)
     const currentFrame = stack.at(-1);
-    if (currentFrame && currentFrame.closeRe.test(t)) {
+    if (currentFrame?.closeRe.test(t)) {
       stack.pop();
       continue;
     }

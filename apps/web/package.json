@@ -15,7 +15,9 @@
     "db:pull": "drizzle-kit pull",
     "db:check": "drizzle-kit check",
     "db:up": "drizzle-kit up",
-    "test": "export PLAYWRIGHT=True && pnpm exec playwright test"
+    "test": "PLAYWRIGHT=True PLAYWRIGHT_HTML_OPEN=never pnpm exec playwright test --reporter=line",
+    "test:gui": "PLAYWRIGHT=True PLAYWRIGHT_HTML_OPEN=never pnpm exec playwright test --headed --reporter=line --workers=1",
+    "test:bench": "PLAYWRIGHT=True PLAYWRIGHT_HTML_OPEN=never pnpm exec playwright test tests/e2e/bench-*.test.ts --reporter=line --workers=1 --max-failures=1"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.15",
