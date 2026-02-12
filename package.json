@@ -15,6 +15,12 @@
     "clean": "pnpm --recursive exec rm -rf dist .next node_modules"
   },
   "devDependencies": {},
+  "pnpm": {
+    "overrides": {
+      "ai": "6.0.44",
+      "@ai-sdk/provider": "3.0.4"
+    }
+  },
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"

@@ -35,7 +35,9 @@ export function getLanguageModel(modelId: string) {
 
   // ONE Agent models - use Venus provider
   if (modelId === "one-agent" || modelId === "one-agent-reasoning") {
-    const model = venus("gemini-3-pro");
+    const model = venus("gemini-3-pro") as Parameters<
+      typeof wrapLanguageModel
+    >[0]["model"];
 
     if (modelId === "one-agent-reasoning") {
       return wrapLanguageModel({

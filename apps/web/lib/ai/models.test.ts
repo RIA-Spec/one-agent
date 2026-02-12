@@ -8,45 +8,45 @@ const mockUsage = {
 };
 
 export const chatModel = new MockLanguageModelV3({
-  doGenerate: async () => ({
-    finishReason: "stop",
+  doGenerate: (async () => ({
+    finishReason: "stop" as const,
     usage: mockUsage,
     content: [{ type: "text", text: "Hello, world!" }],
     warnings: [],
-  }),
-  doStream: async ({ prompt }) => ({
+  })) as any,
+  doStream: (async ({ prompt }: { prompt: unknown }) => ({
     stream: simulateReadableStream({
       chunkDelayInMs: 500,
       initialDelayInMs: 1000,
       chunks: getResponseChunksByPrompt(prompt),
     }),
-  }),
+  })) as any,
 });
 
 export const reasoningModel = new MockLanguageModelV3({
-  doGenerate: async () => ({
-    finishReason: "stop",
+  doGenerate: (async () => ({
+    finishReason: "stop" as const,
     usage: mockUsage,
     content: [{ type: "text", text: "Hello, world!" }],
     warnings: [],
-  }),
-  doStream: async ({ prompt }) => ({
+  })) as any,
+  doStream: (async ({ prompt }: { prompt: unknown }) => ({
     stream: simulateReadableStream({
       chunkDelayInMs: 500,
       initialDelayInMs: 1000,
       chunks: getResponseChunksByPrompt(prompt, true),
     }),
-  }),
+  })) as any,
 });
 
 export const titleModel = new MockLanguageModelV3({
-  doGenerate: async () => ({
-    finishReason: "stop",
+  doGenerate: (async () => ({
+    finishReason: "stop" as const,
     usage: mockUsage,
     content: [{ type: "text", text: "This is a test title" }],
     warnings: [],
-  }),
-  doStream: async () => ({
+  })) as any,
+  doStream: (async () => ({
     stream: simulateReadableStream({
       chunkDelayInMs: 500,
       initialDelayInMs: 1000,
@@ -56,26 +56,26 @@ export const titleModel = new MockLanguageModelV3({
         { id: "1", type: "text-end" },
         {
           type: "finish",
-          finishReason: "stop",
+          finishReason: "stop" as const,
           usage: mockUsage,
         },
       ],
     }),
-  }),
+  })) as any,
 });
 
 export const artifactModel = new MockLanguageModelV3({
-  doGenerate: async () => ({
-    finishReason: "stop",
+  doGenerate: (async () => ({
+    finishReason: "stop" as const,
     usage: mockUsage,
     content: [{ type: "text", text: "Hello, world!" }],
     warnings: [],
-  }),
-  doStream: async ({ prompt }) => ({
+  })) as any,
+  doStream: (async ({ prompt }: { prompt: unknown }) => ({
     stream: simulateReadableStream({
       chunkDelayInMs: 50,
       initialDelayInMs: 100,
       chunks: getResponseChunksByPrompt(prompt),
     }),
-  }),
+  })) as any,
 });

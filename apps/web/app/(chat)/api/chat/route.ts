@@ -46,7 +46,7 @@ const STANDARD_ACTIVE_TOOLS = [
   "createDocument",
   "updateDocument",
   "requestSuggestions",
-];
+] as Array<"getWeather" | "createDocument" | "updateDocument" | "requestSuggestions">;
 
 function isReasoningChatModel(modelId: string) {
   return modelId.includes("reasoning") || modelId.includes("thinking");
@@ -160,7 +160,6 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
       execute: async ({ writer: dataStream }) => {
-        let result: ReturnType<typeof streamText>;
         let cleanupProgress: (() => void) | undefined;
 
         if (isOneAgent) {
@@ -184,7 +183,7 @@ export async function POST(request: Request) {
 
           const oneTools = await getOneTools();
 
-          result = streamText({
+          const result = streamText({
             model: venus("gemini-3-pro"), // Use Venus provider directly
             system: AGENT_SYSTEM_PROMPT,
             messages: modelMessages,
@@ -200,6 +199,8 @@ export async function POST(request: Request) {
               functionId: "stream-text-one-agent",
             },
           });
+
+          dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
         } else {
           // Standard non-agent chat flow
           const standardTools = {
@@ -209,7 +210,7 @@ export async function POST(request: Request) {
             requestSuggestions: requestSuggestions({ session, dataStream }),
           };
 
-          result = streamText({
+          const result = streamText({
             model: getLanguageModel(selectedChatModel),
             system: systemPrompt({ selectedChatModel, requestHints }),
             messages: modelMessages,
@@ -230,9 +231,9 @@ export async function POST(request: Request) {
               functionId: "stream-text",
             },
           });
-        }
 
-        dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
+          dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
+        }
 
         // Clean up progress callback after stream completes
         cleanupProgress?.();
