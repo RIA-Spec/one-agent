@@ -31,6 +31,7 @@ import {
   chatModels,
   DEFAULT_CHAT_MODEL,
   modelsByProvider,
+  normalizeChatModelId,
 } from "@/lib/ai/models";
 import type { Attachment, ChatMessage } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -371,7 +372,7 @@ function PureMultimodalInput({
             maxHeight={200}
             minHeight={44}
             onChange={handleInput}
-            placeholder="Send a message..."
+            placeholder="Ask one agent to solve a task end-to-end..."
             ref={textareaRef}
             rows={1}
             value={input}
@@ -470,19 +471,17 @@ function PureModelSelectorCompact({
 }) {
   const [open, setOpen] = useState(false);
 
+  const normalizedSelectedModelId = normalizeChatModelId(selectedModelId);
+
   const selectedModel =
-    chatModels.find((m) => m.id === selectedModelId) ??
+    chatModels.find((m) => m.id === normalizedSelectedModelId) ??
     chatModels.find((m) => m.id === DEFAULT_CHAT_MODEL) ??
     chatModels[0];
-  const [provider] = selectedModel.id.split("/");
+  const provider = selectedModel.provider;
 
   // Provider display names
   const providerNames: Record<string, string> = {
-    anthropic: "Anthropic",
-    openai: "OpenAI",
-    google: "Google",
-    xai: "xAI",
-    reasoning: "Reasoning",
+    venus: "Venus",
   };
 
   return (
@@ -503,7 +502,6 @@ function PureModelSelectorCompact({
                 key={providerKey}
               >
                 {providerModels.map((model) => {
-                  const logoProvider = model.id.split("/")[0];
                   return (
                     <ModelSelectorItem
                       key={model.id}
@@ -514,7 +512,7 @@ function PureModelSelectorCompact({
                       }}
                       value={model.id}
                     >
-                      <ModelSelectorLogo provider={logoProvider} />
+                      <ModelSelectorLogo provider={model.provider} />
                       <ModelSelectorName>{model.name}</ModelSelectorName>
                       {model.id === selectedModel.id && (
                         <CheckIcon className="ml-auto size-4" />

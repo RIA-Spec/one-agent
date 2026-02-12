@@ -1,5 +1,6 @@
-// Curated list of top models from Vercel AI Gateway
-export const DEFAULT_CHAT_MODEL = "one-agent";
+// Curated list of provider/model combinations used by ONE Agent
+export const DEFAULT_CHAT_MODEL = "gemini-3-pro";
+export const DEFAULT_REASONING_CHAT_MODEL = "gemini-3-pro";
 
 export type ChatModel = {
   id: string;
@@ -9,85 +10,44 @@ export type ChatModel = {
 };
 
 export const chatModels: ChatModel[] = [
-  // ONE Agent
+  // Venus (known working models)
   {
-    id: "one-agent",
-    name: "ONE Agent",
-    provider: "one",
-    description: "AI Agent with Python/Bash code execution (AER)",
-  },
-  {
-    id: "one-agent-reasoning",
-    name: "ONE Agent (Reasoning)",
-    provider: "one",
-    description: "ONE Agent with extended reasoning enabled",
-  },
-  // Anthropic
-  {
-    id: "anthropic/claude-haiku-4.5",
-    name: "Claude Haiku 4.5",
-    provider: "anthropic",
-    description: "Fast and affordable, great for everyday tasks",
-  },
-  {
-    id: "anthropic/claude-sonnet-4.5",
-    name: "Claude Sonnet 4.5",
-    provider: "anthropic",
-    description: "Best balance of speed, intelligence, and cost",
-  },
-  {
-    id: "anthropic/claude-opus-4.5",
-    name: "Claude Opus 4.5",
-    provider: "anthropic",
-    description: "Most capable Anthropic model",
-  },
-  // OpenAI
-  {
-    id: "openai/gpt-4.1-mini",
-    name: "GPT-4.1 Mini",
-    provider: "openai",
-    description: "Fast and cost-effective for simple tasks",
-  },
-  {
-    id: "openai/gpt-5.2",
-    name: "GPT-5.2",
-    provider: "openai",
-    description: "Most capable OpenAI model",
-  },
-  // Google
-  {
-    id: "google/gemini-2.5-flash-lite",
-    name: "Gemini 2.5 Flash Lite",
-    provider: "google",
-    description: "Ultra fast and affordable",
-  },
-  {
-    id: "google/gemini-3-pro-preview",
+    id: "gemini-3-pro",
     name: "Gemini 3 Pro",
-    provider: "google",
-    description: "Most capable Google model",
-  },
-  // xAI
-  {
-    id: "xai/grok-4.1-fast-non-reasoning",
-    name: "Grok 4.1 Fast",
-    provider: "xai",
-    description: "Fast with 30K context",
-  },
-  // Reasoning models (extended thinking)
-  {
-    id: "anthropic/claude-3.7-sonnet-thinking",
-    name: "Claude 3.7 Sonnet",
-    provider: "reasoning",
-    description: "Extended thinking for complex problems",
+    provider: "venus",
+    description: "Default ONE Agent model on Venus",
   },
   {
-    id: "xai/grok-code-fast-1-thinking",
-    name: "Grok Code Fast",
-    provider: "reasoning",
-    description: "Reasoning optimized for code",
+    id: "gemini-3-flash",
+    name: "Gemini 3 Flash",
+    provider: "venus",
+    description: "Fast ONE Agent model on Venus",
   },
 ];
+
+export function isReasoningModelId(modelId: string) {
+  return modelId.includes("reasoning") || modelId.includes("thinking");
+}
+
+export function normalizeChatModelId(modelId: string | null | undefined) {
+  if (!modelId) {
+    return DEFAULT_CHAT_MODEL;
+  }
+
+  if (modelId === "one-agent") {
+    return DEFAULT_CHAT_MODEL;
+  }
+
+  if (modelId === "one-agent-reasoning") {
+    return DEFAULT_REASONING_CHAT_MODEL;
+  }
+
+  if (chatModels.some((model) => model.id === modelId)) {
+    return modelId;
+  }
+
+  return DEFAULT_CHAT_MODEL;
+}
 
 // Group models by provider for UI
 export const modelsByProvider = chatModels.reduce(

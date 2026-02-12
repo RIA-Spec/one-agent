@@ -1,4 +1,3 @@
-import { geolocation } from "@vercel/functions";
 import {
   convertToModelMessages,
   createUIMessageStream,
@@ -11,12 +10,7 @@ import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
 import { auth, type UserType } from "@/app/(auth)/auth";
 import { entitlementsByUserType } from "@/lib/ai/entitlements";
-import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
-import { getLanguageModel } from "@/lib/ai/providers";
-import { createDocument } from "@/lib/ai/tools/create-document";
-import { getWeather } from "@/lib/ai/tools/get-weather";
-import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
-import { updateDocument } from "@/lib/ai/tools/update-document";
+import { normalizeChatModelId } from "@/lib/ai/models";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
@@ -39,22 +33,6 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 // Force Node.js runtime for one-agent's native dependencies
 export const runtime = "nodejs";
 export const maxDuration = 60;
-
-const ONE_AGENT_MODELS = new Set(["one-agent", "one-agent-reasoning"]);
-const STANDARD_ACTIVE_TOOLS = [
-  "getWeather",
-  "createDocument",
-  "updateDocument",
-  "requestSuggestions",
-] as Array<"getWeather" | "createDocument" | "updateDocument" | "requestSuggestions">;
-
-function isReasoningChatModel(modelId: string) {
-  return modelId.includes("reasoning") || modelId.includes("thinking");
-}
-
-function isOneAgentChatModel(modelId: string) {
-  return ONE_AGENT_MODELS.has(modelId);
-}
 
 function getStreamContext() {
   try {
@@ -124,15 +102,6 @@ export async function POST(request: Request) {
       ? (messages as ChatMessage[])
       : [...convertToUIMessages(messagesFromDb), message as ChatMessage];
 
-    const { longitude, latitude, city, country } = geolocation(request);
-
-    const requestHints: RequestHints = {
-      longitude,
-      latitude,
-      city,
-      country,
-    };
-
     if (message?.role === "user") {
       await saveMessages({
         messages: [
@@ -148,11 +117,10 @@ export async function POST(request: Request) {
       });
     }
 
-    const isReasoningModel = isReasoningChatModel(selectedChatModel);
-    const isOneAgent = isOneAgentChatModel(selectedChatModel);
+    const normalizedChatModel = normalizeChatModelId(selectedChatModel);
 
     console.log(
-      `[Chat API] Selected model: ${selectedChatModel}, isOneAgent: ${isOneAgent}`
+      `[Chat API] Selected model: ${selectedChatModel}, normalized: ${normalizedChatModel}`
     );
 
     const modelMessages = await convertToModelMessages(uiMessages);
@@ -162,78 +130,49 @@ export async function POST(request: Request) {
       execute: async ({ writer: dataStream }) => {
         let cleanupProgress: (() => void) | undefined;
 
-        if (isOneAgent) {
-          console.log("[Chat API] Using ONE Agent with Venus provider");
-          // ONE Agent integration - lazy load to avoid Pyodide initialization at build time
-          const {
-            getOneTools,
-            AGENT_SYSTEM_PROMPT,
-            venus,
-            setProgressCallback,
-          } = await import("@one/agent");
+        console.log(
+          `[Chat API] Using ONE Agent with model: ${normalizedChatModel}`
+        );
 
-          // Hook up real-time execution progress to dataStream
-          setProgressCallback((event) => {
-            dataStream.write({
-              type: "data-execution-step" as const,
-              data: event,
-            } as any);
-          });
-          cleanupProgress = () => setProgressCallback(null);
+        const {
+          getOneTools,
+          AGENT_SYSTEM_PROMPT,
+          venus,
+          setProgressCallback,
+        } = await import("@one/agent");
 
-          const oneTools = await getOneTools();
+        setProgressCallback((event) => {
+          dataStream.write({
+            type: "data-execution-step" as const,
+            data: event,
+          } as any);
+        });
+        cleanupProgress = () => setProgressCallback(null);
 
-          const result = streamText({
-            model: venus("gemini-3-pro"), // Use Venus provider directly
-            system: AGENT_SYSTEM_PROMPT,
-            messages: modelMessages,
-            stopWhen: stepCountIs(101), // ONE Agent uses 101 steps
-            tools: oneTools,
-            providerOptions: {
-              venus: {
-                thinkingEnabled: true,
-              },
+        const oneTools = await getOneTools();
+
+        const result = streamText({
+          model: venus(normalizedChatModel),
+          system: AGENT_SYSTEM_PROMPT,
+          messages: modelMessages,
+          stopWhen: stepCountIs(101),
+          tools: oneTools,
+          providerOptions: {
+            venus: {
+              thinkingEnabled: true,
             },
-            experimental_telemetry: {
-              isEnabled: isProductionEnvironment,
-              functionId: "stream-text-one-agent",
+          },
+          experimental_telemetry: {
+            isEnabled: isProductionEnvironment,
+            functionId: "stream-text-one-agent",
+            metadata: {
+              selectedChatModel,
+              normalizedChatModel,
             },
-          });
+          },
+        });
 
-          dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
-        } else {
-          // Standard non-agent chat flow
-          const standardTools = {
-            getWeather,
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({ session, dataStream }),
-          };
-
-          const result = streamText({
-            model: getLanguageModel(selectedChatModel),
-            system: systemPrompt({ selectedChatModel, requestHints }),
-            messages: modelMessages,
-            stopWhen: stepCountIs(5),
-            experimental_activeTools: isReasoningModel
-              ? []
-              : STANDARD_ACTIVE_TOOLS,
-            providerOptions: isReasoningModel
-              ? {
-                  anthropic: {
-                    thinking: { type: "enabled", budgetTokens: 10_000 },
-                  },
-                }
-              : undefined,
-            tools: standardTools,
-            experimental_telemetry: {
-              isEnabled: isProductionEnvironment,
-              functionId: "stream-text",
-            },
-          });
-
-          dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
-        }
+        dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
         // Clean up progress callback after stream completes
         cleanupProgress?.();
