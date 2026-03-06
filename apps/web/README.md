@@ -39,3 +39,13 @@ Then open http://localhost:3000.
 - `pnpm start` – start production server
 - `pnpm lint` – run ultracite checks
 - `pnpm test` – run Playwright tests
+- `pnpm test:bench` – run the benchmark-oriented Playwright suites in `tests/e2e/bench-*.test.ts`
+
+## Benchmark Coverage
+
+- Search benchmarks: `tests/e2e/bench-search.test.ts`
+- Interaction benchmarks: `tests/e2e/bench-interaction.test.ts`
+- Long-horizon benchmarks: `tests/e2e/bench-long-horizon.test.ts`
+- Engineering benchmarks: `tests/e2e/bench-engineering.test.ts`
+
+Research notes for the benchmark mapping live in `tests/e2e/BENCHMARKS.md`.
