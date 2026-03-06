@@ -34,7 +34,7 @@ export function getToolFn(server: ComposableMCPServer) {
       );
 
     const result = streamText({
-      model: venus("gemini-3-flash"),
+      model: venus("gemini-3.1-flash-lite"),
       system: `Execute user requests using the ${name} tool. Follow the input schema strictly and ONLY provide required fields unless explicitly instructed.`,
       prompt: JSON.stringify(prompt),
       experimental_telemetry: {

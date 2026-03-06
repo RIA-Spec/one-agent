@@ -1,6 +1,6 @@
 // Curated list of provider/model combinations used by ONE Agent
-export const DEFAULT_CHAT_MODEL = "gemini-3-pro";
-export const DEFAULT_REASONING_CHAT_MODEL = "gemini-3-pro";
+export const DEFAULT_CHAT_MODEL = "gemini-3.1-pro";
+export const DEFAULT_REASONING_CHAT_MODEL = "gemini-3.1-pro";
 
 export type ChatModel = {
   id: string;
@@ -12,14 +12,14 @@ export type ChatModel = {
 export const chatModels: ChatModel[] = [
   // Venus (known working models)
   {
-    id: "gemini-3-pro",
-    name: "Gemini 3 Pro",
+    id: "gemini-3.1-pro",
+    name: "Gemini 3.1 Pro",
     provider: "venus",
     description: "Default ONE Agent model on Venus",
   },
   {
-    id: "gemini-3-flash",
-    name: "Gemini 3 Flash",
+    id: "gemini-3.1-flash-lite",
+    name: "Gemini 3.1 Flash Lite",
     provider: "venus",
     description: "Fast ONE Agent model on Venus",
   },

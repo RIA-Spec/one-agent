@@ -32,7 +32,7 @@ export async function agentStream(
 ): Promise<StreamTextResult<any, any>> {
   const {
     messages,
-    model = venus("gemini-3-pro"),
+    model = venus("gemini-3.1-pro"),
     system = AGENT_SYSTEM_PROMPT,
     maxSteps = 101,
     onError,

@@ -27,6 +27,18 @@ import type { Attachment, ChatMessage } from "@/lib/types";
 import { fetcher, fetchWithErrorHandlers, generateUUID } from "@/lib/utils";
 import { Artifact } from "./artifact";
 import { useDataStream } from "./data-stream-provider";
+
+function hasPartState(
+  part: unknown,
+  expectedStates: string[]
+): part is { state: string } {
+  if (!part || typeof part !== "object" || !("state" in part)) {
+    return false;
+  }
+
+  const state = (part as { state?: unknown }).state;
+  return typeof state === "string" && expectedStates.includes(state);
+}
 import { Messages } from "./messages";
 import { MultimodalInput } from "./multimodal-input";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
@@ -98,8 +110,7 @@ export function Chat({
       const shouldContinue =
         lastMessage?.parts?.some(
           (part) =>
-            "state" in part &&
-            part.state === "approval-responded" &&
+            hasPartState(part, ["approval-responded"]) &&
             "approval" in part &&
             (part.approval as { approved?: boolean })?.approved === true
         ) ?? false;
@@ -113,12 +124,9 @@ export function Chat({
         const isToolApprovalContinuation =
           lastMessage?.role !== "user" ||
           request.messages.some((msg) =>
-            msg.parts?.some((part) => {
-              const state = (part as { state?: string }).state;
-              return (
-                state === "approval-responded" || state === "output-denied"
-              );
-            })
+            msg.parts?.some((part) =>
+              hasPartState(part, ["approval-responded", "output-denied"])
+            )
           );
 
         return {

@@ -35,7 +35,7 @@ export function getLanguageModel(modelId: string) {
 
   // ONE Agent models - use Venus provider
   if (modelId === "one-agent" || modelId === "one-agent-reasoning") {
-    const model = venus("gemini-3-pro") as Parameters<
+    const model = venus("gemini-3.1-pro") as Parameters<
       typeof wrapLanguageModel
     >[0]["model"];
 
@@ -69,7 +69,7 @@ export function getTitleModel() {
     return myProvider.languageModel("title-model");
   }
   // Use Venus for title generation instead of AI Gateway
-  return venus("gemini-3-flash");
+  return venus("gemini-3.1-flash-lite");
 }
 
 export function getArtifactModel() {
@@ -77,5 +77,5 @@ export function getArtifactModel() {
     return myProvider.languageModel("artifact-model");
   }
   // Use Venus for artifact generation instead of AI Gateway
-  return venus("gemini-3-flash");
+  return venus("gemini-3.1-flash-lite");
 }

@@ -51,7 +51,7 @@ export async function reason(prompt: string, example: any): Promise<AIResult> {
   };
 
   const result = streamText({
-    model: venus("gemini-3-flash"),
+    model: venus("gemini-3.1-flash-lite"),
     prompt: buildPrompt(prompt, example, outputSchema),
     experimental_telemetry: {
       isEnabled: true,
