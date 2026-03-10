@@ -22,7 +22,29 @@ import { codeToAST } from "./code-to-ast.js";
 export interface BashAERConfig {
   cwd: string;
   reasonHandler: (prompt: string, example: any) => Promise<any>;
-  actHandler: (server: any) => (name: string, prompt: string) => Promise<any>;
+  actHandler: (server: any) => (name: string, args: unknown) => Promise<any>;
+}
+
+function formatActResultText(result: any): string {
+  if (result == null) return "";
+  if (typeof result === "string") return result;
+  if (Array.isArray(result.content)) {
+    return result.content
+      .map((entry: any) => (entry?.type === "text" ? String(entry.text ?? "") : JSON.stringify(entry, null, 2)))
+      .join("\n");
+  }
+  return JSON.stringify(result, null, 2);
+}
+
+function serializeActResult(result: any): string {
+  return JSON.stringify(
+    {
+      text: formatActResultText(result),
+      isError: result?.isError === true,
+    },
+    null,
+    2,
+  );
 }
 
 /** Generate CJS script for reason/act commands */
@@ -31,7 +53,29 @@ function makeScript(dataDir: string, type: "reason" | "act"): string {
   return `const fs = require('fs');
 const { randomBytes } = require('crypto');
 const args = process.argv.slice(2);
-const needsStdin = args.some((a, i) => a === '--prompt' && args[i + 1] === '-');
+const needsStdin = ${
+   isReason
+      ? "args.some((a, i) => a === '--prompt' && args[i + 1] === '-')"
+      : `(() => {
+  let toolName = '', needsJsonStdin = false, showManual = false;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--args' && args[i + 1] === '-') { needsJsonStdin = true; i++; }
+    else if (arg === '--manual') {
+      showManual = true;
+      const next = args[i + 1];
+      if (next && !next.startsWith('-')) { toolName = next; i++; }
+    }
+    else if (arg === '--name') { toolName = args[++i] || ''; }
+    else if (!arg.startsWith('-')) {
+      if (!toolName && !showManual) toolName = arg;
+      else if (arg === '-' && !showManual) needsJsonStdin = true;
+    }
+  }
+  return needsJsonStdin;
+})()`
+ }
+;
 
 function run(stdin) {
   ${
@@ -45,13 +89,46 @@ function run(stdin) {
   const body = { prompt: prompts.join('\\n'), example: structure ? JSON.parse(structure) : '' };
   `
       : `
-  let toolName = '', prompt = '';
+  let toolName = '', argsText = '', needsJsonStdin = false, showManual = false, showHelp = false;
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--name') { toolName = args[++i]; }
-    else if (args[i] === '--prompt') { const v = args[++i]; prompt = v === '-' ? stdin : v; }
+    const arg = args[i];
+    if (arg === '--name') { toolName = args[++i] || ''; }
+    else if (arg === '--args') {
+      const v = args[++i];
+      if (v === '-') needsJsonStdin = true;
+      else argsText = v || '';
+    }
+    else if (arg === '--manual') {
+      showManual = true;
+      const next = args[i + 1];
+      if (next && !next.startsWith('-')) { toolName = next; i++; }
+    }
+    else if (arg === '--help' || arg === '-h') { showHelp = true; }
+    else if (!arg.startsWith('-')) {
+      if (!toolName && !showManual) toolName = arg;
+      else if (!argsText && !needsJsonStdin && !showManual) {
+        if (arg === '-') needsJsonStdin = true;
+        else argsText = arg;
+      }
+      else {
+        console.error('Unknown argument: ' + arg); process.exit(1);
+      }
+    }
+    else {
+      console.error('Unknown argument: ' + arg); process.exit(1);
+    }
   }
-  if (!toolName || !prompt) { console.error('--name and --prompt required'); process.exit(1); }
-  const body = { toolName, prompt };
+  let body;
+  if (showHelp) body = { toolName: '__help__', toolArgs: {} };
+  else if (showManual) body = { toolName: '__manual__', toolArgs: toolName ? { name: toolName } : {} };
+  else {
+    if (!toolName || (!argsText && !needsJsonStdin)) { console.error('tool name and JSON args required'); process.exit(1); }
+    const raw = needsJsonStdin ? stdin : argsText;
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (error) { console.error('Invalid JSON args: ' + error.message); process.exit(1); }
+    body = { toolName, toolArgs: parsed };
+  }
   `
   }
   const id = randomBytes(8).toString('hex');
@@ -60,7 +137,18 @@ function run(stdin) {
   fs.writeFileSync(req, JSON.stringify(body));
   for (let i = 0; i < 1200 && !fs.existsSync(resp); i++) { const e = Date.now() + 50; while (Date.now() < e); }
   if (fs.existsSync(resp)) {
-    process.stdout.write(fs.readFileSync(resp, 'utf-8'));
+    const raw = fs.readFileSync(resp, 'utf-8');
+${
+    isReason
+      ? "    process.stdout.write(raw);"
+      : `    const payload = JSON.parse(raw);
+    if (payload.text) process.stdout.write(payload.text);
+    if (payload.isError) {
+      try { fs.unlinkSync(req); } catch {}
+      try { fs.unlinkSync(resp); } catch {}
+      process.exit(1);
+    }`
+  }
     try { fs.unlinkSync(req); } catch {} try { fs.unlinkSync(resp); } catch {}
   } else {
     console.error('Timeout'); try { fs.unlinkSync(req); } catch {} process.exit(1);
@@ -139,9 +227,16 @@ async function processRequests(
         try {
           unlinkSync(reqFile);
         } catch {}
-        const result = await actHandler(server)(req.toolName, req.prompt);
-        writeFileSync(respFile, result.content.map((c: any) => c.text).join("\n"));
-        if (stepIdx >= 0) emitProgress({ type: "step-end", stepIndex: stepIdx, status: "ok" });
+        const result = await actHandler(server)(req.toolName, req.toolArgs);
+        writeFileSync(respFile, serializeActResult(result));
+        if (stepIdx >= 0) {
+          emitProgress({
+            type: "step-end",
+            stepIndex: stepIdx,
+            status: result?.isError ? "error" : "ok",
+            error: result?.isError ? formatActResultText(result).slice(0, 100) : undefined,
+          });
+        }
       } catch (e: any) {
         try {
           unlinkSync(reqFile);
@@ -165,7 +260,11 @@ export function createBashAER(config: BashAERConfig) {
     description: `Bash AER - Execute bash with built-in reason and act commands (block until done, like curl).
 
   reason --prompt "text" [--prompt -] [--structure '{"key":""}']
-  act --name "name" --prompt "text" [--prompt -]
+  act --manual [tool]
+  act --help
+  act <tool> '{"key":"value"}'
+  act <tool> -
+  act --name "name" --args '{"key":"value"}' [--args -]
 
 Example: echo "Hi" | reason --prompt "Translate:" --prompt - --structure '{"t":""}' | jq -r '.t'`,
     parameters: jsonSchema({

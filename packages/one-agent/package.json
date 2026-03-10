@@ -13,7 +13,11 @@
     "url": "git+https://github.com/author/library.git"
   },
   "bin": {
-    "one-stdio": "./dist/stdio.mjs"
+    "one-stdio": "./dist/stdio.mjs",
+    "reason": "./dist/reason.mjs",
+    "one-reason": "./dist/reason.mjs",
+    "act": "./dist/act.mjs",
+    "one-act": "./dist/act.mjs"
   },
   "files": [
     "dist"
@@ -24,6 +28,8 @@
   "types": "./dist/index.d.mts",
   "exports": {
     ".": "./dist/index.mjs",
+    "./act": "./dist/act.mjs",
+    "./reason": "./dist/reason.mjs",
     "./repl": "./dist/repl.mjs",
     "./stdio": "./dist/stdio.mjs",
     "./package.json": "./package.json"
@@ -40,6 +46,8 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
+    "@one/act": "workspace:*",
+    "@one/reason": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.18",
     "@ai-sdk/devtools": "^0.0.6",
     "@mcpc-tech/core": "^0.3.37",

@@ -3,6 +3,8 @@ export { agent, agentStream, type AgentStreamOptions } from "./agent";
 
 // Tools and server
 export { getServer, getOneTools } from "./tools";
+export { reason } from "./interfaces/reason";
+export { getToolFn } from "./interfaces/act";
 
 // Progress tracking
 export { setProgressCallback, type ProgressEvent, type ASTStep } from "./progress";

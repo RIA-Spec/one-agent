@@ -46,9 +46,15 @@ importers:
       '@icons-pack/react-simple-icons':
         specifier: ^13.7.0
         version: 13.8.0(react@19.0.1)
+      '@one/act':
+        specifier: workspace:*
+        version: link:../../packages/one-act
       '@one/agent':
         specifier: workspace:*
         version: link:../../packages/one-agent
+      '@one/reason':
+        specifier: workspace:*
+        version: link:../../packages/one-reason
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -327,6 +333,43 @@ importers:
         specifier: ^7.0.11
         version: 7.1.5
 
+  packages/one-act:
+    dependencies:
+      '@ai-sdk/anthropic':
+        specifier: ^3.0.18
+        version: 3.0.18(zod@3.25.76)
+      '@ai-sdk/devtools':
+        specifier: ^0.0.6
+        version: 0.0.6
+      '@mcpc-tech/acp-ai-provider':
+        specifier: ^0.1.50
+        version: 0.1.50(hono@4.11.4)
+      '@mcpc-tech/core':
+        specifier: ^0.3.37
+        version: 0.3.37(hono@4.11.4)(zod@3.25.76)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@tencent/venus-ai-provider':
+        specifier: 0.0.1-next.1
+        version: 0.0.1-next.1(zod@3.25.76)
+      ai:
+        specifier: 6.0.44
+        version: 6.0.44(zod@3.25.76)
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.10
+      tsdown:
+        specifier: ^0.18.1
+        version: 0.18.4(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/one-agent:
     dependencies:
       '@ai-sdk/anthropic':
@@ -350,6 +393,12 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.25.3(hono@4.11.4)(zod@4.3.5)
+      '@one/act':
+        specifier: workspace:*
+        version: link:../one-act
+      '@one/reason':
+        specifier: workspace:*
+        version: link:../one-reason
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -417,6 +466,43 @@ importers:
       vitest:
         specifier: ^4.0.16
         version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@25.0.10)(@vitest/ui@4.0.17)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
+
+  packages/one-reason:
+    dependencies:
+      '@ai-sdk/anthropic':
+        specifier: ^3.0.18
+        version: 3.0.18(zod@4.3.5)
+      '@ai-sdk/devtools':
+        specifier: ^0.0.6
+        version: 0.0.6
+      '@mcpc-tech/acp-ai-provider':
+        specifier: ^0.1.50
+        version: 0.1.50(hono@4.11.4)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      '@tencent/venus-ai-provider':
+        specifier: 0.0.1-next.1
+        version: 0.0.1-next.1(zod@4.3.5)
+      ai:
+        specifier: 6.0.44
+        version: 6.0.44(zod@4.3.5)
+      ajv:
+        specifier: ^8.17.1
+        version: 8.17.1
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.10
+      tsdown:
+        specifier: ^0.18.1
+        version: 0.18.4(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
 
 packages:
 
@@ -6081,6 +6167,12 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  '@ai-sdk/anthropic@3.0.18(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.8(zod@3.25.76)
+      zod: 3.25.76
+
   '@ai-sdk/anthropic@3.0.18(zod@4.3.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.4
@@ -6897,6 +6989,32 @@ snapshots:
       - '@cfworker/json-schema'
       - hono
       - supports-color
+
+  '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@mcpc-tech/acp-ai-provider': 0.1.50(hono@4.11.4)
+      '@mcpc-tech/ripgrep-napi': 0.0.4
+      '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/exporter-trace-otlp-http': 0.56.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-node': 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions': 1.39.0
+      '@segment/ajv-human-errors': 2.15.0(ajv@8.17.1)
+      ai: 6.0.44(zod@3.25.76)
+      ajv: 8.17.1
+      ajv-errors: 3.0.0(ajv@8.17.1)
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      cheerio: 1.2.0
+      json-schema-traverse: 1.0.0
+      jsonrepair: 3.13.2
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+      - zod
 
   '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@4.3.5)':
     dependencies:
@@ -9021,6 +9139,12 @@ snapshots:
     dependencies:
       postcss-selector-parser: 6.0.10
       tailwindcss: 4.1.18
+
+  '@tencent/venus-ai-provider@0.0.1-next.1(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.8(zod@3.25.76)
+      zod: 3.25.76
 
   '@tencent/venus-ai-provider@0.0.1-next.1(zod@4.3.5)':
     dependencies:

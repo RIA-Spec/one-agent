@@ -21,6 +21,22 @@ Control flow using unix pipes (|) and redirection (>). Intermediate data is pers
 
 Write bash commands directly. Use `reason` and `act` as commands in your pipelines.
 
+Prefer `act` in Unix-shaped forms so it behaves like other shell commands you already know:
+
+```bash
+act bash '{"command":"ls -la"}'
+jq -c '{command: .action}' result.json | act bash -
+act --manual bash
+```
+
+Use discovery first when the tool name or schema is unclear:
+
+```bash
+act --manual
+act --manual playwright_browser_click
+act --help
+```
+
 **Example:**
 
 ```bash
@@ -59,31 +75,36 @@ cat api_docs.md | reason --prompt "Extract API endpoints" --structure '{"endpoin
 
 ### act - MCP Tool Command
 
-Execute MCP server tools with AI-powered parameter inference.
+Execute MCP server tools with exact JSON args.
 
 **Syntax:**
 
 ```bash
-act --name "tool_name" --prompt "text"
-act --name "tool_name" --prompt -
+act <tool_name> '{"key":"value"}'
+act <tool_name> -
+
+# Equivalent long form
+act --name "tool_name" --args '{"key":"value"}'
+act --name "tool_name" --args -
 ```
 
 **Options:**
 
-- `--name "tool_name"`: Name of the tool (e.g., 'bash', 'playwright_browser_navigate')
-- `--prompt "text"`: Prompt text describing what you want
-- `--prompt -`: Read prompt from stdin
+- `<tool_name>`: Positional tool name (preferred in bash)
+- `'{"key":"value"}'`: Positional JSON args
+- `-`: Read JSON args from stdin
+- `--name/--args`: Equivalent long form
 
 **Output:** Tool execution result to stdout
 
 **Examples:**
 
 ```bash
-# Execute with direct prompt
-act --name bash --prompt "ls -la"
+# Execute with direct args
+act bash '{"command":"ls -la"}'
 
-# Use stdin
-echo "Navigate to google.com" | act --name playwright_browser_navigate --prompt -
+# Use stdin JSON
+echo '{"url":"https://google.com"}' | act playwright_browser_navigate -
 ```
 
 ## Pipeline Examples
@@ -97,8 +118,8 @@ cat api_docs.md | \
      --prompt - \
      --prompt "Generate a summary of how to test this API." \
      --structure '{"summary": "", "test_commands": []}' | \
-  jq -r '.test_commands[]' | \
-  act --name bash --prompt -
+    jq -c '{command: .test_commands[0]}' | \
+    act bash -
 ```
 
 ### 2. Log Analysis Pipeline
@@ -109,8 +130,8 @@ tail -100 app.log | \
   reason --prompt "Analyze these logs for critical errors:" \
      --prompt - \
      --structure '{"critical": false, "action": ""}' | \
-  jq -r 'select(.critical) | .action' | \
-  act --name bash --prompt -
+  jq -c 'select(.critical) | {command: .action}' | \
+    act bash -
 ```
 
 ### 3. Data Processing Pipeline
@@ -124,7 +145,7 @@ cat data.csv | \
   jq -r '.items[] | "\(.name),\(.value)"' | \
   while IFS=, read name value; do
     echo "Processing: $name ($value)"
-    act --name bash --prompt "echo Processed $name >> results.log"
+    act bash "{\"command\":\"echo Processed $name >> results.log\"}"
   done
 ```
 
@@ -138,7 +159,7 @@ curl -s https://api.example.com/data | \
      --structure '{"errors": [{"code": "", "message": ""}]}' | \
   jq '.errors[] | select(.code | startswith("5"))' | \
   jq -r '.message' | \
-  xargs -I {} act --name bash --prompt "echo 'Server Error: {}' >> error.log"
+  xargs -I {} act bash "{\"command\":\"echo 'Server Error: {}' >> error.log\"}"
 ```
 
 ### 5. Conditional Branching
@@ -152,10 +173,10 @@ cat test_results.json | \
   jq -r 'if .all_passed then "deploy" else "notify" end' | \
   case $(cat) in
     deploy)
-      act --name bash --prompt "git push production main"
+      act bash '{"command":"git push production main"}'
       ;;
     notify)
-      act --name bash --prompt "echo 'Tests failed' | mail -s 'Build Failed' dev@example.com"
+      act bash '{"command":"echo '\''Tests failed'\'' | mail -s '\''Build Failed'\'' dev@example.com"}'
       ;;
   esac
 ```
@@ -164,8 +185,8 @@ cat test_results.json | \
 
 ```bash
 # Navigate → Snapshot → AI analysis → Extract data
-act --name playwright_browser_navigate --prompt "Navigate to https://news.ycombinator.com" && \
-act --name playwright_browser_snapshot --prompt "Take snapshot" | \
+act playwright_browser_navigate '{"url":"https://news.ycombinator.com"}' && \
+act playwright_browser_snapshot '{}' | \
   reason --prompt "Extract top 5 post titles and URLs from this page:" \
      --prompt - \
      --structure '{"posts": [{"title": "", "url": ""}]}' | \
@@ -198,7 +219,7 @@ done
 ### Tips:
 
 1. **Use `jq` for JSON manipulation** - Extract fields, filter, transform
-2. **Pipe stdin with `-`** - Pass data between commands naturally
+2. **Pipe JSON args with `--args -`** - Pass data between commands naturally
 3. **Persist intermediate data** - Save to files for debugging
 4. **Check return values** - Use `$?` to check command success
 5. **Chain with `&&`** - Stop pipeline on first failure
