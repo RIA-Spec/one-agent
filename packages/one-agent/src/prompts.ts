@@ -36,6 +36,7 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
 </code_rules>
 
 <examples>
+<browsing_website>
 import asyncio
 async def main():
     page = await act('playwright_browser_navigate', {'url': 'https://example.com'})
