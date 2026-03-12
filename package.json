@@ -9,6 +9,8 @@
     "build": "pnpm --filter=@one/agent build && pnpm --filter=web build",
     "build:agent": "pnpm --filter=@one/agent build",
     "build:web": "pnpm --filter=web build",
+    "fmt": "./packages/one-agent/node_modules/.bin/oxfmt packages/one-agent/src packages/one-act/src packages/one-reason/src",
+    "fmt:check": "./packages/one-agent/node_modules/.bin/oxfmt --check packages/one-agent/src packages/one-act/src packages/one-reason/src",
     "repl": "pnpm --filter=@one/agent repl",
     "test": "pnpm --recursive test",
     "typecheck": "pnpm --recursive typecheck",

@@ -1,12 +1,14 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
+import { createOpenAI } from "@ai-sdk/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createACPProvider } from "@mcpc-tech/acp-ai-provider";
-import { createOpenAICompatible } from "@tencent/venus-ai-provider";
 import { type LanguageModel, wrapLanguageModel } from "ai";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getOneConfigDir } from "./config-path.js";
 
-export type InterfaceProvider = "venus" | "openai" | "anthropic" | "acp";
+export type InterfaceProvider = "openai-compatible" | "openai" | "anthropic" | "acp";
 
 export type ResolvedInterfaceModel = {
   model: LanguageModel;
@@ -17,11 +19,14 @@ export type ResolvedInterfaceModel = {
 
 type Scope = "reason" | "act";
 type ScopeConfig = Record<string, unknown>;
+type WrappedModelConfig = Parameters<typeof wrapLanguageModel>[0];
+type AcpProviderConfig = Parameters<typeof createACPProvider>[0];
+type AcpSessionConfig = NonNullable<AcpProviderConfig["session"]>;
 
 function wrap(model: LanguageModel): LanguageModel {
   return wrapLanguageModel({
-    model: model as any,
-    middleware: devToolsMiddleware() as any,
+    model: model as WrappedModelConfig["model"],
+    middleware: devToolsMiddleware() as WrappedModelConfig["middleware"],
   }) as LanguageModel;
 }
 
@@ -42,7 +47,7 @@ function parseConfigFile(filePath: string): Record<string, unknown> {
 }
 
 function loadScopedConfig(scope: Scope): ScopeConfig {
-  const rootPath = join(process.cwd(), ".config", "one");
+  const rootPath = getOneConfigDir();
   const sharedConfig = parseConfigFile(join(rootPath, "config.json"));
   const scopeConfig = parseConfigFile(join(rootPath, `${scope}.json`));
   const scopedInShared = sharedConfig[scope];
@@ -93,7 +98,7 @@ export async function resolveInterfaceModel(
   defaultModelId = "gemini-3.1-flash-lite",
 ): Promise<ResolvedInterfaceModel> {
   const config = loadScopedConfig(scope);
-  const provider = (readScopedValue(scope, "PROVIDER", config) ?? "venus").toLowerCase() as InterfaceProvider;
+  const provider = (readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible").toLowerCase() as InterfaceProvider;
   const modelId = readScopedValue(scope, "MODEL", config) ?? defaultModelId;
 
   if (provider === "anthropic") {
@@ -111,16 +116,50 @@ export async function resolveInterfaceModel(
   }
 
   if (provider === "openai") {
-    const openaiProvider = createOpenAICompatible({
-      name: "openai",
-      apiKey: readScopedValue(scope, "OPENAI_API_KEY", config) || "",
-      baseURL:
-        readScopedValue(scope, "OPENAI_BASE_URL", config) ||
-        "https://api.openai.com/v1",
+    const apiKey = readScopedValue(scope, "OPENAI_API_KEY", config);
+    if (!apiKey) {
+      throw new Error("OpenAI provider selected but OPENAI_API_KEY is not set");
+    }
+
+    const openaiProvider = createOpenAI({
+      apiKey,
+      ...(readScopedValue(scope, "OPENAI_BASE_URL", config)
+        ? { baseURL: readScopedValue(scope, "OPENAI_BASE_URL", config) }
+        : {}),
     });
 
     return {
       model: wrap(openaiProvider(modelId)),
+      provider,
+      modelId,
+    };
+  }
+
+  if (provider === "openai-compatible") {
+    const apiKey =
+      readScopedValue(scope, "OPENAI_API_KEY", config)
+    const baseURL =
+      readScopedValue(scope, "OPENAI_BASE_URL", config)
+
+    if (!apiKey) {
+      throw new Error(
+        "openai-compatible provider selected but OPENAI_API_KEY is not set",
+      );
+    }
+    if (!baseURL) {
+      throw new Error(
+        "openai-compatible provider selected but OPENAI_BASE_URL is not set",
+      );
+    }
+
+    const compatibleProvider = createOpenAICompatible({
+      name: "openai-compatible",
+      apiKey,
+      baseURL,
+    });
+
+    return {
+      model: wrap(compatibleProvider(modelId)),
       provider,
       modelId,
     };
@@ -141,7 +180,10 @@ export async function resolveInterfaceModel(
       ),
       session: {
         cwd: readScopedValue(scope, "ACP_SESSION_CWD", config) || process.cwd(),
-        mcpServers: parseJson<any[]>(readScopedValue(scope, "ACP_MCP_SERVERS", config), []),
+        mcpServers: parseJson<AcpSessionConfig["mcpServers"]>(
+          readScopedValue(scope, "ACP_MCP_SERVERS", config),
+          [],
+        ),
       },
       persistSession: parseBoolean(readScopedValue(scope, "ACP_PERSIST_SESSION", config)),
     });
@@ -159,20 +201,5 @@ export async function resolveInterfaceModel(
     };
   }
 
-  const venusProvider = createOpenAICompatible({
-    name: "venus",
-    apiKey:
-      readScopedValue(scope, "VENUS_API_KEY", config) ||
-      readScopedValue(scope, "OPENAI_API_KEY", config) ||
-      "",
-    ...(readScopedValue(scope, "VENUS_BASE_URL", config)
-      ? { baseURL: readScopedValue(scope, "VENUS_BASE_URL", config) }
-      : {}),
-  });
-
-  return {
-    model: wrap(venusProvider(modelId)),
-    provider: "venus",
-    modelId,
-  };
+  throw new Error(`Unsupported provider: ${provider}`);
 }

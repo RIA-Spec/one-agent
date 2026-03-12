@@ -1,11 +1,11 @@
 import { createAnthropic } from "@ai-sdk/anthropic";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
-import { createOpenAICompatible } from "@tencent/venus-ai-provider";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { type LanguageModel, wrapLanguageModel } from "ai";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-export type InterfaceProvider = "venus" | "openai" | "anthropic" | "acp";
+export type InterfaceProvider = "openai-compatible" | "openai" | "anthropic" | "acp";
 
 export type ResolvedInterfaceModel = {
   model: LanguageModel;
@@ -104,7 +104,7 @@ export async function resolveInterfaceModel(
   defaultModelId = "gemini-3.1-flash-lite",
 ): Promise<ResolvedInterfaceModel> {
   const config = loadScopedConfig(scope);
-  const provider = (readScopedValue(scope, "PROVIDER", config) ?? "venus").toLowerCase() as InterfaceProvider;
+  const provider = (readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible").toLowerCase() as InterfaceProvider;
   const modelId = readScopedValue(scope, "MODEL", config) ?? defaultModelId;
 
   if (provider === "anthropic") {
@@ -171,20 +171,22 @@ export async function resolveInterfaceModel(
     };
   }
 
-  const venusProvider = createOpenAICompatible({
-    name: "venus",
+  const openaiCompatibleProvider = createOpenAICompatible({
+    name: "openai-compatible",
     apiKey:
-      readScopedValue(scope, "VENUS_API_KEY", config) ||
+      readScopedValue(scope, "OPENAI_API_KEY", config) ||
       readScopedValue(scope, "OPENAI_API_KEY", config) ||
       "",
-    ...(readScopedValue(scope, "VENUS_BASE_URL", config)
-      ? { baseURL: readScopedValue(scope, "VENUS_BASE_URL", config) }
+    ...(readScopedValue(scope, "OPENAI_BASE_URL", config)
+      ? {
+          baseURL: readScopedValue(scope, "OPENAI_BASE_URL", config),
+        }
       : {}),
   });
 
   return {
-    model: wrap(venusProvider(modelId)),
-    provider: "venus",
+    model: wrap(openaiCompatibleProvider(modelId)),
+    provider: "openai-compatible",
     modelId,
   };
 }
