@@ -14,14 +14,19 @@ AER defines the environment and interfaces for agents to reason in action. Two a
 
 ```python
 import asyncio
+import os
 
 async def main():
-    log_content = open("build.log").read()
-    analysis = await reason(log_content + "Did the build succeed?", {"success": False})
+  log_content = open("build.log").read() if os.path.exists("build.log") else "No log"
+  analysis = await reason(
+    log_content + "\nDid the build succeed?",
+    {"success": False, "reason": ""}
+  )
+
     if analysis['data']['success']:
-        act("deploy", "deploy to production")
+    await act("bash", {"command": "echo deploy to production"})
     else:
-        act("notify", "notify about failure")
+    print(f"Build failed: {analysis['data']['reason']}")
 
 asyncio.run(main())
 ```
@@ -34,13 +39,17 @@ asyncio.run(main())
 
 ```bash
 cat api_docs.md | \
-  reason --prompt "Read this API documentation:" \
-     --prompt - \
-     --prompt "Generate a summary of how to test this API." \
-     --structure '{"summary": ""}' | \
-  jq -r '.summary' | \
+  reason - '{"summary":"","test_command":""}' | \
+  tee /tmp/plan.json | \
+  jq -r '.summary' && \
+  jq -c '{command: .test_command}' /tmp/plan.json | \
   act bash -
 ```
+
+Notes:
+
+- `reason` in Bash expects: `reason [prompt|-] [structure]`
+- `act <tool> -` expects JSON from stdin (not plain text)
 
 ## Environment Variables
 
@@ -103,12 +112,12 @@ Configure the following environment variables:
 
 The telemetry captures:
 
-- ✅ AI model calls (DeepSeek, Claude Haiku)
-- ✅ Tool executions
-- ✅ Token usage and latency
-- ✅ Prompts and responses
-- ✅ Error traces
-- ✅ Custom metadata (agent type, model provider)
+- AI model calls (provider/model metadata)
+- Tool executions
+- Token usage and latency
+- Prompts and responses
+- Error traces
+- Custom metadata (agent type, model provider)
 
 ### Viewing Traces
 
