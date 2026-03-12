@@ -13,7 +13,11 @@
     "url": "git+https://github.com/author/library.git"
   },
   "bin": {
-    "one-stdio": "./dist/stdio.mjs"
+    "one-stdio": "./dist/stdio.mjs",
+    "reason": "./dist/reason.mjs",
+    "one-reason": "./dist/reason.mjs",
+    "act": "./dist/act.mjs",
+    "one-act": "./dist/act.mjs"
   },
   "files": [
     "dist"
@@ -24,6 +28,8 @@
   "types": "./dist/index.d.mts",
   "exports": {
     ".": "./dist/index.mjs",
+    "./act": "./dist/act.mjs",
+    "./reason": "./dist/reason.mjs",
     "./repl": "./dist/repl.mjs",
     "./stdio": "./dist/stdio.mjs",
     "./package.json": "./package.json"
@@ -40,10 +46,12 @@
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
+    "@one/act": "workspace:*",
+    "@one/reason": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.18",
     "@ai-sdk/devtools": "^0.0.6",
     "@mcpc-tech/core": "^0.3.37",
-    "@mcpc/code-runner-mcp": "jsr:^0.1.2",
+    "@mcpc/code-runner-mcp": "jsr:^0.1.9",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",
     "@modelcontextprotocol/sdk": "^1.25.3",
@@ -53,7 +61,7 @@
     "@opentelemetry/resources": "^2.5.0",
     "@opentelemetry/sdk-node": "^0.211.0",
     "@opentelemetry/semantic-conventions": "^1.39.0",
-    "@tencent/venus-ai-provider": "0.0.1-next.1",
+    "@ai-sdk/openai-compatible": "2.0.35",
     "ai": "^6.0.44",
     "ajv": "^8.17.1",
     "chalk": "^5.6.2",

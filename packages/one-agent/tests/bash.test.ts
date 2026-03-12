@@ -11,7 +11,7 @@ import type { TextContent, CallToolResult } from "@modelcontextprotocol/sdk/type
  * https://github.com/badlogic/pi-mono/tree/main/packages/mom/src/tools
  *
  * Note: These tests only cover pure bash command execution.
- * Tests involving ai() function integration are not included.
+ * Tests involving reason() function integration are not included.
  */
 
 function getTextOutput(result: unknown): string {

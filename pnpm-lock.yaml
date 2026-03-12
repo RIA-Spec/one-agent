@@ -46,9 +46,15 @@ importers:
       '@icons-pack/react-simple-icons':
         specifier: ^13.7.0
         version: 13.8.0(react@19.0.1)
+      '@one/act':
+        specifier: workspace:*
+        version: link:../../packages/one-act
       '@one/agent':
         specifier: workspace:*
         version: link:../../packages/one-agent
+      '@one/reason':
+        specifier: workspace:*
+        version: link:../../packages/one-reason
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -327,6 +333,55 @@ importers:
         specifier: ^7.0.11
         version: 7.1.5
 
+  packages/one-act:
+    dependencies:
+      '@ai-sdk/anthropic':
+        specifier: ^3.0.18
+        version: 3.0.18(zod@4.3.5)
+      '@ai-sdk/devtools':
+        specifier: ^0.0.6
+        version: 0.0.6
+      '@ai-sdk/openai-compatible':
+        specifier: 2.0.35
+        version: 2.0.35(zod@4.3.5)
+      '@clack/prompts':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@mcpc-tech/acp-ai-provider':
+        specifier: ^0.1.50
+        version: 0.1.50(hono@4.11.4)
+      '@mcpc-tech/core':
+        specifier: ^0.3.37
+        version: 0.3.37(hono@4.11.4)(zod@4.3.5)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      ai:
+        specifier: 6.0.44
+        version: 6.0.44(zod@4.3.5)
+      cac:
+        specifier: ^6.7.14
+        version: 6.7.14
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+      xdg-basedir:
+        specifier: ^5.1.0
+        version: 5.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.10
+      oxfmt:
+        specifier: ^0.28.0
+        version: 0.28.0
+      tsdown:
+        specifier: ^0.18.1
+        version: 0.18.4(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
   packages/one-agent:
     dependencies:
       '@ai-sdk/anthropic':
@@ -335,12 +390,15 @@ importers:
       '@ai-sdk/devtools':
         specifier: ^0.0.6
         version: 0.0.6
+      '@ai-sdk/openai-compatible':
+        specifier: 2.0.35
+        version: 2.0.35(zod@4.3.5)
       '@mcpc-tech/core':
         specifier: ^0.3.37
         version: 0.3.37(hono@4.11.4)(zod@4.3.5)
       '@mcpc/code-runner-mcp':
-        specifier: jsr:^0.1.2
-        version: '@jsr/mcpc__code-runner-mcp@0.1.2(hono@4.11.4)'
+        specifier: jsr:^0.1.9
+        version: '@jsr/mcpc__code-runner-mcp@0.1.9(hono@4.11.4)'
       '@mcpc/mcp-sampling-ai-provider':
         specifier: jsr:^0.1.21
         version: '@jsr/mcpc__mcp-sampling-ai-provider@0.1.21(hono@4.11.4)(zod@4.3.5)'
@@ -350,6 +408,12 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.25.3(hono@4.11.4)(zod@4.3.5)
+      '@one/act':
+        specifier: workspace:*
+        version: link:../one-act
+      '@one/reason':
+        specifier: workspace:*
+        version: link:../one-reason
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -368,9 +432,6 @@ importers:
       '@opentelemetry/semantic-conventions':
         specifier: ^1.39.0
         version: 1.39.0
-      '@tencent/venus-ai-provider':
-        specifier: 0.0.1-next.1
-        version: 0.0.1-next.1(zod@4.3.5)
       ai:
         specifier: 6.0.44
         version: 6.0.44(zod@4.3.5)
@@ -418,6 +479,61 @@ importers:
         specifier: ^4.0.16
         version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@25.0.10)(@vitest/ui@4.0.17)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
 
+  packages/one-reason:
+    dependencies:
+      '@ai-sdk/anthropic':
+        specifier: ^3.0.18
+        version: 3.0.18(zod@3.25.76)
+      '@ai-sdk/devtools':
+        specifier: ^0.0.6
+        version: 0.0.6
+      '@ai-sdk/openai':
+        specifier: 2.0.35
+        version: 2.0.35(zod@3.25.76)
+      '@ai-sdk/openai-compatible':
+        specifier: 2.0.35
+        version: 2.0.35(zod@3.25.76)
+      '@clack/prompts':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@mcpc-tech/acp-ai-provider':
+        specifier: ^0.1.50
+        version: 0.1.50(hono@4.11.4)
+      '@opentelemetry/api':
+        specifier: ^1.9.0
+        version: 1.9.0
+      ai:
+        specifier: 6.0.44
+        version: 6.0.44(zod@3.25.76)
+      ajv:
+        specifier: ^8.17.1
+        version: 8.17.1
+      cac:
+        specifier: ^6.7.14
+        version: 6.7.14
+      chalk:
+        specifier: ^5.6.2
+        version: 5.6.2
+      picocolors:
+        specifier: ^1.1.1
+        version: 1.1.1
+      xdg-basedir:
+        specifier: ^5.1.0
+        version: 5.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.10
+      oxfmt:
+        specifier: ^0.28.0
+        version: 0.28.0
+      tsdown:
+        specifier: ^0.18.1
+        version: 0.18.4(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
 packages:
 
   '@agentclientprotocol/sdk@0.4.9':
@@ -435,6 +551,30 @@ packages:
 
   '@ai-sdk/gateway@3.0.18':
     resolution: {integrity: sha512-WlJ7UkBDYgv+5q9UpGZfbnPrrW3KVnY96lRLaXs8nXy7Ea3QTWXf4Jw43jFzMSVkH4Zhhf0s9ExmG+CiyEBY5A==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai-compatible@2.0.35':
+    resolution: {integrity: sha512-g3wA57IAQFb+3j4YuFndgkUdXyRETZVvbfAWM+UX7bZSxA3xjes0v3XKgIdKdekPtDGsh4ZX2byHD0gJIMPfiA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4.1.8
+
+  '@ai-sdk/openai@2.0.35':
+    resolution: {integrity: sha512-LelCyotLQtL6lRYAvmtNvLyWirCR4YXr2aE4gXUXtpE+Y43eU1xdI3Jyq3Ugsvv2VhyKEceZRkrSFBmozrt21w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4
+
+  '@ai-sdk/provider-utils@3.0.9':
+    resolution: {integrity: sha512-Pm571x5efqaI4hf9yW4KsVlDBDme8++UepZRnq+kqVBWWjgvGhQlzU8glaFq0YJEB9kkxZHbRRyVeHoV2sRYaQ==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.25.76 || ^4
+
+  '@ai-sdk/provider-utils@4.0.19':
+    resolution: {integrity: sha512-3eG55CrSWCu2SXlqq2QCsFjo3+E7+Gmg7i/oRVoSZzIodTuDSfLb3MRje67xE9RFea73Zao7Lm4mADIfUETKGg==}
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4.1.8
@@ -562,11 +702,11 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@clack/core@1.0.0':
-    resolution: {integrity: sha512-Orf9Ltr5NeiEuVJS8Rk2XTw3IxNC2Bic3ash7GgYeA8LJ/zmSNpSQ/m5UAhe03lA6KFgklzZ5KTHs4OAMA/SAQ==}
+  '@clack/core@1.1.0':
+    resolution: {integrity: sha512-SVcm4Dqm2ukn64/8Gub2wnlA5nS2iWJyCkdNHcvNHPIeBTGojpdJ+9cZKwLfmqy7irD4N5qLteSilJlE0WLAtA==}
 
-  '@clack/prompts@1.0.0':
-    resolution: {integrity: sha512-rWPXg9UaCFqErJVQ+MecOaWsozjaxol4yjnmYcGNipAWzdaWa2x+VJmKfGq7L0APwBohQOYdHC+9RO4qRXej+A==}
+  '@clack/prompts@1.1.0':
+    resolution: {integrity: sha512-pkqbPGtohJAvm4Dphs2M8xE29ggupihHdy1x84HNojZuMtFsHiUlRvqD24tM2+XmI+61LlfNceM3Wr7U5QES5g==}
 
   '@codemirror/autocomplete@6.20.0':
     resolution: {integrity: sha512-bOwvTOIJcG5FVo5gUUupiwYh8MioPLQ4UcqbcRf7UQ98X90tCa9E1kZ3Z7tqwpZxYyOvh1YTYbmZE9RTfTp5hg==}
@@ -1263,8 +1403,8 @@ packages:
   '@jsr/es-toolkit__es-toolkit@1.44.0':
     resolution: {integrity: sha512-UiD+M4YWgPaqvmM701xJT76BgAnIysgtbku77BKptIjtXq146uzi8GIs2tuFP8ujYuRuaR2MJl2sgLltE68Xjw==, tarball: https://npm.jsr.io/~/11/@jsr/es-toolkit__es-toolkit/1.44.0.tgz}
 
-  '@jsr/mcpc__code-runner-mcp@0.1.2':
-    resolution: {integrity: sha512-5ldAJZOIYWtTUWN/NnbkYvs9wSUraW1Ib6RcftrB9WNj/2e3Txv4N9ZXqYtgJY9dH2eNLJmm2btw6MNPY7yBYg==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__code-runner-mcp/0.1.2.tgz}
+  '@jsr/mcpc__code-runner-mcp@0.1.9':
+    resolution: {integrity: sha512-eoUzXdvgdQDKdSJztj8LoBgLevvQXxCNshU0wodHt7p3NEApNYZ72U+ibko/ORP66qH5+MD6Y7/oCOLIiuBnlg==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__code-runner-mcp/0.1.9.tgz}
 
   '@jsr/mcpc__core@0.1.14':
     resolution: {integrity: sha512-oWoSThkDZSiyHJxzJRZRWY3UZrA7Pho4+6qZGoJ68kIM9bMIUWPiU9yaV0DDcKRsGQoMP+GirB2W8Ba+XEForA==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__core/0.1.14.tgz}
@@ -3356,12 +3496,6 @@ packages:
     peerDependencies:
       tailwindcss: '>=3.0.0 || insiders || >=4.0.0-alpha.20 || >=4.0.0-beta.1'
 
-  '@tencent/venus-ai-provider@0.0.1-next.1':
-    resolution: {integrity: sha512-evFt2gsB7zT8CG5p66keTADviWnePp4rRoVQJJq1C+Q8+LkIKwxmu2l//4yUbnl3GeKE8kWdCpZ0GdwSQHdKtQ==, tarball: https://mirrors.tencent.com/npm/@tencent/venus-ai-provider/-/@tencent/venus-ai-provider-0.0.1-next.1.tgz}
-    engines: {node: '>=18'}
-    peerDependencies:
-      zod: ^3.25.76 || ^4
-
   '@tybys/wasm-util@0.10.1':
     resolution: {integrity: sha512-9tTaPJLSiejZKx+Bmog4uSubteqTvFrVrURwkmHixBo0G4seD0zUxp98E1DzUBJxLQ3NPwXrGKDiVjwx/DpPsg==}
 
@@ -4172,6 +4306,10 @@ packages:
     resolution: {integrity: sha512-TWrgLOFUQTH994YUyl1yT4uyavY5nNB5muff+RtWaqNVCAK408b5ZnnbNAUEWLTCpum9w6arT70i1XdQ4UeOPA==}
     engines: {node: '>=0.12'}
 
+  env-paths@4.0.0:
+    resolution: {integrity: sha512-pxP8eL2SwwaTRi/KHYwLYXinDs7gL3jxFcBYmEdYfZmZXbaVDvdppd0XBU8qVz03rDfKZMXg1omHCbsJjZrMsw==}
+    engines: {node: '>=20'}
+
   es-define-property@1.0.1:
     resolution: {integrity: sha512-e3nRfgfUZ4rNGL232gUgX06QNyyez04KdjFrF+LTRoOXmrOgFKDg4BCdsjW8EnT69eqdYGmRpJwiPVYNrCaW3g==}
     engines: {node: '>= 0.4'}
@@ -4573,6 +4711,10 @@ packages:
 
   is-promise@4.0.0:
     resolution: {integrity: sha512-hvpoI6korhJMnej285dSg6nu1+e6uxs7zG3BYAm5byqDsgJNWwxzM6z6iZiAgQR4TJ30JmBTOwqZUw3WlyH3AQ==}
+
+  is-safe-filename@0.1.1:
+    resolution: {integrity: sha512-4SrR7AdnY11LHfDKTZY1u6Ga3RuxZdl3YKWWShO5iyuG5h8QS4GD2tOb04peBJ5I7pXbR+CGBNEhTcwK+FzN3g==}
+    engines: {node: '>=20'}
 
   is-stream@2.0.1:
     resolution: {integrity: sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==}
@@ -6025,6 +6167,10 @@ packages:
       utf-8-validate:
         optional: true
 
+  xdg-basedir@5.1.0:
+    resolution: {integrity: sha512-GCPAHLvrIH13+c0SuacwvRYj2SxJXQ4kaVTT5xgL3kPrz56XxkF21IGhjSE1+W0aw7gpBWRGXLCPnPby6lSpmQ==}
+    engines: {node: '>=12'}
+
   xtend@4.0.2:
     resolution: {integrity: sha512-LKYU1iAXJXUgAXn9URjiu+MWhyUXHsvfp7mcuYm9dSUKK0/CjtrUwFAxD82/mCWbtLsGjFIad0wIsod4zrTAEQ==}
     engines: {node: '>=0.4'}
@@ -6081,6 +6227,12 @@ snapshots:
     dependencies:
       zod: 3.25.76
 
+  '@ai-sdk/anthropic@3.0.18(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.8(zod@3.25.76)
+      zod: 3.25.76
+
   '@ai-sdk/anthropic@3.0.18(zod@4.3.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.4
@@ -6105,6 +6257,45 @@ snapshots:
       '@ai-sdk/provider': 3.0.4
       '@ai-sdk/provider-utils': 4.0.8(zod@4.3.5)
       '@vercel/oidc': 3.1.0
+      zod: 4.3.5
+
+  '@ai-sdk/openai-compatible@2.0.35(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.19(zod@3.25.76)
+      zod: 3.25.76
+
+  '@ai-sdk/openai-compatible@2.0.35(zod@4.3.5)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.19(zod@4.3.5)
+      zod: 4.3.5
+
+  '@ai-sdk/openai@2.0.35(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.76)
+      zod: 3.25.76
+
+  '@ai-sdk/provider-utils@3.0.9(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 3.25.76
+
+  '@ai-sdk/provider-utils@4.0.19(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
+      zod: 3.25.76
+
+  '@ai-sdk/provider-utils@4.0.19(zod@4.3.5)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@standard-schema/spec': 1.1.0
+      eventsource-parser: 3.0.6
       zod: 4.3.5
 
   '@ai-sdk/provider-utils@4.0.7(zod@3.25.76)':
@@ -6217,15 +6408,13 @@ snapshots:
   '@biomejs/cli-win32-x64@2.3.11':
     optional: true
 
-  '@clack/core@1.0.0':
+  '@clack/core@1.1.0':
     dependencies:
-      picocolors: 1.1.1
       sisteransi: 1.0.5
 
-  '@clack/prompts@1.0.0':
+  '@clack/prompts@1.1.0':
     dependencies:
-      '@clack/core': 1.0.0
-      picocolors: 1.1.1
+      '@clack/core': 1.1.0
       sisteransi: 1.0.5
 
   '@codemirror/autocomplete@6.20.0':
@@ -6718,11 +6907,12 @@ snapshots:
 
   '@jsr/es-toolkit__es-toolkit@1.44.0': {}
 
-  '@jsr/mcpc__code-runner-mcp@0.1.2(hono@4.11.4)':
+  '@jsr/mcpc__code-runner-mcp@0.1.9(hono@4.11.4)':
     dependencies:
       '@hono/zod-openapi': 0.19.10(hono@4.11.4)(zod@3.25.76)
       '@jsr/mcpc__core': 0.1.14(hono@4.11.4)
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
+      env-paths: 4.0.0
       pyodide: 0.29.3
       zod: 3.25.76
     transitivePeerDependencies:
@@ -9022,12 +9212,6 @@ snapshots:
       postcss-selector-parser: 6.0.10
       tailwindcss: 4.1.18
 
-  '@tencent/venus-ai-provider@0.0.1-next.1(zod@4.3.5)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.4
-      '@ai-sdk/provider-utils': 4.0.8(zod@4.3.5)
-      zod: 4.3.5
-
   '@tybys/wasm-util@0.10.1':
     dependencies:
       tslib: 2.8.1
@@ -9762,6 +9946,10 @@ snapshots:
 
   entities@7.0.1: {}
 
+  env-paths@4.0.0:
+    dependencies:
+      is-safe-filename: 0.1.1
+
   es-define-property@1.0.1: {}
 
   es-errors@1.3.0: {}
@@ -10295,6 +10483,8 @@ snapshots:
   is-plain-obj@4.1.0: {}
 
   is-promise@4.0.0: {}
+
+  is-safe-filename@0.1.1: {}
 
   is-stream@2.0.1: {}
 
@@ -11899,7 +12089,7 @@ snapshots:
 
   ultracite@7.1.5:
     dependencies:
-      '@clack/prompts': 1.0.0
+      '@clack/prompts': 1.1.0
       commander: 14.0.3
       deepmerge: 4.3.1
       glob: 13.0.1
@@ -12101,6 +12291,8 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.19.0: {}
+
+  xdg-basedir@5.1.0: {}
 
   xtend@4.0.2: {}
 

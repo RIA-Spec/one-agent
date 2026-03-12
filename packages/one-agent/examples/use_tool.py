@@ -2,11 +2,11 @@ import asyncio
 
 async def main():
     print("Launching browser and opening Google...")
-    await act('playwright_browser_navigate', 'Navigate to https://www.google.com')
+    await act('playwright_browser_navigate', {'url': 'https://www.google.com'})
     
-    await act('playwright_browser_wait_for', 'Wait for 3 seconds for page to load')
+    await act('playwright_browser_wait_for', {'time': 3})
     
-    snapshot = await act('playwright_browser_snapshot', 'Take a snapshot of the current page')
+    snapshot = await act('playwright_browser_snapshot', {})
     
 
     if snapshot is None:

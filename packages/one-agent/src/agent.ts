@@ -10,7 +10,7 @@ import {
 } from "ai";
 import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
-import { venus } from "./model";
+import { openaiCompatible } from "./model";
 import { getTracer } from "./tracing";
 import { AGENT_SYSTEM_PROMPT } from "./prompts";
 import { processStream } from "./utils/stream";
@@ -32,7 +32,7 @@ export async function agentStream(
 ): Promise<StreamTextResult<any, any>> {
   const {
     messages,
-    model = venus("gemini-3.1-pro"),
+    model = openaiCompatible("gemini-3.1-pro"),
     system = AGENT_SYSTEM_PROMPT,
     maxSteps = 101,
     onError,
@@ -45,7 +45,7 @@ export async function agentStream(
 
   const result = streamText({
     providerOptions: {
-      venus: {
+      openaiCompatible: {
         thinkingEnabled: true,
       },
     },
@@ -58,7 +58,7 @@ export async function agentStream(
       tracer: getTracer("one-agent"),
       metadata: {
         agentType: "one-runner",
-        modelProvider: "venus",
+        modelProvider: "openaiCompatible",
       },
     },
     system,

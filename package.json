@@ -9,6 +9,8 @@
     "build": "pnpm --filter=@one/agent build && pnpm --filter=web build",
     "build:agent": "pnpm --filter=@one/agent build",
     "build:web": "pnpm --filter=web build",
+    "fmt": "pnpm --filter=@one/agent exec oxfmt src && pnpm --filter=@one/act exec oxfmt src && pnpm --filter=@one/reason exec oxfmt src",
+    "fmt:check": "pnpm --filter=@one/agent exec oxfmt --check src && pnpm --filter=@one/act exec oxfmt --check src && pnpm --filter=@one/reason exec oxfmt --check src",
     "repl": "pnpm --filter=@one/agent repl",
     "test": "pnpm --recursive test",
     "typecheck": "pnpm --recursive typecheck",

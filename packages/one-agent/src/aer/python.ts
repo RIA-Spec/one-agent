@@ -18,7 +18,7 @@ export interface PythonAERConfig {
   nodeFSRoot: string;
   nodeFSMountPoint: string;
   reasonHandler: (prompt: string, example: any) => Promise<any>;
-  actHandler: (server: any) => (name: string, prompt: string) => Promise<any>;
+  actHandler: (server: any) => (name: string, args: unknown) => Promise<any>;
 }
 
 /**
@@ -70,7 +70,9 @@ export function createPythonAER(config: PythonAERConfig) {
     description: `Python AER - Execute Python with built-in reason() and act() functions.
 
   reason(prompt, example) → {data, error}  (async, use with asyncio.run)
-  act(name, prompt) → result               (sync)
+  act(name, args) → result                 (sync)
+  act('__manual__', {}) → list tools       (async)
+  act('__manual__', {'name': 'bash'}) → tool definition
 File system: ${nodeFSMountPoint} → ${nodeFSRoot}
 
 Usage:

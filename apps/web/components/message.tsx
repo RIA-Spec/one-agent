@@ -30,6 +30,16 @@ import { PreviewAttachment } from "./preview-attachment";
 import { ToolRunFlow } from "./tool-run-flow";
 import { Weather } from "./weather";
 
+function getToolOutputText(output: any) {
+  const firstText = output?.content?.[0]?.text;
+
+  if (typeof firstText === "string") {
+    return firstText;
+  }
+
+  return JSON.stringify(output, null, 2);
+}
+
 const PurePreviewMessage = ({
   addToolApprovalResponse,
   chatId,
@@ -413,8 +423,7 @@ const PurePreviewMessage = ({
                               output={
                                 <div className="rounded p-2">
                                   <pre className="whitespace-pre-wrap font-mono text-[10px]">
-                                    {part.output?.content?.[0]?.text ||
-                                      JSON.stringify(part.output, null, 2)}
+                                    {getToolOutputText(part.output)}
                                   </pre>
                                 </div>
                               }

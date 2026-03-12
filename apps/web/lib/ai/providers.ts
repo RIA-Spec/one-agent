@@ -1,5 +1,5 @@
 import { gateway } from "@ai-sdk/gateway";
-import { venus } from "@one/agent";
+import { openaiCompatible } from "@one/agent";
 import {
   customProvider,
   extractReasoningMiddleware,
@@ -33,9 +33,9 @@ export function getLanguageModel(modelId: string) {
     return myProvider.languageModel(modelId);
   }
 
-  // ONE Agent models - use Venus provider
+  // ONE Agent models - use OpenAI-compatible provider
   if (modelId === "one-agent" || modelId === "one-agent-reasoning") {
-    const model = venus("gemini-3.1-pro") as Parameters<
+    const model = openaiCompatible("gemini-3.1-pro") as Parameters<
       typeof wrapLanguageModel
     >[0]["model"];
 
@@ -68,14 +68,14 @@ export function getTitleModel() {
   if (isTestEnvironment && myProvider) {
     return myProvider.languageModel("title-model");
   }
-  // Use Venus for title generation instead of AI Gateway
-  return venus("gemini-3.1-flash-lite");
+  // Use OpenAI-compatible provider for title generation instead of AI Gateway
+  return openaiCompatible("gemini-3.1-flash-lite");
 }
 
 export function getArtifactModel() {
   if (isTestEnvironment && myProvider) {
     return myProvider.languageModel("artifact-model");
   }
-  // Use Venus for artifact generation instead of AI Gateway
-  return venus("gemini-3.1-flash-lite");
+  // Use OpenAI-compatible provider for artifact generation instead of AI Gateway
+  return openaiCompatible("gemini-3.1-flash-lite");
 }

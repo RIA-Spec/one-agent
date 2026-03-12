@@ -10,18 +10,18 @@ export type ChatModel = {
 };
 
 export const chatModels: ChatModel[] = [
-  // Venus (known working models)
+  // OpenAI-compatible (known working models)
   {
     id: "gemini-3.1-pro",
     name: "Gemini 3.1 Pro",
-    provider: "venus",
-    description: "Default ONE Agent model on Venus",
+    provider: "openaiCompatible",
+    description: "Default ONE Agent model on OpenAI-compatible provider",
   },
   {
     id: "gemini-3.1-flash-lite",
     name: "Gemini 3.1 Flash Lite",
-    provider: "venus",
-    description: "Fast ONE Agent model on Venus",
+    provider: "openaiCompatible",
+    description: "Fast ONE Agent model on OpenAI-compatible provider",
   },
 ];
 

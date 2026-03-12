@@ -40,14 +40,19 @@ Call LLM for structured data extraction and decision-making.
 - Object structuring: `await reason('Categorize data', {'cat1': [], 'cat2': []})`
 - Batch analysis: `await reason('Analyze all items', [{'item': '', 'summary': ''}])`
 
-### act(name, prompt) -> {content, isError}
+### act(name, args) -> {content, isError}
 
-Call MCP server tools with AI-powered parameter inference.
+Call MCP server tools with exact arguments.
+
+**Tool discovery:**
+
+- `await act('__manual__', {})`: list available tools
+- `await act('__manual__', {'name': 'bash'})`: inspect one tool definition
 
 **Parameters:**
 
 - `name` (str): Tool name (e.g., 'playwright_browser_navigate', 'bash')
-- `prompt` (str): Natural language description of what you want the tool to do
+- `args`: Exact tool arguments as JSON-compatible values
 
 **Returns:**
 
@@ -69,7 +74,7 @@ import asyncio
 
 async def main():
     result = await reason('prompt', example)
-    data = await act('tool_name', 'description of what to do')
+    data = await act('tool_name', {'key': 'value'})
     print(result['data'])
 
 asyncio.run(main())
@@ -94,7 +99,7 @@ async def main():
 
     if result['data']['success']:
         print("✓ Build succeeded! Deploying...")
-        await act("bash", "git push production main")
+        await act("bash", {"command": "git push production main"})
     else:
         print(f"✗ Build failed: {result['data']['reason']}")
 
@@ -135,7 +140,7 @@ async def main():
     ]
 
     for url in urls:
-        response = await act("bash", f"curl -s {url}")
+        response = await act("bash", {"command": f"curl -s {url}"})
         data = response['content'][0]['text']
 
         check = await reason(
@@ -158,8 +163,8 @@ asyncio.run(main())
 import asyncio
 
 async def main():
-    await act('playwright_browser_navigate', 'Navigate to https://example.com')
-    snapshot = await act('playwright_browser_snapshot', 'Take a snapshot')
+    await act('playwright_browser_navigate', {'url': 'https://example.com'})
+    snapshot = await act('playwright_browser_snapshot', {})
     page_content = snapshot['content'][0]['text']
 
     result = await reason(

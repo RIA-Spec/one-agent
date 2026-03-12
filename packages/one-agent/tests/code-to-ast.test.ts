@@ -28,6 +28,17 @@ async def main():
       expect(steps[0].name).toBe("Summarize the following text");
     });
 
+    it("detects reason() call without await for planning", () => {
+      const code = `
+async def main():
+    result = reason('Summarize quickly', '')
+`;
+      const steps = codeToAST(code, "python");
+      expect(steps).toHaveLength(1);
+      expect(steps[0].type).toBe("reason");
+      expect(steps[0].name).toBe("Summarize quickly");
+    });
+
     it("extracts multiple mixed calls in sequence", () => {
       const code = `
 async def main():
@@ -146,6 +157,15 @@ async def main():
       expect(steps).toHaveLength(1);
       expect(steps[0].type).toBe("reason");
       expect(steps[0].name).toBe("Summarize the following text");
+    });
+
+    it("extracts positional reason command", () => {
+      const code = `reason "Summarize the following text" '{"summary":""}'`;
+      const steps = codeToAST(code, "bash");
+      expect(steps).toHaveLength(1);
+      expect(steps[0].type).toBe("reason");
+      expect(steps[0].name).toBe("Summarize the following text");
+      expect(steps[0].args[0]).toContain('{"summary":""}');
     });
 
     it("extracts pipe chain with multiple commands", () => {

@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 
@@ -47,9 +46,9 @@ async function ChatPage({ params }: { params: Promise<{ id: string }> }) {
 
   const uiMessages = convertToUIMessages(messagesFromDb);
 
-  const cookieStore = await cookies();
-  const chatModelFromCookie = cookieStore.get("chat-model");
-  const initialChatModel = normalizeChatModelId(chatModelFromCookie?.value);
+  const initialChatModel = normalizeChatModelId(
+    process.env.NEXT_PUBLIC_CHAT_MODEL
+  );
 
   return (
     <>
