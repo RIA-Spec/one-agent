@@ -20,7 +20,6 @@ import {
 import { useArtifactSelector } from "@/hooks/use-artifact";
 import { useAutoResume } from "@/hooks/use-auto-resume";
 import { useChatVisibility } from "@/hooks/use-chat-visibility";
-import { normalizeChatModelId } from "@/lib/ai/models";
 import type { Vote } from "@/lib/db/schema";
 import { ChatSDKError } from "@/lib/errors";
 import type { Attachment, ChatMessage } from "@/lib/types";
@@ -83,14 +82,25 @@ export function Chat({
 
   const [input, setInput] = useState<string>("");
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
-  const [currentModelId, setCurrentModelId] = useState(
-    normalizeChatModelId(initialChatModel)
-  );
-  const currentModelIdRef = useRef(currentModelId);
 
-  useEffect(() => {
-    currentModelIdRef.current = currentModelId;
-  }, [currentModelId]);
+  const saveLastChatError = (description: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        "last-chat-error",
+        JSON.stringify({
+          chatId: id,
+          description,
+          timestamp: new Date().toISOString(),
+        })
+      );
+    } catch {
+      // Ignore storage errors.
+    }
+  };
 
   const {
     messages,
@@ -135,7 +145,6 @@ export function Chat({
             ...(isToolApprovalContinuation
               ? { messages: request.messages }
               : { message: lastMessage }),
-            selectedChatModel: currentModelIdRef.current,
             selectedVisibilityType: visibilityType,
             ...request.body,
           },
@@ -155,11 +164,26 @@ export function Chat({
         ) {
           setShowCreditCardAlert(true);
         } else {
+          saveLastChatError(error.message);
           toast({
             type: "error",
             description: error.message,
           });
         }
+      } else {
+        const fallbackMessage =
+          error instanceof Error
+            ? error.message
+            : typeof error === "string"
+            ? error
+            : "Error sending message, please try again.";
+
+        saveLastChatError(fallbackMessage);
+
+        toast({
+          type: "error",
+          description: fallbackMessage,
+        });
       }
     },
   });
@@ -225,8 +249,6 @@ export function Chat({
               chatId={id}
               input={input}
               messages={messages}
-              onModelChange={setCurrentModelId}
-              selectedModelId={currentModelId}
               selectedVisibilityType={visibilityType}
               sendMessage={sendMessage}
               setAttachments={setAttachments}
@@ -247,7 +269,7 @@ export function Chat({
         isReadonly={isReadonly}
         messages={messages}
         regenerate={regenerate}
-        selectedModelId={currentModelId}
+        selectedModelId={initialChatModel}
         selectedVisibilityType={visibilityType}
         sendMessage={sendMessage}
         setAttachments={setAttachments}

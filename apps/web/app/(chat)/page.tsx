@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { Suspense } from "react";
 import { Chat } from "@/components/chat";
 import { DataStreamHandler } from "@/components/data-stream-handler";
@@ -14,10 +13,10 @@ export default function Page() {
 }
 
 async function NewChatPage() {
-  const cookieStore = await cookies();
-  const modelIdFromCookie = cookieStore.get("chat-model");
   const id = generateUUID();
-  const initialChatModel = normalizeChatModelId(modelIdFromCookie?.value);
+  const initialChatModel = normalizeChatModelId(
+    process.env.NEXT_PUBLIC_CHAT_MODEL
+  );
 
   return (
     <>

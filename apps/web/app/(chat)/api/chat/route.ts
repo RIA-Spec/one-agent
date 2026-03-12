@@ -58,6 +58,8 @@ export async function POST(request: Request) {
     const { id, message, messages, selectedChatModel, selectedVisibilityType } =
       requestBody;
 
+    const configuredChatModel = process.env.ONE_CHAT_MODEL?.trim();
+
     const session = await auth();
 
     if (!session?.user) {
@@ -117,10 +119,12 @@ export async function POST(request: Request) {
       });
     }
 
-    const normalizedChatModel = normalizeChatModelId(selectedChatModel);
+    const resolvedChatModel = configuredChatModel
+      ? configuredChatModel
+      : normalizeChatModelId(selectedChatModel);
 
     console.log(
-      `[Chat API] Selected model: ${selectedChatModel}, normalized: ${normalizedChatModel}`
+      `[Chat API] Selected model: ${selectedChatModel ?? "(none)"}, configured model: ${configuredChatModel ?? "(none)"}, resolved: ${resolvedChatModel}`
     );
 
     const modelMessages = await convertToModelMessages(uiMessages);
@@ -129,11 +133,15 @@ export async function POST(request: Request) {
       originalMessages: isToolApprovalFlow ? uiMessages : undefined,
       execute: async ({ writer: dataStream }) => {
         console.log(
-          `[Chat API] Using ONE Agent with model: ${normalizedChatModel}`
+          `[Chat API] Using ONE Agent with model: ${resolvedChatModel}`
         );
 
-        const { getOneTools, AGENT_SYSTEM_PROMPT, venus, setProgressCallback } =
-          await import("@one/agent");
+        const {
+          getOneTools,
+          AGENT_SYSTEM_PROMPT,
+          openaiCompatible,
+          setProgressCallback,
+        } = await import("@one/agent");
 
         setProgressCallback((event) => {
           dataStream.write({
@@ -146,13 +154,13 @@ export async function POST(request: Request) {
         const oneTools = await getOneTools();
 
         const result = streamText({
-          model: venus(normalizedChatModel),
+          model: openaiCompatible(resolvedChatModel),
           system: AGENT_SYSTEM_PROMPT,
           messages: modelMessages,
           stopWhen: stepCountIs(101),
           tools: oneTools,
           providerOptions: {
-            venus: {
+            openaiCompatible: {
               thinkingEnabled: true,
             },
           },
@@ -160,16 +168,17 @@ export async function POST(request: Request) {
             isEnabled: isProductionEnvironment,
             functionId: "stream-text-one-agent",
             metadata: {
-              selectedChatModel,
-              normalizedChatModel,
+              selectedChatModel:
+                selectedChatModel ?? configuredChatModel ?? "(none)",
+              resolvedChatModel,
             },
           },
         });
 
-        dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
+        // Keep progress callback active for the whole stream lifecycle.
+        result.finishReason.then(cleanupProgress, cleanupProgress);
 
-        // Clean up progress callback after stream completes
-        cleanupProgress();
+        dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
 
         if (titlePromise) {
           try {
@@ -222,6 +231,14 @@ export async function POST(request: Request) {
       },
       onError: (error) => {
         console.error("[Chat API] Stream error:", error);
+        if (error instanceof Error) {
+          return error.message || "Oops, an error occurred!";
+        }
+
+        if (typeof error === "string") {
+          return error;
+        }
+
         return "Oops, an error occurred!";
       },
     });
