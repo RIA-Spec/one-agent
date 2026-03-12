@@ -1,12 +1,26 @@
-import type { ComposableMCPServer } from "@mcpc-tech/core";
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
-import { pathToFileURL } from "node:url";
-import { resolve as resolvePath } from "node:path";
+import { mcpc, type ComposableMCPServer, type McpServerConfig, type ToolRefXml } from "@mcpc-tech/core";
+import { cac } from "cac";
+import {
+  cancel,
+  intro,
+  isCancel,
+  outro,
+  select,
+  text,
+} from "@clack/prompts";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { getOneConfigPath } from "./config-path.js";
 
-const ACT_CONFIG_PATH = join(process.cwd(), ".config", "one", "act.json");
+const ACT_CONFIG_PATH = getOneConfigPath("act.json");
 const MANUAL_TOOL_NAME = "__manual__";
-const HELP_TOOL_NAME = "__help__";
+const HELP_DESCRIPTION =
+  "Deterministic MCP tool invocation command: connect configured MCP servers, call tools with exact JSON args, and return structured output.";
+const HELP_EXAMPLES = [
+  "act bash '{\"command\":\"ls -la\"}'",
+  "jq -c '{command: .action}' result.json | act bash -",
+  "act --manual playwright_browser_click",
+];
 
 export function getToolFn(server: ComposableMCPServer) {
   const act = async (name: string, args: unknown) => {
@@ -18,17 +32,12 @@ export function getToolFn(server: ComposableMCPServer) {
       return { content: [{ type: "text" as const, text }] };
     }
 
-    if (name === HELP_TOOL_NAME) {
-      const text = `${getUsageText()}\n${formatManualList(server, false)}`.trim();
-      return { content: [{ type: "text" as const, text }] };
-    }
-
     const toolDef = server.getComposedTool(name);
     if (!toolDef) {
       return createUnknownToolResult(server, name);
     }
 
-    return server.callTool(name, args as any);
+    return server.callTool(name, args);
   };
 
   return act;
@@ -42,39 +51,79 @@ type ComposedToolDefinition = {
   [key: string]: unknown;
 };
 
-async function loadGetServer(serverModule: string): Promise<GetServerFn> {
-  const specifier =
-    serverModule.startsWith(".") || serverModule.startsWith("/")
-      ? pathToFileURL(resolvePath(process.cwd(), serverModule)).href
-      : serverModule;
+type ActCommandOptions = {
+  name?: string;
+  args?: string;
+  manual?: string | boolean;
+  json?: boolean;
+};
 
-  const loaded = await import(specifier);
-  const getServer = loaded.getServer as GetServerFn | undefined;
-  if (!getServer) {
-    throw new Error(`Module ${serverModule} does not export getServer()`);
+type ToolListingServer = ComposableMCPServer & {
+  getInternalTools?: () => unknown;
+  getAllComposedTools?: () => unknown;
+  getAllTools?: () => unknown;
+  getPublicTools?: () => unknown;
+};
+
+type McpServersConfig = Record<string, McpServerConfig>;
+
+function parseMcpServersValue(value: unknown): McpServersConfig | null {
+  if (value == null || value === "") return null;
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? (parsed as McpServersConfig) : null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Invalid MCP servers JSON: ${message}`);
+    }
   }
-  return getServer;
-}
 
-function getUsageLines() {
-  return [
-    "Usage: act <tool> '{\"key\":\"value\"}' [--server-module ./server.ts] [--json]",
-    "       act <tool> - [--server-module ./server.ts] [--json]",
-    "       act --name <tool> --args '{\"key\":\"value\"}' [--server-module ./server.ts] [--json]",
-    "       act --name <tool> --args - [--server-module ./server.ts] [--json]",
-    "       act --manual [tool] [--server-module ./server.ts] [--json]",
-    "       act --help",
-  ];
-}
-
-function getUsageText() {
-  return getUsageLines().join("\n");
-}
-
-function printUsage() {
-  for (const line of getUsageLines()) {
-    console.error(line);
+  if (typeof value === "object") {
+    return value as McpServersConfig;
   }
+
+  return null;
+}
+
+function readConfiguredMcpServers(actConfig: Record<string, unknown>): McpServersConfig | null {
+  const envValue = process.env.ONE_ACT_MCP_SERVERS ?? process.env.MCP_SERVERS;
+  const envParsed = parseMcpServersValue(envValue);
+  if (envParsed) return envParsed;
+
+  const configParsed =
+    parseMcpServersValue(actConfig.MCP_SERVERS) ?? parseMcpServersValue(actConfig.mcpServers);
+  return configParsed;
+}
+
+function getMcpServerNames(mcpServers: McpServersConfig): string[] {
+  return Object.entries(mcpServers)
+    .filter(([, config]) => Boolean(config && typeof config === "object"))
+    .map(([name]) => name);
+}
+
+function createGetServerFromMcpServers(mcpServers: McpServersConfig): GetServerFn {
+  let cachedServer: ComposableMCPServer | null = null;
+
+  return async () => {
+    if (cachedServer) return cachedServer;
+
+    const refs = getMcpServerNames(mcpServers).map((name) => `<tool name="${name}.__ALL__"/>` as ToolRefXml);
+    const composeEntry = {
+      name: "one-act-runtime",
+      description: "MCP tool runtime for act",
+      deps: { mcpServers },
+      options: { refs },
+    };
+
+    cachedServer = await mcpc(
+      [{ name: "one-act", version: "1.0.0" }, { capabilities: { tools: {} } }],
+      [composeEntry],
+    );
+
+    return cachedServer;
+  };
 }
 
 function readActConfig(): Record<string, unknown> {
@@ -87,17 +136,178 @@ function readActConfig(): Record<string, unknown> {
   }
 }
 
-function readActValueFromEnvOrConfig(config: Record<string, unknown>, ...keys: string[]) {
-  for (const key of keys) {
-    const envValue = process.env[key];
-    if (envValue != null && envValue !== "") return envValue;
-    const configValue = config[key];
-    if (typeof configValue === "string" && configValue !== "") return configValue;
+function writeActConfig(config: Record<string, unknown>) {
+  mkdirSync(dirname(ACT_CONFIG_PATH), { recursive: true });
+  writeFileSync(ACT_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+}
+
+function normalizeEnvMap(value: unknown): Record<string, string> {
+  if (!value || typeof value !== "object") return {};
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).map(([key, entryValue]) => [
+      key,
+      String(entryValue),
+    ]),
+  );
+}
+
+function parseEnvInput(raw: string): Record<string, string> {
+  const trimmed = raw.trim();
+  if (!trimmed) return {};
+
+  if (trimmed.startsWith("{")) {
+    const parsed = parseJson(trimmed, "env");
+    return normalizeEnvMap(parsed);
   }
-  return "";
+
+  const result: Record<string, string> = {};
+  const lines = trimmed
+    .split(/\n|,|;/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  for (const line of lines) {
+    const eq = line.indexOf("=");
+    if (eq <= 0) {
+      throw new Error(`Invalid env entry: ${line}. Expected KEY=VALUE`);
+    }
+    const key = line.slice(0, eq).trim();
+    const value = line.slice(eq + 1).trim();
+    if (!key) {
+      throw new Error(`Invalid env entry: ${line}. Key is required`);
+    }
+    result[key] = value;
+  }
+
+  return result;
+}
+
+function splitCommandLine(input: string): string[] {
+  return input
+    .trim()
+    .split(" ")
+    .map((part) => part.trim())
+    .filter(Boolean);
+}
+
+async function runActConfigCli() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error("act config requires an interactive terminal (TTY)");
+  }
+
+  const readRequiredText = async (message: string) => {
+    const value = await text({
+      message,
+      validate(input) {
+        return input?.trim() ? undefined : `${message} is required`;
+      },
+    });
+    if (isCancel(value)) return null;
+    return value.trim();
+  };
+
+  const readOptionalText = async (message: string) => {
+    const value = await text({ message });
+    if (isCancel(value)) return null;
+    return value.trim();
+  };
+
+  intro("Configure act mcpServers");
+
+  const serverName = await readRequiredText("MCP server name (e.g. playwright)");
+  if (!serverName) {
+    cancel("Operation cancelled.");
+    return;
+  }
+
+  const transportType = await select<"stdio" | "streamable-http" | "sse">({
+    message: "Transport type",
+    initialValue: "stdio",
+    options: [
+      { label: "stdio", value: "stdio" },
+      { label: "streamable-http", value: "streamable-http" },
+      { label: "sse", value: "sse" },
+    ],
+  });
+
+  if (isCancel(transportType)) {
+    cancel("Operation cancelled.");
+    return;
+  }
+
+  const serverConfig: Record<string, unknown> = { transportType };
+
+  if (transportType === "stdio") {
+    const commandLine = await readRequiredText(
+      "command line (e.g. npx -y @playwright/mcp@latest --isolated)",
+    );
+    if (!commandLine) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    const parts = splitCommandLine(commandLine);
+    if (parts.length === 0) {
+      throw new Error("command line must include a command");
+    }
+
+    serverConfig.command = parts[0];
+    if (parts.length > 1) {
+      serverConfig.args = parts.slice(1);
+    }
+
+    const envRaw = await readOptionalText(
+      "env vars (optional, KEY=VALUE pairs like A=1,B=2 or JSON object)",
+    );
+    if (envRaw == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    if (envRaw) {
+      serverConfig.env = parseEnvInput(envRaw);
+    }
+  }
+
+  if (transportType === "streamable-http" || transportType === "sse") {
+    const url = await readRequiredText("url");
+    if (!url) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    serverConfig.url = url;
+
+    const headersRaw = await readOptionalText(
+      "headers (optional, KEY=VALUE pairs like A=1,B=2 or JSON object)",
+    );
+    if (headersRaw == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    if (headersRaw) {
+      serverConfig.headers = parseEnvInput(headersRaw);
+    }
+  }
+
+  const nextConfig = readActConfig();
+  const previousMcpServers =
+    nextConfig.mcpServers && typeof nextConfig.mcpServers === "object"
+      ? (nextConfig.mcpServers as Record<string, unknown>)
+      : {};
+
+  nextConfig.mcpServers = {
+    ...previousMcpServers,
+    [serverName]: serverConfig,
+  };
+
+  writeActConfig(nextConfig);
+  outro(`Saved config to ${ACT_CONFIG_PATH}`);
 }
 
 async function readStdin() {
+  if (process.stdin.isTTY) {
+    throw new Error("--args - requires piped stdin (example: echo '{\"k\":\"v\"}' | act tool -)");
+  }
+
   const chunks: Buffer[] = [];
   for await (const chunk of process.stdin) {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
@@ -105,13 +315,24 @@ async function readStdin() {
   return Buffer.concat(chunks).toString("utf-8");
 }
 
-function formatCliOutput(result: any, forceJson: boolean) {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function formatCliOutput(result: unknown, forceJson: boolean) {
   if (forceJson) {
     return JSON.stringify(result, null, 2);
   }
 
-  if (result && Array.isArray(result.content) && result.content.every((item: any) => item.type === "text")) {
-    return result.content.map((item: any) => item.text ?? "").join("\n");
+  if (isRecord(result) && Array.isArray(result.content)) {
+    const allText = result.content.every(
+      (item) => isRecord(item) && item.type === "text" && (item.text == null || typeof item.text === "string"),
+    );
+    if (allText) {
+      return result.content
+        .map((item) => (isRecord(item) && typeof item.text === "string" ? item.text : ""))
+        .join("\n");
+    }
   }
 
   return JSON.stringify(result, null, 2);
@@ -126,29 +347,48 @@ function parseJson(value: string, label: string) {
   }
 }
 
+function restoreTerminalState() {
+  // Best-effort reset for terminal modes that can leak if dependencies enable them.
+  // Includes kitty CSI-u keyboard protocol and bracketed paste mode.
+  const reset = "\u001b[<u\u001b[?2004l\u001b[?25h\u001b[0m\u001b>";
+  if (process.stderr.isTTY) {
+    process.stderr.write(reset);
+  } else if (process.stdout.isTTY) {
+    process.stdout.write(reset);
+  }
+}
+
 function normalizeToolDefinitions(server: ComposableMCPServer): ComposedToolDefinition[] {
-  const rawTools = (server as any).getAllComposedTools?.();
+  const serverAny = server as ToolListingServer;
+  const rawTools: unknown =
+    serverAny.getInternalTools?.() ??
+    serverAny.getAllComposedTools?.() ??
+    serverAny.getAllTools?.() ??
+    serverAny.getPublicTools?.();
   if (Array.isArray(rawTools)) {
     return rawTools
-      .filter((tool): tool is Record<string, unknown> => Boolean(tool && typeof tool === "object"))
-      .map((tool) => ({
-        ...tool,
-        name: String(tool.name ?? ""),
-      }))
+      .map((tool) => {
+        if (!isRecord(tool)) return null;
+        return {
+          ...tool,
+          name: String(tool.name ?? ""),
+        };
+      })
+      .filter((tool): tool is ComposedToolDefinition => Boolean(tool))
       .filter((tool) => tool.name);
   }
 
-  if (rawTools instanceof Map) {
+  if (typeof rawTools === "object" && rawTools instanceof Map) {
     return [...rawTools.entries()].map(([name, tool]) => ({
       ...(tool as Record<string, unknown>),
-      name: String((tool as any)?.name ?? name),
+      name: String((isRecord(tool) ? tool.name : undefined) ?? name),
     }));
   }
 
   if (rawTools && typeof rawTools === "object") {
     return Object.entries(rawTools).map(([name, tool]) => ({
       ...((tool as Record<string, unknown>) ?? {}),
-      name: String((tool as any)?.name ?? name),
+      name: String((isRecord(tool) ? tool.name : undefined) ?? name),
     }));
   }
 
@@ -210,127 +450,143 @@ function formatManualTool(server: ComposableMCPServer, name: string) {
   );
 }
 
-export async function runActCli(options?: { getServer?: GetServerFn; argv?: string[] }) {
-  const args = options?.argv ?? process.argv.slice(2);
+async function runActRequest(options: {
+  toolName?: string;
+  rawArgs?: string;
+  cliOptions: ActCommandOptions;
+  getServer?: GetServerFn;
+  shouldCleanupServer: boolean;
+  outputHelp: () => void;
+}) {
+  const showManual = Boolean(options.cliOptions?.manual);
+  const manualToolName = typeof options.cliOptions?.manual === "string" ? options.cliOptions.manual : "";
+  const forceJson = Boolean(options.cliOptions?.json);
 
-  const actConfig = readActConfig();
-  let toolName = "";
-  let manualToolName = "";
-  let argsSource = "";
-  let needsStdin = false;
-  let showManual = false;
-  let showHelp = false;
-  let serverModule = readActValueFromEnvOrConfig(actConfig, "ONE_ACT_SERVER_MODULE", "SERVER_MODULE");
-  let forceJson = false;
+  const namedTool =
+    typeof options.cliOptions?.name === "string" && options.cliOptions.name.trim()
+      ? options.cliOptions.name.trim()
+      : "";
+  const positionalTool = options.toolName ?? "";
+  const toolName = namedTool || positionalTool;
 
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index];
+  let needsStdin = options.cliOptions?.args === "-";
+  let argsSource =
+    typeof options.cliOptions?.args === "string" && options.cliOptions.args !== "-"
+      ? options.cliOptions.args
+      : (options.rawArgs ?? "");
 
-    if (arg === "--name") {
-      toolName = args[++index] || "";
-      continue;
-    }
-
-    if (arg === "--args") {
-      const value = args[++index];
-      if (!value) throw new Error("Missing value for --args");
-      if (value === "-") {
-        needsStdin = true;
-      } else {
-        argsSource = value;
-      }
-      continue;
-    }
-
-    if (arg === "--manual") {
-      showManual = true;
-      const next = args[index + 1];
-      if (next && !next.startsWith("-")) {
-        manualToolName = next;
-        index++;
-      }
-      continue;
-    }
-
-    if (arg === "--server-module") {
-      serverModule = args[++index] || "";
-      continue;
-    }
-
-    if (arg === "--json") {
-      forceJson = true;
-      continue;
-    }
-
-    if (arg === "--help" || arg === "-h") {
-      showHelp = true;
-      continue;
-    }
-
-    if (!arg.startsWith("-")) {
-      if (!toolName && !showManual) {
-        toolName = arg;
-        continue;
-      }
-
-      if (!argsSource && !needsStdin && !showManual) {
-        if (arg === "-") {
-          needsStdin = true;
-        } else {
-          argsSource = arg;
-        }
-        continue;
-      }
-    }
-
-    throw new Error(`Unknown argument: ${arg}`);
+  if (!needsStdin && argsSource === "-") {
+    needsStdin = true;
+    argsSource = "";
   }
 
-  const getServer =
-    options?.getServer ??
-    (serverModule ? await loadGetServer(serverModule) : undefined);
+  if (!showManual && (!toolName || (!argsSource && !needsStdin))) {
+    options.outputHelp();
+    process.exitCode = 1;
+    return;
+  }
 
-  if (showHelp) {
-    printUsage();
-    if (!getServer) {
+  if (!options.getServer) {
+    throw new Error(
+      "No MCP server configuration found. Configure mcpServers in ~/.config/one/act.json (or ONE_ACT_MCP_SERVERS).",
+    );
+  }
+
+  const server = await options.getServer();
+  try {
+    if (showManual) {
+      const output = manualToolName
+        ? formatManualTool(server, manualToolName)
+        : formatManualList(server, forceJson);
+      process.stdout.write(`${output}\n`);
       return;
     }
 
-    const server = await getServer();
-    const output = formatManualList(server, forceJson);
-    if (output) process.stdout.write(`${output}\n`);
-    return;
-  }
+    const stdin = needsStdin ? await readStdin() : "";
+    const toolArgs = parseJson(needsStdin ? stdin : argsSource, "--args");
 
-  if (!getServer) {
-    throw new Error("No getServer() provider available. Pass --server-module or inject getServer programmatically.");
-  }
+    const act = getToolFn(server);
+    const result = await act(toolName, toolArgs);
+    const output = formatCliOutput(result, forceJson);
 
-  const server = await getServer();
-
-  if (showManual) {
-    const output = manualToolName
-      ? formatManualTool(server, manualToolName)
-      : formatManualList(server, forceJson);
     process.stdout.write(`${output}\n`);
+    if (isRecord(result) && Boolean(result.isError)) {
+      process.exitCode = 1;
+    }
+  } finally {
+    if (options.shouldCleanupServer) {
+      try {
+        await server.close();
+      } catch {
+        // Ignore cleanup errors so command result remains primary.
+      }
+
+      restoreTerminalState();
+    }
+  }
+}
+
+export async function runActCli(options?: { getServer?: GetServerFn; argv?: string[] }) {
+  const args = options?.argv ?? process.argv.slice(2);
+  const actConfig = readActConfig();
+  const configuredMcpServers = readConfiguredMcpServers(actConfig);
+  const getServer =
+    options?.getServer ??
+    (configuredMcpServers ? createGetServerFromMcpServers(configuredMcpServers) : undefined);
+  const shouldCleanupServer = !options?.getServer;
+
+  const cli = cac("act");
+
+  cli.usage(`${HELP_DESCRIPTION}\n\n<tool> <json|->`);
+  cli.help((sections) => {
+    sections.push({
+      title: "Description",
+      body: HELP_DESCRIPTION,
+    });
+    sections.push({
+      title: "Examples",
+      body: HELP_EXAMPLES.map((line) => `  ${line}`).join("\n"),
+    });
+    return sections;
+  });
+
+  let pending: Promise<void> | null = null;
+
+  cli.command("config", "Interactive setup for mcpServers config").action(() => {
+    pending = runActConfigCli();
+  });
+
+  cli.command("auth", "Deprecated alias for config").action(() => {
+    pending = (async () => {
+      console.error("'act auth' is deprecated. Use 'act config' instead.");
+      await runActConfigCli();
+    })();
+  });
+
+  cli
+    .command("[tool] [toolArgs]", "Deterministic MCP tool invocation")
+    .option("--name <tool>", "Tool name (equivalent to positional <tool>)")
+    .option("--args <json|->", "Tool args JSON, or '-' to read JSON from stdin")
+    .option("--manual [tool]", "Show tool list or one tool schema")
+    .option("--json", "Force JSON output")
+    .action((toolName: string | undefined, toolArgs: string | undefined, cliOptions: ActCommandOptions) => {
+      pending = runActRequest({
+        toolName,
+        rawArgs: toolArgs,
+        cliOptions,
+        getServer,
+        shouldCleanupServer,
+        outputHelp: () => cli.outputHelp(),
+      });
+    });
+
+  cli.parse(["node", "act", ...args]);
+
+  if (args.includes("--help") || args.includes("-h")) {
     return;
   }
 
-  if (!toolName || (!argsSource && !needsStdin)) {
-    printUsage();
-    process.exitCode = 1;
-    return;
-  }
-
-  const stdin = needsStdin ? await readStdin() : "";
-  const toolArgs = parseJson(needsStdin ? stdin : argsSource, "--args");
-
-  const act = getToolFn(server);
-  const result: any = await act(toolName, toolArgs);
-  const output = formatCliOutput(result, forceJson);
-
-  process.stdout.write(`${output}\n`);
-  if (result?.isError) {
-    process.exitCode = 1;
+  if (pending) {
+    await pending;
   }
 }

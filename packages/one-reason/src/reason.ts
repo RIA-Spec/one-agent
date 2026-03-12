@@ -10,8 +10,29 @@ import {
 import { getTracer } from "./tracing.js";
 import { processStream } from "./utils/stream.js";
 
-export async function reason(prompt: string, example: any): Promise<AIResult> {
-  const { jsonSchema, stepCountIs, streamText, tool } = ai as any;
+type SubmitToolResult = {
+  toolName?: string;
+  output?: unknown;
+};
+
+type StreamStep = {
+  toolResults?: SubmitToolResult[];
+};
+
+function hasSubmittedResult(steps: StreamStep[] | undefined): boolean {
+  if (!Array.isArray(steps)) return false;
+
+  return steps.some((step) =>
+    Array.isArray(step.toolResults)
+      ? step.toolResults.some(
+          (result) => result.toolName === "submit_result" && result.output === "submitted",
+        )
+      : false,
+  );
+}
+
+export async function reason(prompt: string, example: unknown): Promise<AIResult> {
+  const { jsonSchema, stepCountIs, streamText, tool } = ai;
   const { validate, outputSchema } = compileAiResultValidator(example);
   const dataSchema = exampleToJsonSchema(example);
 
@@ -28,7 +49,7 @@ export async function reason(prompt: string, example: any): Promise<AIResult> {
       },
       required: ["data"],
     }),
-    execute: (result) => {
+    execute: (result: unknown) => {
       const output = result as AIResult;
       if (validate(result)) {
         structuredOutput = { ...output, error: null };
@@ -42,13 +63,8 @@ export async function reason(prompt: string, example: any): Promise<AIResult> {
     submit_result: submitTool,
   };
 
-  const hasSuccessfullySubmitted = ({ steps }: any) => {
-    const successfulResponse = steps.find((step) =>
-      step.toolResults.find(
-        (result) => result.toolName === "submit_result" && result.output === "submitted",
-      ),
-    );
-    return Boolean(successfulResponse);
+  const hasSuccessfullySubmitted = ({ steps }: { steps?: StreamStep[] }) => {
+    return hasSubmittedResult(steps);
   };
 
   const resolved = await resolveInterfaceModel("reason", "gemini-3.1-flash-lite");
@@ -75,7 +91,9 @@ Rules:
   });
 
   try {
-    await processStream(result, "reason");
+    if (process.env.ONE_REASON_VERBOSE === "1") {
+      await processStream(result, "reason");
+    }
     const text = await result.text;
     const toolResults = await result.toolResults;
     const finishReason = await result.finishReason;
@@ -83,7 +101,7 @@ Rules:
     if (structuredOutput) return structuredOutput;
 
     const toolCallSummary = toolResults.length
-      ? ` Tool calls: ${toolResults.map((toolResult) => toolResult.toolName).join(", ")}.`
+      ? ` Tool calls: ${toolResults.map((toolResult) => String(toolResult.toolName)).join(", ")}.`
       : "";
 
     return {
