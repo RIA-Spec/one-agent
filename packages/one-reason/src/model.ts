@@ -67,7 +67,8 @@ function readScopedValue(scope: Scope, key: string, config: ScopeConfig): string
   const configValue = config[key];
   if (configValue == null) return undefined;
   if (typeof configValue === "string") return configValue;
-  if (typeof configValue === "number" || typeof configValue === "boolean") return String(configValue);
+  if (typeof configValue === "number" || typeof configValue === "boolean")
+    return String(configValue);
   return undefined;
 }
 
@@ -98,7 +99,9 @@ export async function resolveInterfaceModel(
   defaultModelId = "gemini-3.1-flash-lite",
 ): Promise<ResolvedInterfaceModel> {
   const config = loadScopedConfig(scope);
-  const provider = (readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible").toLowerCase() as InterfaceProvider;
+  const provider = (
+    readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
+  ).toLowerCase() as InterfaceProvider;
   const modelId = readScopedValue(scope, "MODEL", config) ?? defaultModelId;
 
   if (provider === "anthropic") {
@@ -136,20 +139,14 @@ export async function resolveInterfaceModel(
   }
 
   if (provider === "openai-compatible") {
-    const apiKey =
-      readScopedValue(scope, "OPENAI_API_KEY", config)
-    const baseURL =
-      readScopedValue(scope, "OPENAI_BASE_URL", config)
+    const apiKey = readScopedValue(scope, "OPENAI_API_KEY", config);
+    const baseURL = readScopedValue(scope, "OPENAI_BASE_URL", config);
 
     if (!apiKey) {
-      throw new Error(
-        "openai-compatible provider selected but OPENAI_API_KEY is not set",
-      );
+      throw new Error("openai-compatible provider selected but OPENAI_API_KEY is not set");
     }
     if (!baseURL) {
-      throw new Error(
-        "openai-compatible provider selected but OPENAI_BASE_URL is not set",
-      );
+      throw new Error("openai-compatible provider selected but OPENAI_BASE_URL is not set");
     }
 
     const compatibleProvider = createOpenAICompatible({

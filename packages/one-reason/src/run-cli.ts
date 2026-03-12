@@ -1,15 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import process from "node:process";
-import {
-  cancel,
-  intro,
-  isCancel,
-  outro,
-  password,
-  select,
-  text,
-} from "@clack/prompts";
+import { cancel, intro, isCancel, outro, password, select, text } from "@clack/prompts";
 import { cac } from "cac";
 import pc from "picocolors";
 import { getOneConfigPath } from "./config-path.js";
@@ -20,8 +12,8 @@ const REASON_CONFIG_PATH = getOneConfigPath("reason.json");
 const HELP_DESCRIPTION =
   "AI command for structured extraction and decision-making: read prompt text, reason over it, and output JSON matching the required structure.";
 const HELP_EXAMPLES = [
-  "reason \"hi\" '{\"text\":\"\"}'",
-  "echo \"hi\" | reason - '{\"text\":\"\"}'",
+  'reason "hi" \'{"text":""}\'',
+  'echo "hi" | reason - \'{"text":""}\'',
   "cat build.log | reason - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
 ];
 
@@ -171,7 +163,9 @@ async function runReasonAuthCli() {
 
 async function readStdin() {
   if (process.stdin.isTTY) {
-    throw new Error("This command requires piped stdin (example: echo 'text' | reason - '{\"text\":\"\"}')");
+    throw new Error(
+      "This command requires piped stdin (example: echo 'text' | reason - '{\"text\":\"\"}')",
+    );
   }
 
   const chunks: Buffer[] = [];
@@ -229,7 +223,9 @@ async function runReasonRequest(
 
   if (result.error) {
     process.exitCode = 1;
-    process.stdout.write(`${JSON.stringify({ data: result.data, error: result.error }, null, 2)}\n`);
+    process.stdout.write(
+      `${JSON.stringify({ data: result.data, error: result.error }, null, 2)}\n`,
+    );
     return;
   }
 
@@ -255,20 +251,20 @@ export async function runReasonCli(args = process.argv.slice(2)) {
 
   let pending: Promise<void> | null = null;
 
-  cli
-    .command("auth", "Configure reason auth")
-    .action(() => {
-      pending = runReasonAuthCli();
-    });
+  cli.command("auth", "Configure reason auth").action(() => {
+    pending = runReasonAuthCli();
+  });
 
   cli
     .command("[prompt] [structure]", "Analyze input in pipelines and emit structured JSON")
     .option("--prompt <text>", "Prompt text, use '-' to read from stdin")
     .option("--structure <json>", "Required JSON structure example")
-    .action((prompt: string | undefined, structure: string | undefined, options: ReasonCliOptions) => {
-      const resolvedPrompt = prompt === STDIN_POSITIONAL_SENTINEL ? "-" : prompt;
-      pending = runReasonRequest(resolvedPrompt, structure, options);
-    });
+    .action(
+      (prompt: string | undefined, structure: string | undefined, options: ReasonCliOptions) => {
+        const resolvedPrompt = prompt === STDIN_POSITIONAL_SENTINEL ? "-" : prompt;
+        pending = runReasonRequest(resolvedPrompt, structure, options);
+      },
+    );
 
   cli.parse(["node", "reason", ...normalizedArgs]);
 

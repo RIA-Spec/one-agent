@@ -61,7 +61,8 @@ function readScopedValue(scope: Scope, key: string, config: ScopeConfig): string
   const configValue = config[key];
   if (configValue == null) return undefined;
   if (typeof configValue === "string") return configValue;
-  if (typeof configValue === "number" || typeof configValue === "boolean") return String(configValue);
+  if (typeof configValue === "number" || typeof configValue === "boolean")
+    return String(configValue);
   return undefined;
 }
 
@@ -88,10 +89,9 @@ function parseArgs(value: string | undefined): string[] {
 }
 
 async function loadACPProviderFactory() {
-  const importer = new Function(
-    "specifier",
-    "return import(specifier);",
-  ) as (specifier: string) => Promise<any>;
+  const importer = new Function("specifier", "return import(specifier);") as (
+    specifier: string,
+  ) => Promise<any>;
   const loaded = await importer("@mcpc-tech/acp-ai-provider");
   if (!loaded?.createACPProvider) {
     throw new Error("ACP provider module does not export createACPProvider");
@@ -104,7 +104,9 @@ export async function resolveInterfaceModel(
   defaultModelId = "gemini-3.1-flash-lite",
 ): Promise<ResolvedInterfaceModel> {
   const config = loadScopedConfig(scope);
-  const provider = (readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible").toLowerCase() as InterfaceProvider;
+  const provider = (
+    readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
+  ).toLowerCase() as InterfaceProvider;
   const modelId = readScopedValue(scope, "MODEL", config) ?? defaultModelId;
 
   if (provider === "anthropic") {
@@ -125,9 +127,7 @@ export async function resolveInterfaceModel(
     const openaiProvider = createOpenAICompatible({
       name: "openai",
       apiKey: readScopedValue(scope, "OPENAI_API_KEY", config) || "",
-      baseURL:
-        readScopedValue(scope, "OPENAI_BASE_URL", config) ||
-        "https://api.openai.com/v1",
+      baseURL: readScopedValue(scope, "OPENAI_BASE_URL", config) || "https://api.openai.com/v1",
     });
 
     return {

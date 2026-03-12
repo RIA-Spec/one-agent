@@ -75,9 +75,7 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
         if (firstReasoning) {
           firstReasoning = false;
           console.log(
-            nested
-              ? chalk.blue("  +- ") + chalk.cyan("Thinking...")
-              : chalk.cyan("Thinking..."),
+            nested ? chalk.blue("  +- ") + chalk.cyan("Thinking...") : chalk.cyan("Thinking..."),
           );
           atLineStart = true;
         }

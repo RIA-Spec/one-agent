@@ -47,7 +47,9 @@ function formatActResultText(result: unknown): string {
     Array.isArray((result as ActResultLike).content)
   ) {
     return ((result as ActResultLike).content ?? [])
-      .map((entry) => (entry?.type === "text" ? String(entry.text ?? "") : JSON.stringify(entry, null, 2)))
+      .map((entry) =>
+        entry?.type === "text" ? String(entry.text ?? "") : JSON.stringify(entry, null, 2),
+      )
       .join("\n");
   }
   return JSON.stringify(result, null, 2);

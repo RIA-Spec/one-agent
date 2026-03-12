@@ -1,13 +1,11 @@
-import { mcpc, type ComposableMCPServer, type McpServerConfig, type ToolRefXml } from "@mcpc-tech/core";
-import { cac } from "cac";
 import {
-  cancel,
-  intro,
-  isCancel,
-  outro,
-  select,
-  text,
-} from "@clack/prompts";
+  mcpc,
+  type ComposableMCPServer,
+  type McpServerConfig,
+  type ToolRefXml,
+} from "@mcpc-tech/core";
+import { cac } from "cac";
+import { cancel, intro, isCancel, outro, select, text } from "@clack/prompts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
@@ -17,7 +15,7 @@ const MANUAL_TOOL_NAME = "__manual__";
 const HELP_DESCRIPTION =
   "Deterministic MCP tool invocation command: connect configured MCP servers, call tools with exact JSON args, and return structured output.";
 const HELP_EXAMPLES = [
-  "act bash '{\"command\":\"ls -la\"}'",
+  'act bash \'{"command":"ls -la"}\'',
   "jq -c '{command: .action}' result.json | act bash -",
   "act --manual playwright_browser_click",
 ];
@@ -109,7 +107,9 @@ function createGetServerFromMcpServers(mcpServers: McpServersConfig): GetServerF
   return async () => {
     if (cachedServer) return cachedServer;
 
-    const refs = getMcpServerNames(mcpServers).map((name) => `<tool name="${name}.__ALL__"/>` as ToolRefXml);
+    const refs = getMcpServerNames(mcpServers).map(
+      (name) => `<tool name="${name}.__ALL__"/>` as ToolRefXml,
+    );
     const composeEntry = {
       name: "one-act-runtime",
       description: "MCP tool runtime for act",
@@ -305,7 +305,7 @@ async function runActConfigCli() {
 
 async function readStdin() {
   if (process.stdin.isTTY) {
-    throw new Error("--args - requires piped stdin (example: echo '{\"k\":\"v\"}' | act tool -)");
+    throw new Error('--args - requires piped stdin (example: echo \'{"k":"v"}\' | act tool -)');
   }
 
   const chunks: Buffer[] = [];
@@ -326,7 +326,10 @@ function formatCliOutput(result: unknown, forceJson: boolean) {
 
   if (isRecord(result) && Array.isArray(result.content)) {
     const allText = result.content.every(
-      (item) => isRecord(item) && item.type === "text" && (item.text == null || typeof item.text === "string"),
+      (item) =>
+        isRecord(item) &&
+        item.type === "text" &&
+        (item.text == null || typeof item.text === "string"),
     );
     if (allText) {
       return result.content
@@ -459,7 +462,8 @@ async function runActRequest(options: {
   outputHelp: () => void;
 }) {
   const showManual = Boolean(options.cliOptions?.manual);
-  const manualToolName = typeof options.cliOptions?.manual === "string" ? options.cliOptions.manual : "";
+  const manualToolName =
+    typeof options.cliOptions?.manual === "string" ? options.cliOptions.manual : "";
   const forceJson = Boolean(options.cliOptions?.json);
 
   const namedTool =
@@ -569,16 +573,22 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
     .option("--args <json|->", "Tool args JSON, or '-' to read JSON from stdin")
     .option("--manual [tool]", "Show tool list or one tool schema")
     .option("--json", "Force JSON output")
-    .action((toolName: string | undefined, toolArgs: string | undefined, cliOptions: ActCommandOptions) => {
-      pending = runActRequest({
-        toolName,
-        rawArgs: toolArgs,
-        cliOptions,
-        getServer,
-        shouldCleanupServer,
-        outputHelp: () => cli.outputHelp(),
-      });
-    });
+    .action(
+      (
+        toolName: string | undefined,
+        toolArgs: string | undefined,
+        cliOptions: ActCommandOptions,
+      ) => {
+        pending = runActRequest({
+          toolName,
+          rawArgs: toolArgs,
+          cliOptions,
+          getServer,
+          shouldCleanupServer,
+          outputHelp: () => cli.outputHelp(),
+        });
+      },
+    );
 
   cli.parse(["node", "act", ...args]);
 
