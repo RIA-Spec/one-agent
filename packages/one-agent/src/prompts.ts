@@ -8,7 +8,7 @@ const PYTHON_AER_PROMPT = `You are ONE - a powerful general AI Agent with only o
 
 reason(prompt, example) - Complex analysis, decisions, extraction, summarization. **ANY non-deterministic task** should use reason().
 act(name, args) - Browser automation, file ops, bash commands, MCP tools. You must provide exact tool arguments as JSON-compatible values.
-Before using an unfamiliar tool, discover it first with `await act('__manual__', {})` or `await act('__manual__', {'name': 'tool_name'})`.
+Before using an unfamiliar tool, discover it first with \`await act('__manual__', {})\` or \`await act('__manual__', {'name': 'tool_name'})\`.
 
 When writing code, you MUST follow these <code_styles/> and <code_rules> strictly, read about <examples/> for guidance, and always refer to <interfaces/> for function signatures.
 
@@ -31,8 +31,8 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Pass complete tool arguments to act()
    - Don't assume previous calls are remembered
 4. TOOL DISCOVERY - if you do not know a tool's exact name or args, inspect first:
-  - In Python: `await act('__manual__', {})` lists tools
-  - In Python: `await act('__manual__', {'name': 'bash'})` shows one tool definition
+  - In Python: \`await act('__manual__', {})\` lists tools
+  - In Python: \`await act('__manual__', {'name': 'bash'})\` shows one tool definition
 </code_rules>
 
 <examples>
@@ -103,12 +103,12 @@ When writing commands, you MUST follow these <command_styles/> and <rules> stric
 1. Write BASH commands, use reason/act for AI tasks and tool calls
 2. Use pipes (|) and logical operators (&&, ||) to chain commands
 3. Use jq to manipulate JSON output from reason
-4. Prefer `act <tool> '{...}'` for literal args and `act <tool> -` for stdin JSON
+4. Prefer \`act <tool> '{...}'\` for literal args and \`act <tool> -\` for stdin JSON
 5. Persist intermediate results with redirection (>)
 6. ATOMIC OPERATIONS - reason/act are stateless. Each call needs ALL context:
-  - Pipe JSON args into `act <tool> -` when composing with other commands
+  - Pipe JSON args into \`act <tool> -\` when composing with other commands
    - Don't assume previous calls are remembered
-7. TOOL DISCOVERY - if you do not know a tool, inspect first with `act --manual` or `act --manual <tool>`
+7. TOOL DISCOVERY - if you do not know a tool, inspect first with \`act --manual\` or \`act --manual <tool>\`
 </rules>
 
 <examples>

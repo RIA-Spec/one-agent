@@ -18,148 +18,55 @@ import { join } from "node:path";
 import { jsonSchema } from "ai";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
+import { makeScript } from "./bash-ipc-script.js";
+
+type ActTextContent = { type?: string; text?: unknown };
+type ActResultLike = {
+  content?: ActTextContent[];
+  isError?: boolean;
+};
+
+type BashReasonResult = {
+  data?: unknown;
+  error?: string;
+};
 
 export interface BashAERConfig {
   cwd: string;
-  reasonHandler: (prompt: string, example: any) => Promise<any>;
-  actHandler: (server: any) => (name: string, args: unknown) => Promise<any>;
+  reasonHandler: (prompt: string, example: unknown) => Promise<BashReasonResult>;
+  actHandler: (server: unknown) => (name: string, args: unknown) => Promise<ActResultLike>;
 }
 
-function formatActResultText(result: any): string {
+function formatActResultText(result: unknown): string {
   if (result == null) return "";
   if (typeof result === "string") return result;
-  if (Array.isArray(result.content)) {
-    return result.content
-      .map((entry: any) => (entry?.type === "text" ? String(entry.text ?? "") : JSON.stringify(entry, null, 2)))
+  if (
+    typeof result === "object" &&
+    result !== null &&
+    "content" in result &&
+    Array.isArray((result as ActResultLike).content)
+  ) {
+    return ((result as ActResultLike).content ?? [])
+      .map((entry) => (entry?.type === "text" ? String(entry.text ?? "") : JSON.stringify(entry, null, 2)))
       .join("\n");
   }
   return JSON.stringify(result, null, 2);
 }
 
-function serializeActResult(result: any): string {
+function serializeActResult(result: unknown): string {
+  const isError =
+    typeof result === "object" && result !== null && "isError" in result
+      ? (result as ActResultLike).isError === true
+      : false;
+
   return JSON.stringify(
     {
       text: formatActResultText(result),
-      isError: result?.isError === true,
+      isError,
     },
     null,
     2,
   );
-}
-
-/** Generate CJS script for reason/act commands */
-function makeScript(dataDir: string, type: "reason" | "act"): string {
-  const isReason = type === "reason";
-  return `const fs = require('fs');
-const { randomBytes } = require('crypto');
-const args = process.argv.slice(2);
-const needsStdin = ${
-   isReason
-      ? "args.some((a, i) => a === '--prompt' && args[i + 1] === '-')"
-      : `(() => {
-  let toolName = '', needsJsonStdin = false, showManual = false;
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--args' && args[i + 1] === '-') { needsJsonStdin = true; i++; }
-    else if (arg === '--manual') {
-      showManual = true;
-      const next = args[i + 1];
-      if (next && !next.startsWith('-')) { toolName = next; i++; }
-    }
-    else if (arg === '--name') { toolName = args[++i] || ''; }
-    else if (!arg.startsWith('-')) {
-      if (!toolName && !showManual) toolName = arg;
-      else if (arg === '-' && !showManual) needsJsonStdin = true;
-    }
-  }
-  return needsJsonStdin;
-})()`
- }
-;
-
-function run(stdin) {
-  ${
-    isReason
-      ? `
-  let prompts = [], structure = '';
-  for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--prompt') { prompts.push(args[++i] === '-' ? stdin : args[i]); }
-    else if (args[i] === '--structure') { structure = args[++i]; }
-  }
-  const body = { prompt: prompts.join('\\n'), example: structure ? JSON.parse(structure) : '' };
-  `
-      : `
-  let toolName = '', argsText = '', needsJsonStdin = false, showManual = false, showHelp = false;
-  for (let i = 0; i < args.length; i++) {
-    const arg = args[i];
-    if (arg === '--name') { toolName = args[++i] || ''; }
-    else if (arg === '--args') {
-      const v = args[++i];
-      if (v === '-') needsJsonStdin = true;
-      else argsText = v || '';
-    }
-    else if (arg === '--manual') {
-      showManual = true;
-      const next = args[i + 1];
-      if (next && !next.startsWith('-')) { toolName = next; i++; }
-    }
-    else if (arg === '--help' || arg === '-h') { showHelp = true; }
-    else if (!arg.startsWith('-')) {
-      if (!toolName && !showManual) toolName = arg;
-      else if (!argsText && !needsJsonStdin && !showManual) {
-        if (arg === '-') needsJsonStdin = true;
-        else argsText = arg;
-      }
-      else {
-        console.error('Unknown argument: ' + arg); process.exit(1);
-      }
-    }
-    else {
-      console.error('Unknown argument: ' + arg); process.exit(1);
-    }
-  }
-  let body;
-  if (showHelp) body = { toolName: '__help__', toolArgs: {} };
-  else if (showManual) body = { toolName: '__manual__', toolArgs: toolName ? { name: toolName } : {} };
-  else {
-    if (!toolName || (!argsText && !needsJsonStdin)) { console.error('tool name and JSON args required'); process.exit(1); }
-    const raw = needsJsonStdin ? stdin : argsText;
-    let parsed;
-    try { parsed = JSON.parse(raw); }
-    catch (error) { console.error('Invalid JSON args: ' + error.message); process.exit(1); }
-    body = { toolName, toolArgs: parsed };
-  }
-  `
-  }
-  const id = randomBytes(8).toString('hex');
-  const req = '${dataDir}/one-${type}-req-' + id + '.txt';
-  const resp = '${dataDir}/one-${type}-resp-' + id + '.txt';
-  fs.writeFileSync(req, JSON.stringify(body));
-  for (let i = 0; i < 1200 && !fs.existsSync(resp); i++) { const e = Date.now() + 50; while (Date.now() < e); }
-  if (fs.existsSync(resp)) {
-    const raw = fs.readFileSync(resp, 'utf-8');
-${
-    isReason
-      ? "    process.stdout.write(raw);"
-      : `    const payload = JSON.parse(raw);
-    if (payload.text) process.stdout.write(payload.text);
-    if (payload.isError) {
-      try { fs.unlinkSync(req); } catch {}
-      try { fs.unlinkSync(resp); } catch {}
-      process.exit(1);
-    }`
-  }
-    try { fs.unlinkSync(req); } catch {} try { fs.unlinkSync(resp); } catch {}
-  } else {
-    console.error('Timeout'); try { fs.unlinkSync(req); } catch {} process.exit(1);
-  }
-}
-
-if (needsStdin) {
-  const c = []; process.stdin.on('data', d => c.push(d));
-  process.stdin.on('end', () => run(Buffer.concat(c).toString()));
-} else { run(''); }
-`;
 }
 
 /** Process pending request files */
@@ -167,7 +74,7 @@ async function processRequests(
   dataDir: string,
   reasonHandler: BashAERConfig["reasonHandler"],
   actHandler: BashAERConfig["actHandler"],
-  server: any,
+  server: unknown,
   stepCounter?: { value: number },
 ) {
   for (const file of readdirSync(dataDir)) {
@@ -196,20 +103,21 @@ async function processRequests(
         const data = typeof raw === "string" ? JSON.parse(raw) : raw;
         writeFileSync(respFile, JSON.stringify(data, null, 2));
         if (stepIdx >= 0) emitProgress({ type: "step-end", stepIndex: stepIdx, status: "ok" });
-      } catch (e: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         try {
           unlinkSync(reqFile);
         } catch {}
         writeFileSync(
           join(dataDir, `one-reason-resp-${id}.txt`),
-          JSON.stringify({ error: e.message }, null, 2),
+          JSON.stringify({ error: errorMessage }, null, 2),
         );
         if (stepIdx >= 0)
           emitProgress({
             type: "step-end",
             stepIndex: stepIdx,
             status: "error",
-            error: (e as Error).message?.substring(0, 100),
+            error: errorMessage.substring(0, 100),
           });
       }
     }
@@ -237,17 +145,18 @@ async function processRequests(
             error: result?.isError ? formatActResultText(result).slice(0, 100) : undefined,
           });
         }
-      } catch (e: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         try {
           unlinkSync(reqFile);
         } catch {}
-        if (id) writeFileSync(join(dataDir, `one-act-resp-${id}.txt`), `Error: ${e.message}`);
+        if (id) writeFileSync(join(dataDir, `one-act-resp-${id}.txt`), `Error: ${errorMessage}`);
         if (stepIdx >= 0)
           emitProgress({
             type: "step-end",
             stepIndex: stepIdx,
             status: "error",
-            error: (e as Error).message?.substring(0, 100),
+            error: errorMessage.substring(0, 100),
           });
       }
     }
@@ -277,8 +186,8 @@ Example: echo "Hi" | reason --prompt "Translate:" --prompt - --structure '{"t":"
     }),
     execute: async (
       { command, stdin }: { command: string; stdin?: string },
-      _extra?: any,
-      server?: any,
+      _extra?: unknown,
+      server?: unknown,
     ) => {
       const { cwd, reasonHandler, actHandler } = config;
       const dataDir = join(cwd, "data");
@@ -344,10 +253,11 @@ Example: echo "Hi" | reason --prompt "Translate:" --prompt - --structure '{"t":"
           content: [{ type: "text" as const, text: output || "(no output)" }],
           ...(result.exitCode !== 0 && { isError: true }),
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
         active = false;
         clearInterval(poll);
-        return { content: [{ type: "text" as const, text: error.message }], isError: true };
+        return { content: [{ type: "text" as const, text: errorMessage }], isError: true };
       }
     },
   };

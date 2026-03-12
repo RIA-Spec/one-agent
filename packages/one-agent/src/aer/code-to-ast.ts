@@ -204,13 +204,13 @@ function parsePyBlock(
       continue;
     }
 
-    // ── await act() / await reason() ────────────────────────────
-    if (/await\s+(act|reason)\s*\(/.test(trimmed)) {
-      const fnType = trimmed.match(/await\s+(act|reason)/)?.[1] as "act" | "reason";
+    // ── act() / reason() (await optional for AST planning) ──────
+    if (/(?:\bawait\s+)?\b(act|reason)\s*\(/.test(trimmed)) {
+      const fnType = trimmed.match(/(?:\bawait\s+)?\b(act|reason)/)?.[1] as "act" | "reason";
       const { text: callText, endLine } = collectPyCall(lines, i);
 
       // Find the opening paren
-      const callMatch = callText.match(/await\s+(?:act|reason)\s*\(/);
+      const callMatch = callText.match(/(?:\bawait\s+)?\b(?:act|reason)\s*\(/);
       if (callMatch) {
         const parenStart = callText.indexOf("(", callMatch.index!) + 1;
         const argsStr = extractBalancedParens(callText, parenStart);
@@ -565,14 +565,16 @@ function parseBashActCommand(cmdStr: string, line: number): ASTStep {
 
 function parseBashReasonCommand(cmdStr: string, line: number): ASTStep {
   const prompts = extractAllBashFlags(cmdStr, "--prompt");
-  const text = prompts
+  const positional = extractBashPositionalArgs(cmdStr);
+  const promptFromFlags = prompts
     .filter((p) => p !== "-")
     .join(" ")
     .substring(0, 60);
-  const structure = extractBashFlag(cmdStr, "--structure");
+  const text = promptFromFlags || positional[0] || "Analyze";
+  const structure = extractBashFlag(cmdStr, "--structure") || positional[1] || null;
   return {
     type: "reason",
-    name: text || "Analyze",
+    name: text,
     args: structure ? [structure.substring(0, 40)] : [],
     line,
   };
@@ -620,4 +622,51 @@ function extractBashValue(cmdStr: string, start: number): string | null {
 
   const word = cmdStr.substring(start).match(/^(\S+)/);
   return word ? word[1] : null;
+}
+
+function extractBashPositionalArgs(cmdStr: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < cmdStr.length) {
+    while (i < cmdStr.length && /\s/.test(cmdStr[i])) i++;
+    if (i >= cmdStr.length) break;
+
+    const ch = cmdStr[i];
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      let value = "";
+      while (i < cmdStr.length) {
+        if (cmdStr[i] === "\\" && q === '"' && i + 1 < cmdStr.length) {
+          value += cmdStr[i + 1];
+          i += 2;
+          continue;
+        }
+        if (cmdStr[i] === q) {
+          i++;
+          break;
+        }
+        value += cmdStr[i++];
+      }
+      tokens.push(value);
+      continue;
+    }
+
+    const start = i;
+    while (i < cmdStr.length && !/\s/.test(cmdStr[i])) i++;
+    tokens.push(cmdStr.slice(start, i));
+  }
+
+  // Drop command name and flags/flag-values, keep only positional args.
+  const positional: string[] = [];
+  for (let idx = 1; idx < tokens.length; idx++) {
+    const token = tokens[idx];
+    if (token.startsWith("--")) {
+      if (idx + 1 < tokens.length && !tokens[idx + 1].startsWith("--")) idx++;
+      continue;
+    }
+    positional.push(token);
+  }
+  return positional;
 }
