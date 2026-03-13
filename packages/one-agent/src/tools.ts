@@ -11,6 +11,29 @@ import { createBashAER } from "./aer/bash.js";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { tool, jsonSchema } from "ai";
 
+type AERReasonResult = {
+  data?: unknown;
+  error?: string;
+};
+
+type AERActResult = {
+  content?: Array<{ type?: string; text?: unknown }>;
+  isError?: boolean;
+};
+
+const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<AERReasonResult> => {
+  const result = await reason(prompt, example);
+  return {
+    data: result.data,
+    error: result.error ?? undefined,
+  };
+};
+
+const adaptedActHandler =
+  (server: unknown) =>
+  (name: string, args: unknown): Promise<AERActResult> =>
+    getToolFn(server as Parameters<typeof getToolFn>[0])(name, args) as Promise<AERActResult>;
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 
@@ -50,8 +73,8 @@ export async function getServer() {
             if (AER_MODE === "bash") {
               const bashAER = createBashAER({
                 cwd: projectRoot,
-                reasonHandler: reason,
-                actHandler: getToolFn,
+                reasonHandler: adaptedReasonHandler,
+                actHandler: adaptedActHandler,
               });
               server.tool(
                 bashAER.name,
@@ -72,8 +95,8 @@ export async function getServer() {
             const pythonAER = createPythonAER({
               nodeFSRoot,
               nodeFSMountPoint,
-              reasonHandler: reason,
-              actHandler: getToolFn,
+              reasonHandler: adaptedReasonHandler,
+              actHandler: adaptedActHandler,
             });
             server.tool(
               pythonAER.name,
@@ -119,8 +142,9 @@ export async function getServer() {
  * Returns AI SDK compatible tools object from the MCP server.
  */
 export async function getOneTools() {
-  return convertToAISDKTools(await getServer(), {
+  const one = convertToAISDKTools(await getServer(), {
     tool: tool,
     jsonSchema: jsonSchema,
-  });
+  })?.["one"];
+  return { one };
 }

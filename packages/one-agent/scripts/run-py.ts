@@ -41,7 +41,7 @@ await client.connect(clientTransport);
 try {
   const result = await client.callTool(
     {
-      name: "run",
+      name: "one",
       arguments: { code },
     },
     undefined,

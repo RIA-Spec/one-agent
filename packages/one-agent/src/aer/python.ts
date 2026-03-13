@@ -62,11 +62,84 @@ reason = _one_tracked_reason
 const STEP_START_RE = /\[ONE:STEP_START:(\d+)\]/;
 const STEP_END_RE = /\[ONE:STEP_END:(\d+):(ok|error)(?::([^\]]*))?\]/;
 
+function extractUsefulFrame(lines: string[]): string | null {
+  const execFrame = lines
+    .slice()
+    .reverse()
+    .find((line) => /^\s*File\s+"<exec>",\s+line\s+\d+,\s+in\s+/.test(line));
+  if (execFrame) return execFrame.trim();
+
+  const pyFrame = lines
+    .slice()
+    .reverse()
+    .find((line) => /^\s*File\s+".+",\s+line\s+\d+,\s+in\s+/.test(line));
+  return pyFrame ? pyFrame.trim() : null;
+}
+
+function getErrorHint(summary: string): string | null {
+  if (/^KeyError:\s*slice\(/.test(summary)) {
+    return "Hint: A slice key was used on a mapping-like object. Check whether the target is a dict/object instead of a list/DataFrame/array.";
+  }
+  if (/^KeyError:/.test(summary)) {
+    return "Hint: Missing key access. Confirm the key exists and the container type matches your indexing syntax.";
+  }
+  if (/^TypeError:/.test(summary)) {
+    return "Hint: Type mismatch. Verify function arguments and intermediate value types.";
+  }
+  return null;
+}
+
+function prettifyPythonOutput(raw: string): { text: string; isError: boolean } {
+  const text = raw.trim();
+  if (!text) {
+    return { text: "(no output)", isError: false };
+  }
+
+  const normalized = text.startsWith("Error: ") ? text.slice(7).trim() : text;
+  const lines = normalized.split("\n").map((line) => line.replace(/\s+$/, ""));
+  const tracebackIdx = lines.findIndex((line) =>
+    line.startsWith("Traceback (most recent call last):"),
+  );
+
+  if (tracebackIdx < 0) {
+    return { text: raw || "(no output)", isError: false };
+  }
+
+  const nonEmptyFromTrace = lines.slice(tracebackIdx).filter((line) => line.trim().length > 0);
+  const summary = nonEmptyFromTrace[nonEmptyFromTrace.length - 1] || "Python execution failed";
+  const usefulFrame = extractUsefulFrame(lines.slice(tracebackIdx));
+  const hint = getErrorHint(summary);
+
+  // If we matched a known error pattern, keep output concise and hide traceback.
+  if (hint) {
+    const conciseLines = [
+      "Python execution failed",
+      `Exception: ${summary}`,
+      ...(usefulFrame ? [`Location: ${usefulFrame}`] : []),
+      hint,
+    ];
+    return { text: conciseLines.join("\n"), isError: true };
+  }
+
+  // Fallback: show full traceback only when no prettify rule matched.
+  const rawTrace = nonEmptyFromTrace.join("\n");
+  const fallbackLines = [
+    "Python execution failed",
+    `Exception: ${summary}`,
+    ...(usefulFrame ? [`Location: ${usefulFrame}`] : []),
+    "",
+    "--- Raw Traceback ---",
+    rawTrace,
+  ];
+
+  return { text: fallbackLines.join("\n"), isError: true };
+}
+
 export function createPythonAER(config: PythonAERConfig) {
   const { nodeFSRoot, nodeFSMountPoint, reasonHandler, actHandler } = config;
 
   return {
-    name: "run",
+    name: "one",
     description: `Python AER - Execute Python with built-in reason() and act() functions.
 
   reason(prompt, example) → {data, error}  (async, use with asyncio.run)
@@ -120,53 +193,66 @@ ${STEP_TRACKING}
 ${code}
 `;
 
-      const stream = await runPy(instrumentedCode, {
-        handlers: { reason: reasonHandler, act: actHandler(server) },
-        packages,
-        nodeFSRoot,
-        nodeFSMountPoint,
-      });
+      try {
+        const stream = await runPy(instrumentedCode, {
+          handlers: { reason: reasonHandler, act: actHandler(server) },
+          packages,
+          nodeFSRoot,
+          nodeFSMountPoint,
+        });
 
-      const decoder = new TextDecoder();
-      let output = "";
+        const decoder = new TextDecoder();
+        let output = "";
 
-      for await (const chunk of stream) {
-        const text = decoder.decode(chunk);
+        for await (const chunk of stream) {
+          const text = decoder.decode(chunk);
 
-        // Process each line for step tracking markers
-        const lines = text.split("\n");
-        const cleanLines: string[] = [];
+          // Process each line for step tracking markers
+          const lines = text.split("\n");
+          const cleanLines: string[] = [];
 
-        for (const line of lines) {
-          const trimmed = line.trim();
+          for (const line of lines) {
+            const trimmed = line.trim();
 
-          // Parse step-start marker
-          const startMatch = trimmed.match(STEP_START_RE);
-          if (startMatch) {
-            const stepIndex = parseInt(startMatch[1], 10);
-            emitProgress({ type: "step-start", stepIndex });
-            continue;
+            // Parse step-start marker
+            const startMatch = trimmed.match(STEP_START_RE);
+            if (startMatch) {
+              const stepIndex = parseInt(startMatch[1], 10);
+              emitProgress({ type: "step-start", stepIndex });
+              continue;
+            }
+
+            // Parse step-end marker
+            const endMatch = trimmed.match(STEP_END_RE);
+            if (endMatch) {
+              const stepIndex = parseInt(endMatch[1], 10);
+              const status = endMatch[2] as "ok" | "error";
+              const error = endMatch[3] || undefined;
+              emitProgress({ type: "step-end", stepIndex, status, error });
+              continue;
+            }
+
+            // Regular output line
+            cleanLines.push(line);
           }
 
-          // Parse step-end marker
-          const endMatch = trimmed.match(STEP_END_RE);
-          if (endMatch) {
-            const stepIndex = parseInt(endMatch[1], 10);
-            const status = endMatch[2] as "ok" | "error";
-            const error = endMatch[3] || undefined;
-            emitProgress({ type: "step-end", stepIndex, status, error });
-            continue;
-          }
-
-          // Regular output line
-          cleanLines.push(line);
+          // Append clean output (without markers)
+          output += cleanLines.join("\n");
         }
 
-        // Append clean output (without markers)
-        output += cleanLines.join("\n");
+        const pretty = prettifyPythonOutput(output);
+        return {
+          content: [{ type: "text" as const, text: pretty.text }],
+          ...(pretty.isError ? { isError: true } : {}),
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const pretty = prettifyPythonOutput(`Error: ${message}`);
+        return {
+          content: [{ type: "text" as const, text: pretty.text }],
+          isError: true,
+        };
       }
-
-      return { content: [{ type: "text" as const, text: output || "(no output)" }] };
     },
   };
 }

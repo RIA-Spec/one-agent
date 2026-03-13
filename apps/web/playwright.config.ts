@@ -52,8 +52,8 @@ export default defineConfig({
   /* Configure projects */
   projects: [
     {
-      name: "e2e",
-      testMatch: /e2e\/.*.test.ts/,
+      name: "benchmarks",
+      testMatch: /benchmarks\/.*.test.ts/,
       use: {
         ...devices["Desktop Chrome"],
       },

@@ -9,6 +9,9 @@ const nextConfig: NextConfig = {
     "@mcpc-tech/core",
     "@mcpc/code-runner-mcp",
     "@modelcontextprotocol/sdk",
+    "@one/agent",
+    "@one/reason",
+    "@one/act",
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {

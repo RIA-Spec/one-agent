@@ -100,7 +100,7 @@ export async function processStream(result: StreamTextResult<any, any>, prefix?:
           : chalk.yellow(`🔧 ${chunk.toolName.toUpperCase()}`);
 
         // Extract code/command from direct or nested one-runner calls
-        const code = args?.code || (args?.tool === "run" && args?.args?.code);
+        const code = args?.code || (args?.tool === "one" && args?.args?.code);
         const command = args?.command || (args?.tool === "bash" && args?.args?.command);
 
         if (code) {

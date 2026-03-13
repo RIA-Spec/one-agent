@@ -37,7 +37,7 @@ import type { ASTStep } from "@/lib/types";
 type ExecutionState = "pending" | "streaming" | "available" | "error";
 type AERMode = "python" | "bash";
 
-interface ToolRunFlowProps {
+interface ToolOneFlowProps {
   state: ExecutionState;
   mode?: AERMode;
   code?: string;
@@ -932,13 +932,13 @@ function buildEdgesFromFlat(
   return result;
 }
 
-export function ToolRunFlow({
+export function ToolOneFlow({
   state,
   mode = "python",
   code = "",
   output: _output,
   isError,
-}: ToolRunFlowProps) {
+}: ToolOneFlowProps) {
   const { progress } = useExecutionProgress();
 
   // Get tree-structured steps: prefer progress data, fallback to code parsing

@@ -27,7 +27,7 @@ import { MessageActions } from "./message-actions";
 import { MessageEditor } from "./message-editor";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
-import { ToolRunFlow } from "./tool-run-flow";
+import { ToolOneFlow } from "./tool-one-flow";
 import { Weather } from "./weather";
 
 function getToolOutputText(output: any) {
@@ -356,7 +356,7 @@ const PurePreviewMessage = ({
               );
             }
 
-            if (type === "tool-run" || type === "tool-bash") {
+            if (type === "tool-one" || type === "tool-bash") {
               const { toolCallId, state } = part;
               const aerMode = type === "tool-bash" ? "bash" : "python";
               const codeOrCommand =
@@ -369,7 +369,7 @@ const PurePreviewMessage = ({
                     {/* Execution Flow Visualization */}
                     {codeOrCommand && (
                       <div className="p-3">
-                        <ToolRunFlow
+                        <ToolOneFlow
                           code={codeOrCommand}
                           isError={part.output?.isError}
                           mode={aerMode}

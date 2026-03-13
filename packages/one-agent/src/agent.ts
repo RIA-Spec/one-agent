@@ -50,7 +50,7 @@ export async function agentStream(
       },
     },
     model,
-    tools,
+    tools: { one: tools["one"] },
     messages,
     experimental_telemetry: {
       isEnabled: true,

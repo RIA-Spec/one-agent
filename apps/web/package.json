@@ -18,7 +18,7 @@
     "db:up": "drizzle-kit up",
     "test": "PLAYWRIGHT=True PLAYWRIGHT_HTML_OPEN=never pnpm exec playwright test --reporter=line",
     "test:gui": "PLAYWRIGHT=True PLAYWRIGHT_HTML_OPEN=never pnpm exec playwright test --headed --reporter=line --workers=1",
-    "test:bench": "PLAYWRIGHT=True PLAYWRIGHT_HTML_OPEN=never pnpm exec playwright test tests/e2e/bench-*.test.ts --reporter=line --workers=1 --max-failures=1"
+    "test:bench": "pnpm --filter @one/agent evals:smoke"
   },
   "dependencies": {
     "@ai-sdk/gateway": "^3.0.15",

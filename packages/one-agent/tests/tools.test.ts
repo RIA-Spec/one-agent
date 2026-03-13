@@ -8,7 +8,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { TextContent, CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 /**
- * Unit tests for the run tool that executes Python code in Pyodide.
+ * Unit tests for the one tool that executes Python code in Pyodide.
  *
  * Note: Tests using reason() function (which requires asyncio) are skipped because
  * WebAssembly stack switching is not supported in vitest worker threads.
@@ -25,7 +25,7 @@ function getTextOutput(result: unknown): string {
   return (toolResult.content[0] as TextContent).text;
 }
 
-describe("run tool", () => {
+describe("one tool", () => {
   let client: Client;
   let server: Awaited<ReturnType<typeof getServer>>;
 
@@ -51,7 +51,7 @@ describe("run tool", () => {
     const code = readFileSync(resolve(examplesDir, "simple_calc.py"), "utf-8");
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: { code },
     });
 
@@ -65,7 +65,7 @@ describe("run tool", () => {
     const code = readFileSync(resolve(examplesDir, "pandas_demo.py"), "utf-8");
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: {
         code,
         packages: { pandas: "pandas", numpy: "numpy" },
@@ -84,7 +84,7 @@ describe("run tool", () => {
     const code = readFileSync(resolve(examplesDir, "use_ai.py"), "utf-8");
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: { code },
     });
 
@@ -100,7 +100,7 @@ describe("run tool", () => {
     const code = readFileSync(resolve(examplesDir, "ai_boolean.py"), "utf-8");
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: { code },
     });
 
@@ -115,7 +115,7 @@ describe("run tool", () => {
     const code = readFileSync(resolve(examplesDir, "ai_array.py"), "utf-8");
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: { code },
     });
 
@@ -133,7 +133,7 @@ describe("run tool", () => {
 
     try {
       await client.callTool({
-        name: "run",
+        name: "one",
         arguments: { code },
       });
       // Should not reach here
@@ -160,7 +160,7 @@ asyncio.run(main())
     `.trim();
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: { code },
     });
 
@@ -179,7 +179,7 @@ print(f"Generated {len(X)} samples with {X.shape[1]} features")
     `.trim();
 
     const result = await client.callTool({
-      name: "run",
+      name: "one",
       arguments: {
         code,
         packages: { sklearn: "scikit-learn" },

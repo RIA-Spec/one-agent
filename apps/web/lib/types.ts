@@ -27,7 +27,7 @@ export type ChatTools = {
   createDocument: createDocumentTool;
   updateDocument: updateDocumentTool;
   requestSuggestions: requestSuggestionsTool;
-  run?: any; // ONE Agent Python AER tool
+  one?: any; // ONE Agent Python AER tool
   bash?: any; // ONE Agent Bash AER tool
 };
 
