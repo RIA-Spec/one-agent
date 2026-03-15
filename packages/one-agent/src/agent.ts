@@ -33,6 +33,7 @@ const DEFAULT_MODEL_CONTEXT_WINDOW = 65_536;
 const DEFAULT_STEP_GUARD_RESERVE_TOKENS = 2_048;
 const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 const TOOL_RESULT_TOKENS_PER_CHAR = 0.5;
+const COMPACTION_ANCHOR_PREFIX = "[Context compaction anchor]";
 
 function estimateToolResultsTokens(toolResults: unknown): number {
   if (!toolResults) {
@@ -47,6 +48,38 @@ function estimateToolResultsTokens(toolResults: unknown): number {
   }
 
   return Math.ceil(serialized.length * TOOL_RESULT_TOKENS_PER_CHAR);
+}
+
+function isCompactionAnchorMessage(message: ModelMessage): boolean {
+  return (
+    message.role === "assistant" &&
+    typeof message.content === "string" &&
+    message.content.startsWith(COMPACTION_ANCHOR_PREFIX)
+  );
+}
+
+function stripCompactionAnchors(messages: ModelMessage[]): ModelMessage[] {
+  return messages.filter((message) => !isCompactionAnchorMessage(message));
+}
+
+function withCompactionAnchor(messages: ModelMessage[], stepNumber: number): ModelMessage[] {
+  const withoutAnchors = stripCompactionAnchors(messages);
+  const anchor: ModelMessage = {
+    role: "assistant",
+    content: `${COMPACTION_ANCHOR_PREFIX} step=${stepNumber}`,
+  };
+
+  return [anchor, ...withoutAnchors];
+}
+
+function applyLatestCompactionAnchor(messages: ModelMessage[]): ModelMessage[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (isCompactionAnchorMessage(messages[i])) {
+      return messages.slice(i);
+    }
+  }
+
+  return messages;
 }
 
 function isDebugEnabled(): boolean {
@@ -161,30 +194,28 @@ export async function agentStream(
   }
 
   const contextWindow =
-    readPositiveIntEnv("ONE_MODEL_CONTEXT_WINDOW") ??
-    DEFAULT_MODEL_CONTEXT_WINDOW;
+    readPositiveIntEnv("ONE_MODEL_CONTEXT_WINDOW") ?? DEFAULT_MODEL_CONTEXT_WINDOW;
   const stepGuardReserve =
-    readPositiveIntEnv("ONE_STEP_GUARD_RESERVE_TOKENS") ??
-    DEFAULT_STEP_GUARD_RESERVE_TOKENS;
+    readPositiveIntEnv("ONE_STEP_GUARD_RESERVE_TOKENS") ?? DEFAULT_STEP_GUARD_RESERVE_TOKENS;
   const stepGuardLimit = Math.max(1, contextWindow - stepGuardReserve);
-  const maxOutputTokens =
-    readPositiveIntEnv("ONE_MAX_OUTPUT_TOKENS") ?? DEFAULT_MAX_OUTPUT_TOKENS;
-  const stopWhen = [
-    stepCountIs(maxSteps),
-    ({
-      steps,
-    }: {
-      steps: Array<{ usage?: { totalTokens?: number }; toolResults?: unknown }>;
-    }) => {
-      const lastStep = steps.at(-1);
-      const totalTokens = lastStep?.usage?.totalTokens;
-      const toolResultsTokens = estimateToolResultsTokens(lastStep?.toolResults);
-      const estimatedNextInputTokens =
-        (typeof totalTokens === "number" ? totalTokens : 0) + toolResultsTokens;
+  const maxOutputTokens = readPositiveIntEnv("ONE_MAX_OUTPUT_TOKENS") ?? DEFAULT_MAX_OUTPUT_TOKENS;
 
-      return estimatedNextInputTokens >= stepGuardLimit;
-    },
-  ];
+  const shouldCompactForNextStep = (
+    steps: Array<{ usage?: { totalTokens?: number }; toolResults?: unknown }>,
+  ) => {
+    const lastStep = steps.at(-1);
+    const totalTokens = lastStep?.usage?.totalTokens;
+    const toolResultsTokens = estimateToolResultsTokens(lastStep?.toolResults);
+    const estimatedNextInputTokens =
+      (typeof totalTokens === "number" ? totalTokens : 0) + toolResultsTokens;
+
+    return {
+      shouldCompact: estimatedNextInputTokens >= stepGuardLimit,
+      estimatedNextInputTokens,
+      toolResultsTokens,
+      totalTokens,
+    };
+  };
 
   debugLog("agentStream config", {
     maxSteps,
@@ -217,7 +248,66 @@ export async function agentStream(
       },
     },
     system,
-    stopWhen,
+    stopWhen: stepCountIs(maxSteps),
+    prepareStep: async ({ steps, messages: stepMessages, stepNumber }) => {
+      const anchoredMessages = applyLatestCompactionAnchor(stepMessages);
+
+      const nextStepState = shouldCompactForNextStep(
+        steps as Array<{ usage?: { totalTokens?: number }; toolResults?: unknown }>,
+      );
+      const currentDiagnostics = getCompactionDiagnostics(anchoredMessages, system);
+      const shouldCompactByCurrentMessages = currentDiagnostics.estimatedTokens >= stepGuardLimit;
+      const shouldCompact = nextStepState.shouldCompact || shouldCompactByCurrentMessages;
+
+      if (!shouldCompact && anchoredMessages !== stepMessages) {
+        debugLog("prepareStep anchor applied", {
+          stepNumber,
+          messagesBefore: stepMessages.length,
+          messagesAfter: anchoredMessages.length,
+        });
+
+        return {
+          messages: anchoredMessages,
+        };
+      }
+
+      if (!shouldCompact) {
+        return undefined;
+      }
+
+      debugLog("prepareStep compact triggered", {
+        stepNumber,
+        reason: {
+          byPreviousStepProjection: nextStepState.shouldCompact,
+          byCurrentMessages: shouldCompactByCurrentMessages,
+        },
+        estimatedNextInputTokens: nextStepState.estimatedNextInputTokens,
+        toolResultsTokens: nextStepState.toolResultsTokens,
+        currentEstimatedTokens: currentDiagnostics.estimatedTokens,
+        stepGuardLimit,
+        messagesBefore: anchoredMessages.length,
+      });
+
+      const compactedMessages = await autoCompactMessages({
+        model,
+        system,
+        messages: anchoredMessages,
+        abortSignal,
+        force: true,
+      });
+      const anchoredCompactedMessages = withCompactionAnchor(compactedMessages, stepNumber);
+
+      debugLog("prepareStep compact result", {
+        stepNumber,
+        messagesAfter: anchoredCompactedMessages.length,
+        compactedEstimatedTokens: getCompactionDiagnostics(anchoredCompactedMessages, system)
+          .estimatedTokens,
+      });
+
+      return {
+        messages: anchoredCompactedMessages,
+      };
+    },
     onStepFinish: ({ usage, finishReason, response, toolResults }) => {
       const totalTokens = usage.totalTokens;
       const inputTokens = usage.inputTokens;
@@ -225,8 +315,7 @@ export async function agentStream(
       const toolResultsTokens = estimateToolResultsTokens(toolResults);
       const estimatedNextInputTokens =
         (typeof totalTokens === "number" ? totalTokens : 0) + toolResultsTokens;
-      const shouldStop =
-        estimatedNextInputTokens >= stepGuardLimit;
+      const shouldStop = estimatedNextInputTokens >= stepGuardLimit;
 
       debugLog("step finished", {
         finishReason,
