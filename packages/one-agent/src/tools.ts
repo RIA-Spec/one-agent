@@ -5,7 +5,12 @@ import { dirname, resolve } from "node:path";
 import { reason } from "./interfaces/reason";
 import { getToolFn } from "./interfaces/act";
 import { createBashTool } from "./interfaces/tools/bash.js";
-import { createReadTool, createWriteTool, createEditTool } from "./interfaces/tools/index.js";
+import {
+  createReadTool,
+  createWriteTool,
+  createEditTool,
+  createWebSearchTool,
+} from "./interfaces/tools/index.js";
 import { createPythonAER } from "./aer/python.js";
 import { createBashAER } from "./aer/bash.js";
 import { convertToAISDKTools } from "@mcpc-tech/core";
@@ -83,6 +88,17 @@ export async function getServer() {
                 async (args: any, extra: any) => bashAER.execute(args, extra, server),
                 { internal: false },
               );
+
+              // Register low-level web tools so Bash AER can call them via `act`.
+              const webSearchTool = createWebSearchTool();
+              server.tool(
+                "websearch",
+                webSearchTool.description,
+                webSearchTool.parameters,
+                webSearchTool.execute,
+                { internal: true },
+              );
+
               console.log(`✓ Bash AER enabled`);
               return;
             }
@@ -127,6 +143,16 @@ export async function getServer() {
             server.tool("edit", editTool.description, editTool.parameters, editTool.execute, {
               internal: true,
             });
+
+            const webSearchTool = createWebSearchTool();
+            server.tool(
+              "websearch",
+              webSearchTool.description,
+              webSearchTool.parameters,
+              webSearchTool.execute,
+              { internal: true },
+            );
+
           },
         },
       );

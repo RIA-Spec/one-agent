@@ -9,7 +9,7 @@
  */
 
 import { jsonSchema } from "ai";
-import { getPythonPrompt, runPy } from "@mcpc/code-runner-mcp";
+import { runPy } from "@mcpc/code-runner-mcp";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
@@ -140,22 +140,63 @@ export function createPythonAER(config: PythonAERConfig) {
 
   return {
     name: "one",
-    description: `Python AER - Execute Python with built-in reason() and act() functions.
+    description: `Python Action Execution Runtime - Execute Python with built-in reason() and act() functions.
 
-  reason(prompt, example) → {data, error}  (async, use with asyncio.run)
-  act(name, args) → result                 (sync)
-  act('__manual__', {}) → list tools       (async)
-  act('__manual__', {'name': 'bash'}) → tool definition
-File system: ${nodeFSMountPoint} → ${nodeFSRoot}
+  reason(prompt, example) -> {data, error}  (async, use with asyncio.run)
+  act(name, args) -> result                 (async, use with asyncio.run, runs on host machine)
+  act('__manual__', {}) -> list tools       (async)
+  act('__manual__', {'name': 'bash'}) -> tool definition
 
 Usage:
   import asyncio
   async def main():
-      result = await reason('Summarize: ...', '')
-      print(result['data'])
+      r = await reason('Summarize: ...', {'result': ''})
+      if r.get('error'): return print(r['error'])
+      print(r['data'].get('result', ''))
   asyncio.run(main())
 
-${getPythonPrompt(nodeFSRoot, nodeFSMountPoint)}`,
+Execute Python code in a Pyodide WebAssembly sandbox. Return stdout/stderr.
+
+## When to Use
+- Data analysis (pandas, numpy)
+- Math/statistics
+- Text processing
+- Validate logic by execution
+- File ops at ${nodeFSMountPoint} only
+
+## Parameters
+
+**code** (required): Python code. MUST use print() to see results. Tip: Use single quotes and avoid f-strings/backticks to reduce JSON escaping issues.
+
+**packages** (optional): Map import names to PyPI package names. Use when names differ (e.g., sklearn->scikit-learn) or for indirectly imported packages (e.g., openpyxl for pandas).
+Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}
+
+## File System
+- ONLY ${nodeFSMountPoint} is accessible
+- Host path: ${nodeFSRoot}
+
+## Examples
+
+**Basic:**
+\`\`\`python
+import pandas as pd
+df = pd.DataFrame({'a': [1, 2, 3]})
+print(df.describe())
+\`\`\`
+
+**With mapping:**
+\`\`\`python
+from sklearn.datasets import load_iris
+data = load_iris()
+print(data.feature_names)
+\`\`\`
+Use packages: {"sklearn": "scikit-learn"}
+
+## Common Errors
+| Error | Fix |
+|-------|-----|
+| (no output) | Add print() statements |
+| Permission denied | Use ${nodeFSMountPoint} path only |`,
     parameters: jsonSchema({
       type: "object",
       properties: {

@@ -6,7 +6,7 @@ deps:
     playwright:
       transportType: stdio
       command: npx
-      args: ["-y", "@playwright/mcp"]
+      args: ["-y", "@playwright/mcp", "--isolated"]
       env:
         PLAYWRIGHT_MCP_HEADLESS: "0"
 refs:
@@ -59,7 +59,7 @@ Call MCP server tools with exact arguments.
 - `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
 - `isError`: Boolean indicating failure (optional)
 
-**Available Tools:** bash (shell commands), Playwright tools (browser automation).
+**Available Tools:** bash (shell commands), websearch (internet search), Playwright tools (browser automation).
 
 ## Environment Constraints
 
@@ -168,7 +168,7 @@ async def main():
     page_content = snapshot['content'][0]['text']
 
     result = await reason(
-        f'Extract all links and categorize: {page_content[:2000]}',
+        f'Extract all links and categorize: {page_content[:8000]}',
         {'nav_links': [], 'content_links': [], 'external_links': []}
     )
     print(result['data'])
@@ -189,6 +189,22 @@ async def main():
         print('No data returned')
     else:
         print(result['data'])
+
+asyncio.run(main())
+```
+
+### 6. Web Search
+
+```python
+import asyncio
+
+async def main():
+    search = await act("websearch", {
+        "query": "Python asyncio cancellation best practices",
+        "type": "fast",
+        "numResults": 5,
+    })
+    print(search["content"][0]["text"])
 
 asyncio.run(main())
 ```

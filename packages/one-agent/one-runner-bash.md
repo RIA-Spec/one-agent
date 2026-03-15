@@ -6,7 +6,7 @@ deps:
     playwright:
       transportType: stdio
       command: npx
-      args: ["-y", "@playwright/mcp@latest"]
+      args: ["-y", "@playwright/mcp@latest", "--isolated"]
       env:
         PLAYWRIGHT_MCP_HEADLESS: "0"
 refs:
@@ -204,6 +204,13 @@ for file in *.log; do
        --structure '{"error_count": 0, "severity": ""}' | \
     jq -r '"\($file): \(.error_count) errors (\(.severity))"'
 done
+```
+
+### 8. Web Search Pipeline
+
+```bash
+# Search first, then fetch a concrete page for details
+act websearch '{"query":"TypeScript AbortSignal timeout best practices","type":"fast"}'
 ```
 
 ## Best Practices

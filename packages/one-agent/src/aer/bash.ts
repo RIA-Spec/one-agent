@@ -168,16 +168,62 @@ async function processRequests(
 export function createBashAER(config: BashAERConfig) {
   return {
     name: "bash",
-    description: `Bash AER - Execute bash with built-in reason and act commands (block until done, like curl).
+    description: `Bash Action Execution Runtime - Execute bash with built-in reason and act commands.
 
-  reason --prompt "text" [--prompt -] [--structure '{"key":""}']
+  reason --prompt "text" [--prompt -] [--structure '{"key":""}']  (returns JSON with data/error)
   act --manual [tool]
-  act --help
   act <tool> '{"key":"value"}'
   act <tool> -
   act --name "name" --args '{"key":"value"}' [--args -]
 
-Example: echo "Hi" | reason --prompt "Translate:" --prompt - --structure '{"t":""}' | jq -r '.t'`,
+File system: ${config.cwd} -> ${config.cwd}
+
+Usage:
+  echo '{"url":"https://example.com"}' | act playwright_browser_navigate - > a.json && \
+  cat a.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat a.json; exit 1; } && \
+  cat a.json | jq -r '.text[:8000]' | reason --prompt 'Summarize:' --prompt - --structure '{"summary":""}' > r.json && \
+  cat r.json | jq -r 'if .error then .error else .data.summary end'
+
+Execute Bash commands on host shell runtime. Return stdout/stderr.
+
+## When to Use
+- Unix pipeline composition and automation
+- Tool orchestration via act
+- Non-deterministic extraction/decision tasks via reason
+- Text and JSON processing (jq/sed/awk)
+- File ops at ${config.cwd} only
+
+## Parameters
+
+**command** (required): Bash command to execute.
+
+**stdin** (optional): String piped to process stdin.
+
+## File System
+- ONLY ${config.cwd} is accessible
+- Host path: ${config.cwd}
+
+## Examples
+
+**Basic:**
+\`\`\`bash
+echo 'hello world' | tr 'a-z' 'A-Z'
+\`\`\`
+
+**Reason + act with checks:**
+\`\`\`bash
+act --manual > m.json && \
+cat m.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat m.json; exit 1; } && \
+cat m.json | jq -r '.text[:3000]' | reason --prompt 'Extract likely tool names as array' --prompt - --structure '["bash"]' > r.json && \
+cat r.json | jq -r 'if .error then .error else .data[] end'
+\`\`\`
+
+## Common Errors
+| Error | Fix |
+|-------|-----|
+| (no output) | Add output commands like echo/cat/jq -r |
+| Command failed | Check stderr and exit code; use set -e for fail-fast |
+| Permission denied | Use ${config.cwd} path only |`,
     parameters: jsonSchema({
       type: "object",
       properties: {

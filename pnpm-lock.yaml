@@ -337,13 +337,13 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.18
-        version: 3.0.18(zod@4.3.5)
+        version: 3.0.18(zod@3.25.76)
       '@ai-sdk/devtools':
         specifier: ^0.0.6
         version: 0.0.6
       '@ai-sdk/openai-compatible':
         specifier: 2.0.35
-        version: 2.0.35(zod@4.3.5)
+        version: 2.0.35(zod@3.25.76)
       '@clack/prompts':
         specifier: ^1.1.0
         version: 1.1.0
@@ -352,13 +352,13 @@ importers:
         version: 0.1.50(hono@4.11.4)
       '@mcpc-tech/core':
         specifier: ^0.3.37
-        version: 0.3.37(hono@4.11.4)(zod@4.3.5)
+        version: 0.3.37(hono@4.11.4)(zod@3.25.76)
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
       ai:
         specifier: 6.0.44
-        version: 6.0.44(zod@4.3.5)
+        version: 6.0.44(zod@3.25.76)
       cac:
         specifier: ^6.7.14
         version: 6.7.14
@@ -452,8 +452,8 @@ importers:
         version: 4.3.5
     devDependencies:
       '@playwright/mcp':
-        specifier: ^0.0.64
-        version: 0.0.64
+        specifier: ^0.0.68
+        version: 0.0.68
       '@types/node':
         specifier: ^25.0.3
         version: 25.0.10
@@ -483,28 +483,28 @@ importers:
     dependencies:
       '@ai-sdk/anthropic':
         specifier: ^3.0.18
-        version: 3.0.18(zod@3.25.76)
+        version: 3.0.18(zod@4.3.5)
       '@ai-sdk/devtools':
         specifier: ^0.0.6
         version: 0.0.6
       '@ai-sdk/openai':
         specifier: 2.0.35
-        version: 2.0.35(zod@3.25.76)
+        version: 2.0.35(zod@4.3.5)
       '@ai-sdk/openai-compatible':
         specifier: 2.0.35
-        version: 2.0.35(zod@3.25.76)
+        version: 2.0.35(zod@4.3.5)
       '@clack/prompts':
         specifier: ^1.1.0
         version: 1.1.0
       '@mcpc-tech/acp-ai-provider':
         specifier: ^0.1.50
-        version: 0.1.50(hono@4.11.4)
+        version: 0.1.50
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
       ai:
         specifier: 6.0.44
-        version: 6.0.44(zod@3.25.76)
+        version: 6.0.44(zod@4.3.5)
       ajv:
         specifier: ^8.17.1
         version: 8.17.1
@@ -2247,8 +2247,8 @@ packages:
   '@panva/hkdf@1.2.1':
     resolution: {integrity: sha512-6oclG6Y3PiDFcoyk8srjLfVKyMfVCKJ27JwNPViuXziFpmdz+MZnZN/aKY0JGXgYuO/VghU0jcOAZgWXZ1Dmrw==}
 
-  '@playwright/mcp@0.0.64':
-    resolution: {integrity: sha512-vH/DYCpBedfU/aBs9+jYyZLRD71ubHQyN/VEcIL1F60skJAJYxlccpvGB7oxN8K0AECl7zcvpZm0lbMSp2MX1A==}
+  '@playwright/mcp@0.0.68':
+    resolution: {integrity: sha512-oP9I9ghXKuQEBo4xaC7HgsS2gRTxyMzlBm3UEhYj4VqqrqbPQUX2shATPaNA/am9joBzq9v0OXISzeIgP+zmHA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -5315,8 +5315,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright-core@1.59.0-alpha-1770338664000:
-    resolution: {integrity: sha512-Qlaafyf5T1GN/ynNJVVdJyD26HjzqvgRC62jNdfaFoMkTvqSlV4of9O6BV7c1x5ZJpplKXHecAPWKSWNdea7Dw==}
+  playwright-core@1.59.0-alpha-1771104257000:
+    resolution: {integrity: sha512-YiXup3pnpQUCBMSIW5zx8CErwRx4K6O5Kojkw2BzJui8MazoMUDU6E3xGsb1kzFviEAE09LFQ+y1a0RhIJQ5SA==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -5325,8 +5325,8 @@ packages:
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.59.0-alpha-1770338664000:
-    resolution: {integrity: sha512-YKR5ko/eQFtcvlZPTJN3BmVFRrIxuzKw8sqZgP9XY+JvQEDlAsGDNsBd7/TxWLZYzCC8HHETB7cW6Ru2DEkTWA==}
+  playwright@1.59.0-alpha-1771104257000:
+    resolution: {integrity: sha512-6SCMMMJaDRsSqiKVLmb2nhtLES7iTYawTWWrQK6UdIGNzXi8lka4sLKRec3L4DnTWwddAvCuRn8035dhNiHzbg==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -6271,18 +6271,18 @@ snapshots:
       '@ai-sdk/provider-utils': 4.0.19(zod@4.3.5)
       zod: 4.3.5
 
-  '@ai-sdk/openai@2.0.35(zod@3.25.76)':
+  '@ai-sdk/openai@2.0.35(zod@4.3.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.4
-      '@ai-sdk/provider-utils': 3.0.9(zod@3.25.76)
-      zod: 3.25.76
+      '@ai-sdk/provider-utils': 3.0.9(zod@4.3.5)
+      zod: 4.3.5
 
-  '@ai-sdk/provider-utils@3.0.9(zod@3.25.76)':
+  '@ai-sdk/provider-utils@3.0.9(zod@4.3.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.4
       '@standard-schema/spec': 1.1.0
       eventsource-parser: 3.0.6
-      zod: 3.25.76
+      zod: 4.3.5
 
   '@ai-sdk/provider-utils@4.0.19(zod@3.25.76)':
     dependencies:
@@ -7076,6 +7076,18 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.2': {}
 
+  '@mcpc-tech/acp-ai-provider@0.1.50':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.4.9
+      '@ai-sdk/provider': 3.0.4
+      '@modelcontextprotocol/sdk': 1.25.3(zod@3.25.76)
+      ai: 6.0.44(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+
   '@mcpc-tech/acp-ai-provider@0.1.50(hono@4.11.4)':
     dependencies:
       '@agentclientprotocol/sdk': 0.4.9
@@ -7087,6 +7099,32 @@ snapshots:
       - '@cfworker/json-schema'
       - hono
       - supports-color
+
+  '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@mcpc-tech/acp-ai-provider': 0.1.50(hono@4.11.4)
+      '@mcpc-tech/ripgrep-napi': 0.0.4
+      '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
+      '@opentelemetry/api': 1.9.0
+      '@opentelemetry/exporter-trace-otlp-http': 0.56.0(@opentelemetry/api@1.9.0)
+      '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/sdk-trace-node': 1.30.1(@opentelemetry/api@1.9.0)
+      '@opentelemetry/semantic-conventions': 1.39.0
+      '@segment/ajv-human-errors': 2.15.0(ajv@8.17.1)
+      ai: 6.0.44(zod@3.25.76)
+      ajv: 8.17.1
+      ajv-errors: 3.0.0(ajv@8.17.1)
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      cheerio: 1.2.0
+      json-schema-traverse: 1.0.0
+      jsonrepair: 3.13.2
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+      - zod
 
   '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@4.3.5)':
     dependencies:
@@ -7215,6 +7253,28 @@ snapshots:
       raw-body: 3.0.2
       zod: 4.3.5
       zod-to-json-schema: 3.25.1(zod@4.3.5)
+    transitivePeerDependencies:
+      - hono
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.25.3(zod@3.25.76)':
+    dependencies:
+      '@hono/node-server': 1.19.9(hono@4.11.4)
+      ajv: 8.17.1
+      ajv-formats: 3.0.1(ajv@8.17.1)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 7.5.1(express@5.2.1)
+      jose: 6.1.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 3.25.76
+      zod-to-json-schema: 3.25.1(zod@3.25.76)
     transitivePeerDependencies:
       - hono
       - supports-color
@@ -8075,10 +8135,10 @@ snapshots:
 
   '@panva/hkdf@1.2.1': {}
 
-  '@playwright/mcp@0.0.64':
+  '@playwright/mcp@0.0.68':
     dependencies:
-      playwright: 1.59.0-alpha-1770338664000
-      playwright-core: 1.59.0-alpha-1770338664000
+      playwright: 1.59.0-alpha-1771104257000
+      playwright-core: 1.59.0-alpha-1771104257000
 
   '@playwright/test@1.58.2':
     dependencies:
@@ -11243,7 +11303,7 @@ snapshots:
 
   playwright-core@1.58.2: {}
 
-  playwright-core@1.59.0-alpha-1770338664000: {}
+  playwright-core@1.59.0-alpha-1771104257000: {}
 
   playwright@1.58.2:
     dependencies:
@@ -11251,9 +11311,9 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.2
 
-  playwright@1.59.0-alpha-1770338664000:
+  playwright@1.59.0-alpha-1771104257000:
     dependencies:
-      playwright-core: 1.59.0-alpha-1770338664000
+      playwright-core: 1.59.0-alpha-1771104257000
     optionalDependencies:
       fsevents: 2.3.2
 
