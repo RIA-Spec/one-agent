@@ -29,11 +29,16 @@ interface AgentTelemetryOptions {
   metadata?: Record<string, unknown>;
 }
 
+interface PersistentCompactionState {
+  baseMessages: ModelMessage[];
+  sourceMessageCount: number;
+  compactedAtStep: number;
+}
+
 const DEFAULT_MODEL_CONTEXT_WINDOW = 65_536;
 const DEFAULT_STEP_GUARD_RESERVE_TOKENS = 2_048;
 const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 const TOOL_RESULT_TOKENS_PER_CHAR = 0.5;
-const COMPACTION_ANCHOR_PREFIX = "[Context compaction anchor]";
 
 function estimateToolResultsTokens(toolResults: unknown): number {
   if (!toolResults) {
@@ -50,36 +55,66 @@ function estimateToolResultsTokens(toolResults: unknown): number {
   return Math.ceil(serialized.length * TOOL_RESULT_TOKENS_PER_CHAR);
 }
 
-function isCompactionAnchorMessage(message: ModelMessage): boolean {
-  return (
-    message.role === "assistant" &&
-    typeof message.content === "string" &&
-    message.content.startsWith(COMPACTION_ANCHOR_PREFIX)
-  );
-}
-
-function stripCompactionAnchors(messages: ModelMessage[]): ModelMessage[] {
-  return messages.filter((message) => !isCompactionAnchorMessage(message));
-}
-
-function withCompactionAnchor(messages: ModelMessage[], stepNumber: number): ModelMessage[] {
-  const withoutAnchors = stripCompactionAnchors(messages);
-  const anchor: ModelMessage = {
-    role: "assistant",
-    content: `${COMPACTION_ANCHOR_PREFIX} step=${stepNumber}`,
-  };
-
-  return [anchor, ...withoutAnchors];
-}
-
-function applyLatestCompactionAnchor(messages: ModelMessage[]): ModelMessage[] {
-  for (let i = messages.length - 1; i >= 0; i--) {
-    if (isCompactionAnchorMessage(messages[i])) {
-      return messages.slice(i);
-    }
+function getPersistentCompactionState(
+  experimentalContext: unknown,
+): PersistentCompactionState | undefined {
+  if (!experimentalContext || typeof experimentalContext !== "object") {
+    return undefined;
   }
 
-  return messages;
+  const state = (experimentalContext as { persistentCompaction?: unknown }).persistentCompaction;
+
+  if (!state || typeof state !== "object") {
+    return undefined;
+  }
+
+  const candidate = state as Partial<PersistentCompactionState>;
+  if (
+    !Array.isArray(candidate.baseMessages) ||
+    typeof candidate.sourceMessageCount !== "number" ||
+    typeof candidate.compactedAtStep !== "number"
+  ) {
+    return undefined;
+  }
+
+  return {
+    baseMessages: candidate.baseMessages,
+    sourceMessageCount: candidate.sourceMessageCount,
+    compactedAtStep: candidate.compactedAtStep,
+  };
+}
+
+function withPersistentCompactionState(
+  experimentalContext: unknown,
+  persistentCompaction: PersistentCompactionState,
+): Record<string, unknown> {
+  const baseContext =
+    experimentalContext &&
+    typeof experimentalContext === "object" &&
+    !Array.isArray(experimentalContext)
+      ? (experimentalContext as Record<string, unknown>)
+      : {};
+
+  return {
+    ...baseContext,
+    persistentCompaction,
+  };
+}
+
+function applyPersistentCompaction(
+  messages: ModelMessage[],
+  persistentCompaction: PersistentCompactionState | undefined,
+): ModelMessage[] {
+  if (!persistentCompaction) {
+    return messages;
+  }
+
+  const suffixStart = Math.min(
+    Math.max(persistentCompaction.sourceMessageCount, 0),
+    messages.length,
+  );
+
+  return [...persistentCompaction.baseMessages, ...messages.slice(suffixStart)];
 }
 
 function isDebugEnabled(): boolean {
@@ -249,25 +284,27 @@ export async function agentStream(
     },
     system,
     stopWhen: stepCountIs(maxSteps),
-    prepareStep: async ({ steps, messages: stepMessages, stepNumber }) => {
-      const anchoredMessages = applyLatestCompactionAnchor(stepMessages);
+    prepareStep: async ({ steps, messages: stepMessages, stepNumber, experimental_context }) => {
+      const persistentCompaction = getPersistentCompactionState(experimental_context);
+      const effectiveMessages = applyPersistentCompaction(stepMessages, persistentCompaction);
 
       const nextStepState = shouldCompactForNextStep(
         steps as Array<{ usage?: { totalTokens?: number }; toolResults?: unknown }>,
       );
-      const currentDiagnostics = getCompactionDiagnostics(anchoredMessages, system);
+      const currentDiagnostics = getCompactionDiagnostics(effectiveMessages, system);
       const shouldCompactByCurrentMessages = currentDiagnostics.estimatedTokens >= stepGuardLimit;
       const shouldCompact = nextStepState.shouldCompact || shouldCompactByCurrentMessages;
 
-      if (!shouldCompact && anchoredMessages !== stepMessages) {
-        debugLog("prepareStep anchor applied", {
+      if (!shouldCompact && effectiveMessages !== stepMessages) {
+        debugLog("prepareStep persistent compaction applied", {
           stepNumber,
           messagesBefore: stepMessages.length,
-          messagesAfter: anchoredMessages.length,
+          messagesAfter: effectiveMessages.length,
+          compactedAtStep: persistentCompaction?.compactedAtStep,
         });
 
         return {
-          messages: anchoredMessages,
+          messages: effectiveMessages,
         };
       }
 
@@ -285,27 +322,37 @@ export async function agentStream(
         toolResultsTokens: nextStepState.toolResultsTokens,
         currentEstimatedTokens: currentDiagnostics.estimatedTokens,
         stepGuardLimit,
-        messagesBefore: anchoredMessages.length,
+        messagesBefore: effectiveMessages.length,
+        originalMessagesBefore: stepMessages.length,
+        compactedAtStep: persistentCompaction?.compactedAtStep,
       });
 
       const compactedMessages = await autoCompactMessages({
         model,
         system,
-        messages: anchoredMessages,
+        messages: effectiveMessages,
         abortSignal,
         force: true,
       });
-      const anchoredCompactedMessages = withCompactionAnchor(compactedMessages, stepNumber);
+      const nextPersistentCompaction: PersistentCompactionState = {
+        baseMessages: compactedMessages,
+        sourceMessageCount: stepMessages.length,
+        compactedAtStep: stepNumber,
+      };
 
       debugLog("prepareStep compact result", {
         stepNumber,
-        messagesAfter: anchoredCompactedMessages.length,
-        compactedEstimatedTokens: getCompactionDiagnostics(anchoredCompactedMessages, system)
+        messagesAfter: compactedMessages.length,
+        compactedEstimatedTokens: getCompactionDiagnostics(compactedMessages, system)
           .estimatedTokens,
       });
 
       return {
-        messages: anchoredCompactedMessages,
+        messages: compactedMessages,
+        experimental_context: withPersistentCompactionState(
+          experimental_context,
+          nextPersistentCompaction,
+        ),
       };
     },
     onStepFinish: ({ usage, finishReason, response, toolResults }) => {
