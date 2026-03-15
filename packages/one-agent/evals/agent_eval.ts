@@ -48,7 +48,11 @@ function normalizeText(value: string): string {
     .replace(/[^a-z0-9 .:%/_-]/g, "");
 }
 
-function parseArgs(argv: string[]): { mode: CliMode; evalArgs?: EvalArgs; downloadArgs?: DownloadArgs } {
+function parseArgs(argv: string[]): {
+  mode: CliMode;
+  evalArgs?: EvalArgs;
+  downloadArgs?: DownloadArgs;
+} {
   const mode = (argv[2] || "run") as CliMode;
   const arg = new Map<string, string>();
 
@@ -132,7 +136,9 @@ function logChunk(chunk: any): void {
       console.log(`[stream:text] ${preview(chunk.text)}`);
       return;
     case "reasoning-delta":
-      console.log(`[stream:reasoning] ${preview((chunk as any).text || (chunk as any).delta || "")}`);
+      console.log(
+        `[stream:reasoning] ${preview((chunk as any).text || (chunk as any).delta || "")}`,
+      );
       return;
     case "tool-call":
       if (chunk.toolName === "one") {
@@ -145,10 +151,14 @@ function logChunk(chunk: any): void {
       console.log(`[stream:tool-call] ${chunk.toolName} args=${preview(chunk.input ?? {}, 300)}`);
       return;
     case "tool-result":
-      console.log(`[stream:tool-result] ${preview((chunk as any).result ?? (chunk as any).output)}`);
+      console.log(
+        `[stream:tool-result] ${preview((chunk as any).result ?? (chunk as any).output)}`,
+      );
       return;
     case "error":
-      console.log(`[stream:error] ${preview(chunk.error instanceof Error ? chunk.error.message : String(chunk.error))}`);
+      console.log(
+        `[stream:error] ${preview(chunk.error instanceof Error ? chunk.error.message : String(chunk.error))}`,
+      );
       return;
     default:
       return;
@@ -187,7 +197,11 @@ async function runCommand(command: string, args: string[], cwd: string): Promise
 
 async function downloadDeepSearchQA(outDir: string, kaggleDataset: string): Promise<string> {
   await mkdir(outDir, { recursive: true });
-  await runCommand("kaggle", ["datasets", "download", "-d", kaggleDataset, "--unzip", "-p", resolve(outDir)], process.cwd());
+  await runCommand(
+    "kaggle",
+    ["datasets", "download", "-d", kaggleDataset, "--unzip", "-p", resolve(outDir)],
+    process.cwd(),
+  );
   return resolve(outDir);
 }
 
@@ -304,7 +318,9 @@ async function loadDeepSearchQA(pathInput: string): Promise<Sample[]> {
       .map((line, i) => {
         const row = JSON.parse(line) as Record<string, unknown>;
         const question = String(pickFirst(row, ["question", "prompt", "query", "input"]) || "");
-        const answers = toStringArray(pickFirst(row, ["answers", "answer", "ideal", "ground_truth", "targets"]));
+        const answers = toStringArray(
+          pickFirst(row, ["answers", "answer", "ideal", "ground_truth", "targets"]),
+        );
         return {
           id: String(pickFirst(row, ["id", "task_id", "sample_id"]) || `dsqa-${i + 1}`),
           question,
@@ -322,7 +338,9 @@ async function loadDeepSearchQA(pathInput: string): Promise<Sample[]> {
       .map((entry, i) => {
         const row = (entry || {}) as Record<string, unknown>;
         const question = String(pickFirst(row, ["question", "prompt", "query", "input"]) || "");
-        const answers = toStringArray(pickFirst(row, ["answers", "answer", "ideal", "ground_truth", "targets"]));
+        const answers = toStringArray(
+          pickFirst(row, ["answers", "answer", "ideal", "ground_truth", "targets"]),
+        );
         return {
           id: String(pickFirst(row, ["id", "task_id", "sample_id"]) || `dsqa-${i + 1}`),
           question,
@@ -381,8 +399,8 @@ async function judgeWithReason(
     "Are the candidate answer and any reference answer equivalent for this question?",
     "Allow formatting differences (spaces, punctuation, year shorthand), but reject different facts.",
     `Question: ${question}`,
-    `Candidate answer: ${prediction}`,
-    `Reference answers: ${JSON.stringify(answers)}`,
+    `Candidate answer: <candidate_answer>${prediction}</candidate_answer>`,
+    `Reference answers: <reference_answers>${JSON.stringify(answers)}</reference_answers>`,
     "Return JSON exactly matching schema.",
   ].join("\n");
 
@@ -421,7 +439,9 @@ async function resolveDeepSearchPath(datasetPath?: string): Promise<string> {
 
   const dir = resolve("./evals/datasets");
   const files = await readdir(dir).catch(() => [] as string[]);
-  const candidate = files.find((name) => /deepsearchqa/i.test(name) && /\.(jsonl|json)$/i.test(name));
+  const candidate = files.find(
+    (name) => /deepsearchqa/i.test(name) && /\.(jsonl|json)$/i.test(name),
+  );
   if (candidate) return join(dir, candidate);
 
   throw new Error(
@@ -476,9 +496,10 @@ async function runEval(args: EvalArgs): Promise<void> {
 
     try {
       prediction = await runOneAgent(s.question, args.model, args.maxSteps, args.streamLog);
-      verdict = args.judge === "reason"
-        ? await judgeWithReason(s.question, prediction, s.answers)
-        : await judgeWithReason(s.question, prediction, s.answers, { exactFirst: true });
+      verdict =
+        args.judge === "reason"
+          ? await judgeWithReason(s.question, prediction, s.answers)
+          : await judgeWithReason(s.question, prediction, s.answers, { exactFirst: true });
     } catch (error) {
       verdict = {
         correct: false,
