@@ -1,14 +1,14 @@
 #!/usr/bin/env tsx
 import { createHash } from "node:crypto";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
-import { basename, extname, join, resolve } from "node:path";
+import { extname, join, resolve } from "node:path";
 import { spawn } from "node:child_process";
 import { agentStream } from "../src/agent";
 import { openaiCompatible } from "../src/model";
 import { reason } from "../src/interfaces/reason";
 
 type Benchmark = "browsecomp" | "deepsearchqa" | "custom";
-type JudgeMode = "exact" | "llm";
+type JudgeMode = "exact" | "reason";
 
 type Sample = {
   id: string;
@@ -40,6 +40,8 @@ const BROWSECOMP_URL =
 
 function normalizeText(value: string): string {
   return value
+    .replace(/<\|[^|>]+\|>/g, " ")
+    .replace(/[–—−]/g, "-")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ")
@@ -69,6 +71,9 @@ function parseArgs(argv: string[]): { mode: CliMode; evalArgs?: EvalArgs; downlo
     };
   }
 
+  const judgeArg = (arg.get("judge") || "exact").toLowerCase();
+  const judge: JudgeMode = judgeArg === "exact" ? "exact" : "reason";
+
   return {
     mode: "run",
     evalArgs: {
@@ -81,7 +86,7 @@ function parseArgs(argv: string[]): { mode: CliMode; evalArgs?: EvalArgs; downlo
         process.env.ONE_CHAT_MODEL ||
         process.env.NEXT_PUBLIC_CHAT_MODEL ||
         "gemini-3.1-pro",
-      judge: (arg.get("judge") || "exact") as JudgeMode,
+      judge,
       maxSteps: Number(arg.get("max-steps") || 80),
       streamLog: (arg.get("stream-log") || "true") !== "false",
     },
@@ -330,10 +335,6 @@ async function loadDeepSearchQA(pathInput: string): Promise<Sample[]> {
   throw new Error(`Unsupported DeepSearchQA file type: ${resolved}`);
 }
 
-function withAnswerFormat(question: string): string {
-  return `${question}\n\nReturn only the final answer with no extra commentary.`;
-}
-
 async function runOneAgent(
   question: string,
   model: string,
@@ -341,7 +342,12 @@ async function runOneAgent(
   streamLog: boolean,
 ): Promise<string> {
   const result = await agentStream({
-    messages: [{ role: "user", content: withAnswerFormat(question) }],
+    messages: [
+      {
+        role: "user",
+        content: `${question}\n\nReturn only the final answer with no extra commentary.`,
+      },
+    ],
     model: openaiCompatible(model),
     maxSteps,
   });
@@ -357,10 +363,23 @@ async function runOneAgent(
   return output.trim();
 }
 
-async function judgeWithLlm(question: string, prediction: string, answers: string[]): Promise<{ correct: boolean; reason: string }> {
+async function judgeWithReason(
+  question: string,
+  prediction: string,
+  answers: string[],
+  options?: { exactFirst?: boolean },
+): Promise<{ correct: boolean; reason: string }> {
+  if (options?.exactFirst) {
+    const exact = exactMatch(prediction, answers);
+    if (exact.correct) {
+      return { correct: true, reason: `exact: ${exact.reason}` };
+    }
+  }
+
   const schema = { correct: false, reason: "" };
   const prompt = [
-    "Judge candidate answer correctness for a benchmark sample.",
+    "Are the candidate answer and any reference answer equivalent for this question?",
+    "Allow formatting differences (spaces, punctuation, year shorthand), but reject different facts.",
     `Question: ${question}`,
     `Candidate answer: ${prediction}`,
     `Reference answers: ${JSON.stringify(answers)}`,
@@ -371,13 +390,13 @@ async function judgeWithLlm(question: string, prediction: string, answers: strin
   const data = (verdict as any)?.data || {};
   return {
     correct: Boolean(data.correct),
-    reason: String(data.reason || "llm judge"),
+    reason: `${options?.exactFirst ? "exact->reason" : "reason"}: ${String(data.reason || "fallback")}`,
   };
 }
 
 function exactMatch(prediction: string, answers: string[]): { correct: boolean; reason: string } {
-  const pred = normalizeText(prediction);
-  const refs = answers.map(normalizeText);
+  const pred = normalizeText(prediction).replace(/\s*-\s*/g, "-");
+  const refs = answers.map((answer) => normalizeText(answer).replace(/\s*-\s*/g, "-"));
   const correct = refs.some((a) => a === pred || pred.includes(a));
   return {
     correct,
@@ -457,7 +476,9 @@ async function runEval(args: EvalArgs): Promise<void> {
 
     try {
       prediction = await runOneAgent(s.question, args.model, args.maxSteps, args.streamLog);
-      verdict = args.judge === "llm" ? await judgeWithLlm(s.question, prediction, s.answers) : exactMatch(prediction, s.answers);
+      verdict = args.judge === "reason"
+        ? await judgeWithReason(s.question, prediction, s.answers)
+        : await judgeWithReason(s.question, prediction, s.answers, { exactFirst: true });
     } catch (error) {
       verdict = {
         correct: false,

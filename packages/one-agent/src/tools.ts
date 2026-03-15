@@ -152,7 +152,6 @@ export async function getServer() {
               webSearchTool.execute,
               { internal: true },
             );
-
           },
         },
       );

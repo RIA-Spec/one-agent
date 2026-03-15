@@ -96,7 +96,8 @@ export function recordCompactionUsageObservation(params: {
 
   const ratio = observed / estimated;
   const boundedRatio = Math.min(CALIBRATION_MAX, Math.max(CALIBRATION_MIN, ratio));
-  adaptiveMultiplier = adaptiveMultiplier * (1 - CALIBRATION_ALPHA) + boundedRatio * CALIBRATION_ALPHA;
+  adaptiveMultiplier =
+    adaptiveMultiplier * (1 - CALIBRATION_ALPHA) + boundedRatio * CALIBRATION_ALPHA;
 }
 
 function getAutoCompactTokenLimit(): number {
@@ -161,13 +162,7 @@ async function summarizeHistory(params: {
   reservedTokens?: number;
   abortSignal?: AbortSignal;
 }): Promise<string | null> {
-  const {
-    model,
-    system,
-    history,
-    reservedTokens = DEFAULT_RESERVED_TOKENS,
-    abortSignal,
-  } = params;
+  const { model, system, history, reservedTokens = DEFAULT_RESERVED_TOKENS, abortSignal } = params;
   if (history.length === 0) return null;
 
   const compactLimit = Math.max(8_000, getAutoCompactTokenLimit() - reservedTokens);

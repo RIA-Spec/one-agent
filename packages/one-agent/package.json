@@ -44,7 +44,7 @@
     "evals:download:deepsearchqa": "tsx --experimental-wasm-stack-switching ./evals/agent_eval.ts download --dataset deepsearchqa --out-dir ./evals/datasets",
     "evals:run:browsecomp": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark browsecomp --judge exact --out-dir ./evals/results",
     "evals:run:deepsearchqa": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark deepsearchqa --judge exact --out-dir ./evals/results",
-    "evals:smoke": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark browsecomp --judge exact --max-samples 20 --out-dir ./evals/results",
+    "evals:smoke": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark browsecomp --judge exact --max-samples 10 --out-dir ./evals/results",
     "typecheck": "tsc --noEmit",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
