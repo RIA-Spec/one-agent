@@ -8,10 +8,8 @@ import {
   type Node,
   Position,
   ReactFlow,
-  useEdgesState,
-  useNodesState,
 } from "@xyflow/react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import "@xyflow/react/dist/style.css";
 import {
   Brain,
@@ -38,6 +36,8 @@ type ExecutionState = "pending" | "streaming" | "available" | "error";
 type AERMode = "python" | "bash";
 
 interface ToolOneFlowProps {
+  flowId?: string;
+  useRealtimeProgress?: boolean;
   state: ExecutionState;
   mode?: AERMode;
   code?: string;
@@ -353,9 +353,11 @@ function parsePyBlock(
       continue;
     }
 
-    // await act() / await reason()
-    if (/await\s+(act|reason)\s*\(/.test(t)) {
-      const fnType = t.match(/await\s+(act|reason)/)?.[1] as "act" | "reason";
+    // act() / reason() with optional await
+    if (/(?:\bawait\s+)?\b(act|reason)\s*\(/.test(t)) {
+      const fnType = t.match(/(?:\bawait\s+)?\b(act|reason)/)?.[1] as
+        | "act"
+        | "reason";
       const { text: callText, endLine } = collectPyCallText(lines, i);
       const argsStr = extractCallArgs(callText);
 
@@ -438,7 +440,7 @@ function collectPyCallText(
 }
 
 function extractCallArgs(callText: string): string | null {
-  const m = callText.match(/await\s+(?:act|reason)\s*\(/);
+  const m = callText.match(/(?:\bawait\s+)?\b(?:act|reason)\s*\(/);
   if (!m) {
     return null;
   }
@@ -933,6 +935,8 @@ function buildEdgesFromFlat(
 }
 
 export function ToolOneFlow({
+  flowId,
+  useRealtimeProgress = true,
   state,
   mode = "python",
   code = "",
@@ -940,14 +944,23 @@ export function ToolOneFlow({
   isError,
 }: ToolOneFlowProps) {
   const { progress } = useExecutionProgress();
+  const shouldUseRealtimeProgress =
+    useRealtimeProgress && state === "streaming";
+
+  const parsedSteps = useMemo(() => parseCodeToSteps(code, mode), [code, mode]);
 
   // Get tree-structured steps: prefer progress data, fallback to code parsing
   const steps = useMemo(() => {
-    if (progress?.steps && progress.steps.length > 0) {
+    if (
+      shouldUseRealtimeProgress &&
+      progress?.steps &&
+      progress.steps.length > 0 &&
+      parsedSteps.length > 0
+    ) {
       return progress.steps;
     }
-    return parseCodeToSteps(code, mode);
-  }, [progress?.steps, code, mode]);
+    return parsedSteps;
+  }, [shouldUseRealtimeProgress, progress?.steps, parsedSteps]);
 
   // Flatten tree for display
   const flatNodes = useMemo(() => flattenTree(steps), [steps]);
@@ -958,6 +971,7 @@ export function ToolOneFlow({
   // Use real-time step states when available, otherwise derive from overall state
   const stepStates = useMemo(() => {
     if (
+      shouldUseRealtimeProgress &&
       progress &&
       progress.stepStates.length === trackableCount &&
       trackableCount > 0
@@ -965,7 +979,7 @@ export function ToolOneFlow({
       return progress.stepStates;
     }
     return deriveStepStates(trackableCount, state, isError);
-  }, [progress, trackableCount, state, isError]);
+  }, [shouldUseRealtimeProgress, progress, trackableCount, state, isError]);
 
   const nodes = useMemo(() => {
     if (flatNodes.length === 0) {
@@ -981,13 +995,13 @@ export function ToolOneFlow({
     return buildEdgesFromFlat(flatNodes, stepStates, state, isError);
   }, [flatNodes, stepStates, state, isError]);
 
-  const [displayNodes, setNodes, onNodesChange] = useNodesState(nodes);
-  const [displayEdges, setEdges, onEdgesChange] = useEdgesState(edges);
+  const sequenceLabels = useMemo(() => {
+    const labels = ["Start", ...flatNodes.map((fn) => getNodeLabel(fn.step))];
+    labels.push(isError ? "Error" : "Complete");
+    return labels;
+  }, [flatNodes, isError]);
 
-  useEffect(() => {
-    setNodes(nodes);
-    setEdges(edges);
-  }, [nodes, edges, setNodes, setEdges]);
+  const graphKey = `${flowId ?? "tool-flow"}-${state}-${nodes.length}-${edges.length}`;
 
   // No steps found — show simple inline progress
   if (flatNodes.length === 0) {
@@ -1021,25 +1035,45 @@ export function ToolOneFlow({
   const containerHeight = 160;
 
   return (
-    <div
-      className="w-full rounded-md bg-gradient-to-br from-slate-50 via-white to-blue-50/20 overflow-x-auto"
-      style={{ height: `${containerHeight}px` }}
-    >
-      <ReactFlow
-        edges={displayEdges}
-        fitView
-        fitViewOptions={{ padding: 0.15 }}
-        maxZoom={2}
-        minZoom={0.3}
-        nodes={displayNodes}
-        nodesConnectable={false}
-        nodeTypes={nodeTypes}
-        onEdgesChange={onEdgesChange}
-        onNodesChange={onNodesChange}
-        proOptions={{ hideAttribution: true }}
-      >
-        <Background className="opacity-20" gap={16} size={0.5} />
-      </ReactFlow>
+    <div className="w-full rounded-md bg-gradient-to-br from-slate-50 via-white to-blue-50/20 border border-slate-200/70">
+      <div className="overflow-x-auto" style={{ height: `${containerHeight}px` }}>
+        <ReactFlow
+          key={graphKey}
+          id={flowId}
+          edges={edges}
+          fitView
+          fitViewOptions={{ padding: 0.15 }}
+          maxZoom={2}
+          minZoom={0.3}
+          nodes={nodes}
+          nodesDraggable={false}
+          nodesConnectable={false}
+          nodesFocusable={false}
+          edgesFocusable={false}
+          nodeTypes={nodeTypes}
+          panOnDrag={true}
+          panOnScroll={true}
+          proOptions={{ hideAttribution: true }}
+        >
+          <Background className="opacity-20" gap={16} size={0.5} />
+        </ReactFlow>
+      </div>
+
+      <div className="border-t bg-white/70 px-2 py-1.5">
+        <div className="flex flex-wrap items-center gap-1.5">
+          {sequenceLabels.map((label, idx) => (
+            <div
+              className="inline-flex items-center gap-1"
+              key={`${label}-${idx}`}
+            >
+              {idx > 0 && <span className="text-[10px] text-slate-400">→</span>}
+              <span className="rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[10px] text-slate-700">
+                {label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

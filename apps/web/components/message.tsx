@@ -1,7 +1,7 @@
 "use client";
 import type { UseChatHelpers } from "@ai-sdk/react";
 import { ChevronDown } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Collapsible,
   CollapsibleContent,
@@ -10,6 +10,7 @@ import {
 import type { Vote } from "@/lib/db/schema";
 import type { ChatMessage } from "@/lib/types";
 import { cn, sanitizeText } from "@/lib/utils";
+import { useExecutionProgress } from "@/hooks/use-execution-progress";
 import { useDataStream } from "./data-stream-provider";
 import { DocumentToolResult } from "./document";
 import { DocumentPreview } from "./document-preview";
@@ -62,10 +63,32 @@ const PurePreviewMessage = ({
   requiresScrollPadding: boolean;
 }) => {
   const [mode, setMode] = useState<"view" | "edit">("view");
+  const { reset: resetExecutionProgress } = useExecutionProgress();
+  const lastStreamingToolCallIdRef = useRef<string | undefined>(undefined);
 
   const attachmentsFromMessage = message.parts.filter(
     (part) => part.type === "file"
   );
+
+  const activeStreamingToolCallId = [...message.parts]
+    .reverse()
+    .find(
+      (part) =>
+        (part.type === "tool-one" || part.type === "tool-bash") &&
+        part.state === "input-streaming"
+    )?.toolCallId;
+
+  useEffect(() => {
+    if (
+      activeStreamingToolCallId &&
+      lastStreamingToolCallIdRef.current !== activeStreamingToolCallId
+    ) {
+      // New tool stream starts: clear stale progress so UI shows loading
+      // until fresh plan/step events arrive for this run.
+      resetExecutionProgress();
+      lastStreamingToolCallIdRef.current = activeStreamingToolCallId;
+    }
+  }, [activeStreamingToolCallId, resetExecutionProgress]);
 
   useDataStream();
 
@@ -142,7 +165,7 @@ const PurePreviewMessage = ({
                   <div key={key}>
                     <MessageContent
                       className={cn({
-                        "wrap-break-word w-fit rounded-2xl px-3 py-2 text-right text-white":
+                        "wrap-break-word w-fit rounded-2xl px-3 py-2 text-left text-white":
                           message.role === "user",
                         "bg-transparent px-0 py-0 text-left":
                           message.role === "assistant",
@@ -371,8 +394,12 @@ const PurePreviewMessage = ({
                       <div className="p-3">
                         <ToolOneFlow
                           code={codeOrCommand}
+                          flowId={toolCallId}
                           isError={part.output?.isError}
                           mode={aerMode}
+                          useRealtimeProgress={
+                            toolCallId === activeStreamingToolCallId
+                          }
                           state={
                             state === "input-available" ||
                             state === "input-streaming"

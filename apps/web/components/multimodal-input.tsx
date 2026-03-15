@@ -93,6 +93,7 @@ function PureMultimodalInput({
     "input",
     ""
   );
+  const isGenerating = status !== "ready";
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -268,6 +269,26 @@ function PureMultimodalInput({
     return () => textarea.removeEventListener("paste", handlePaste);
   }, [handlePaste]);
 
+  // Allow quick abort during generation from keyboard.
+  useEffect(() => {
+    if (!isGenerating) {
+      return;
+    }
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      event.preventDefault();
+      stop();
+      setMessages((messages) => messages);
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [isGenerating, setMessages, stop]);
+
   return (
     <div className={cn("relative flex w-full flex-col gap-4", className)}>
       {messages.length === 0 &&
@@ -358,7 +379,7 @@ function PureMultimodalInput({
             />
           </PromptInputTools>
 
-          {status === "submitted" ? (
+          {isGenerating ? (
             <StopButton setMessages={setMessages} stop={stop} />
           ) : (
             <PromptInputSubmit
