@@ -1,4 +1,7 @@
 import chalk from "chalk";
+import { appendFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   jsonSchema,
   stepCountIs,
@@ -14,12 +17,101 @@ import { openaiCompatible } from "./model";
 import { getTracer } from "./tracing";
 import { AGENT_SYSTEM_PROMPT } from "./prompts";
 import { processStream } from "./utils/stream";
+import {
+  autoCompactMessages,
+  getCompactionDiagnostics,
+  recordCompactionUsageObservation,
+} from "./compaction";
+
+interface AgentTelemetryOptions {
+  isEnabled?: boolean;
+  functionId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+const DEFAULT_MODEL_CONTEXT_WINDOW = 65_536;
+const DEFAULT_STEP_GUARD_RESERVE_TOKENS = 2_048;
+const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
+const TOOL_RESULT_TOKENS_PER_CHAR = 0.5;
+
+function estimateToolResultsTokens(toolResults: unknown): number {
+  if (!toolResults) {
+    return 0;
+  }
+
+  let serialized = "";
+  try {
+    serialized = JSON.stringify(toolResults);
+  } catch {
+    return 0;
+  }
+
+  return Math.ceil(serialized.length * TOOL_RESULT_TOKENS_PER_CHAR);
+}
+
+function isDebugEnabled(): boolean {
+  const value = process.env.ONE_AGENT_DEBUG?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes";
+}
+
+function getDebugLogFilePath(): string {
+  const explicit = process.env.ONE_AGENT_DEBUG_FILE?.trim();
+  if (explicit) {
+    return explicit;
+  }
+
+  return join(tmpdir(), "one-agent-debug.log");
+}
+
+function debugLog(message: string, payload?: Record<string, unknown>) {
+  if (!isDebugEnabled()) {
+    return;
+  }
+
+  const line = JSON.stringify({
+    time: new Date().toISOString(),
+    message,
+    ...(payload ? { payload } : {}),
+  });
+
+  try {
+    appendFileSync(getDebugLogFilePath(), `${line}\n`, "utf8");
+  } catch {
+    // Ignore debug logging failures.
+  }
+}
+
+function readPositiveIntEnv(name: string): number | undefined {
+  const value = process.env[name]?.trim();
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return undefined;
+  }
+
+  return Math.floor(parsed);
+}
+
+interface CompactionEvent {
+  estimatedTokensBefore: number;
+  estimatedTokensAfter: number;
+  tokenLimit: number;
+  messagesBefore: number;
+  messagesAfter: number;
+}
 
 export interface AgentStreamOptions {
   messages: ModelMessage[];
   model?: LanguageModel;
   system?: string;
   maxSteps?: number;
+  abortSignal?: AbortSignal;
+  enableAutoCompact?: boolean;
+  onCompaction?: (event: CompactionEvent) => void;
+  telemetry?: AgentTelemetryOptions;
   onError?: (error: unknown) => void;
 }
 
@@ -35,12 +127,72 @@ export async function agentStream(
     model = openaiCompatible("gemini-3.1-pro"),
     system = AGENT_SYSTEM_PROMPT,
     maxSteps = 101,
+    abortSignal,
+    enableAutoCompact = true,
+    onCompaction,
+    telemetry,
     onError,
   } = options;
 
   const tools = convertToAISDKTools(await getServer(), {
     tool: tool,
     jsonSchema: jsonSchema,
+  });
+
+  const diagnosticsBefore = getCompactionDiagnostics(messages, system);
+  const streamMessages = enableAutoCompact
+    ? await autoCompactMessages({
+        model,
+        system,
+        messages,
+        abortSignal,
+      })
+    : messages;
+  const diagnosticsAfter = getCompactionDiagnostics(streamMessages, system);
+
+  if (enableAutoCompact && streamMessages !== messages) {
+    onCompaction?.({
+      estimatedTokensBefore: diagnosticsBefore.estimatedTokens,
+      estimatedTokensAfter: diagnosticsAfter.estimatedTokens,
+      tokenLimit: diagnosticsBefore.tokenLimit,
+      messagesBefore: messages.length,
+      messagesAfter: streamMessages.length,
+    });
+  }
+
+  const contextWindow =
+    readPositiveIntEnv("ONE_MODEL_CONTEXT_WINDOW") ??
+    DEFAULT_MODEL_CONTEXT_WINDOW;
+  const stepGuardReserve =
+    readPositiveIntEnv("ONE_STEP_GUARD_RESERVE_TOKENS") ??
+    DEFAULT_STEP_GUARD_RESERVE_TOKENS;
+  const stepGuardLimit = Math.max(1, contextWindow - stepGuardReserve);
+  const maxOutputTokens =
+    readPositiveIntEnv("ONE_MAX_OUTPUT_TOKENS") ?? DEFAULT_MAX_OUTPUT_TOKENS;
+  const stopWhen = [
+    stepCountIs(maxSteps),
+    ({
+      steps,
+    }: {
+      steps: Array<{ usage?: { totalTokens?: number }; toolResults?: unknown }>;
+    }) => {
+      const lastStep = steps.at(-1);
+      const totalTokens = lastStep?.usage?.totalTokens;
+      const toolResultsTokens = estimateToolResultsTokens(lastStep?.toolResults);
+      const estimatedNextInputTokens =
+        (typeof totalTokens === "number" ? totalTokens : 0) + toolResultsTokens;
+
+      return estimatedNextInputTokens >= stepGuardLimit;
+    },
+  ];
+
+  debugLog("agentStream config", {
+    maxSteps,
+    contextWindow,
+    stepGuardReserve,
+    stepGuardLimit,
+    maxOutputTokens,
+    messages: streamMessages.length,
   });
 
   const result = streamText({
@@ -50,25 +202,63 @@ export async function agentStream(
       },
     },
     model,
+    maxOutputTokens,
+    abortSignal,
     tools: { one: tools["one"] },
-    messages,
+    messages: streamMessages,
     experimental_telemetry: {
-      isEnabled: true,
-      functionId: "agent.streamText",
+      isEnabled: telemetry?.isEnabled ?? true,
+      functionId: telemetry?.functionId ?? "agent.streamText",
       tracer: getTracer("one-agent"),
       metadata: {
         agentType: "one-runner",
         modelProvider: "openaiCompatible",
+        ...(telemetry?.metadata ?? {}),
       },
     },
     system,
-    stopWhen: stepCountIs(maxSteps),
+    stopWhen,
+    onStepFinish: ({ usage, finishReason, response, toolResults }) => {
+      const totalTokens = usage.totalTokens;
+      const inputTokens = usage.inputTokens;
+      const outputTokens = usage.outputTokens;
+      const toolResultsTokens = estimateToolResultsTokens(toolResults);
+      const estimatedNextInputTokens =
+        (typeof totalTokens === "number" ? totalTokens : 0) + toolResultsTokens;
+      const shouldStop =
+        estimatedNextInputTokens >= stepGuardLimit;
+
+      debugLog("step finished", {
+        finishReason,
+        responseId: response.id,
+        totalTokens,
+        inputTokens,
+        outputTokens,
+        toolResultsTokens,
+        estimatedNextInputTokens,
+        stepGuardLimit,
+        shouldStop,
+      });
+    },
     onError:
       onError ||
       ((e) => {
         console.log(chalk.red.bold("An error occurred during streaming."), e);
       }),
   });
+
+  void (async () => {
+    try {
+      const usage = await result.totalUsage;
+      recordCompactionUsageObservation({
+        messages: streamMessages,
+        system,
+        observedInputTokens: usage.inputTokens,
+      });
+    } catch {
+      // Ignore usage read failures; calibration is best-effort.
+    }
+  })();
 
   return result;
 }

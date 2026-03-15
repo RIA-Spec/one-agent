@@ -3,8 +3,6 @@ import {
   createUIMessageStream,
   createUIMessageStreamResponse,
   generateId,
-  stepCountIs,
-  streamText,
 } from "ai";
 import { after } from "next/server";
 import { createResumableStreamContext } from "resumable-stream";
@@ -137,11 +135,14 @@ export async function POST(request: Request) {
         );
 
         const {
-          getOneTools,
-          AGENT_SYSTEM_PROMPT,
+          agentStream,
           openaiCompatible,
           setProgressCallback,
+          autoCompactMessages,
+          AGENT_SYSTEM_PROMPT,
         } = await import("@one/agent");
+
+        const model = openaiCompatible(resolvedChatModel);
 
         setProgressCallback((event) => {
           dataStream.write({
@@ -151,20 +152,26 @@ export async function POST(request: Request) {
         });
         const cleanupProgress = () => setProgressCallback(null);
 
-        const oneTools = await getOneTools();
-
-        const result = streamText({
-          model: openaiCompatible(resolvedChatModel),
-          system: AGENT_SYSTEM_PROMPT,
-          messages: modelMessages,
-          stopWhen: stepCountIs(101),
-          tools: oneTools,
-          providerOptions: {
-            openaiCompatible: {
-              thinkingEnabled: true,
-            },
+        const baseOptions = {
+          model,
+          maxSteps: 101,
+          abortSignal: request.signal,
+          onCompaction: (event: {
+            estimatedTokensBefore: number;
+            estimatedTokensAfter: number;
+            tokenLimit: number;
+            messagesBefore: number;
+            messagesAfter: number;
+          }) => {
+            console.log(
+              `[Chat API] Context compact triggered: est ${event.estimatedTokensBefore} -> ${event.estimatedTokensAfter}, limit ${event.tokenLimit}, messages ${event.messagesBefore} -> ${event.messagesAfter}`
+            );
+            dataStream.write({
+              type: "data-compact" as const,
+              data: event,
+            } as any);
           },
-          experimental_telemetry: {
+          telemetry: {
             isEnabled: isProductionEnvironment,
             functionId: "stream-text-one-agent",
             metadata: {
@@ -173,12 +180,51 @@ export async function POST(request: Request) {
               resolvedChatModel,
             },
           },
-        });
+        };
+
+        let result;
+        try {
+          result = await agentStream({
+            ...baseOptions,
+            messages: modelMessages,
+          });
+        } catch (error) {
+          const errorText =
+            error instanceof Error ? error.message : JSON.stringify(error);
+          const isContextOverflow =
+            /maximum context length|Requested token count exceeds|context length/i.test(
+              errorText
+            );
+
+          if (!isContextOverflow) {
+            throw error;
+          }
+
+          console.warn(
+            `[Chat API] Context overflow detected, forcing compaction retry: ${errorText}`
+          );
+
+          const forcedCompactedMessages = await autoCompactMessages({
+            model,
+            system: AGENT_SYSTEM_PROMPT,
+            messages: modelMessages,
+            abortSignal: request.signal,
+            force: true,
+          });
+
+          result = await agentStream({
+            ...baseOptions,
+            enableAutoCompact: false,
+            messages: forcedCompactedMessages,
+          });
+        }
 
         // Keep progress callback active for the whole stream lifecycle.
         result.finishReason.then(cleanupProgress, cleanupProgress);
 
-        dataStream.merge(result.toUIMessageStream({ sendReasoning: true }));
+        dataStream.merge(
+          result.toUIMessageStream({ sendReasoning: true }) as any
+        );
 
         if (titlePromise) {
           try {

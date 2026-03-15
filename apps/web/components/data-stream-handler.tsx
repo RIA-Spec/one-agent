@@ -5,6 +5,7 @@ import { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
 import { initialArtifactData, useArtifact } from "@/hooks/use-artifact";
 import { useExecutionProgress } from "@/hooks/use-execution-progress";
+import { toast } from "@/components/toast";
 import { artifactDefinitions } from "./artifact";
 import { useDataStream } from "./data-stream-provider";
 import { getChatHistoryPaginationKey } from "./sidebar-history";
@@ -34,6 +35,18 @@ export function DataStreamHandler() {
       // Handle execution step progress events
       if (delta.type === "data-execution-step") {
         handleExecutionEvent(delta.data as any);
+        continue;
+      }
+
+      if (delta.type === "data-compact") {
+        const before = delta.data.estimatedTokensBefore;
+        const after = delta.data.estimatedTokensAfter;
+        const limit = delta.data.tokenLimit;
+
+        toast({
+          type: "success",
+          description: `Context compacted (${before} -> ${after}, limit ${limit}).`,
+        });
         continue;
       }
 

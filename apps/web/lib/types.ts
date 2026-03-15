@@ -45,6 +45,13 @@ export type CustomUIDataTypes = {
   finish: null;
   "chat-title": string;
   "execution-step": ExecutionStepEvent;
+  compact: {
+    estimatedTokensBefore: number;
+    estimatedTokensAfter: number;
+    tokenLimit: number;
+    messagesBefore: number;
+    messagesAfter: number;
+  };
 };
 
 /** AST-extracted step from code (Python or Bash) */
