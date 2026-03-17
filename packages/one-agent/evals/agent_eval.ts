@@ -6,6 +6,7 @@ import { spawn } from "node:child_process";
 import { agentStream } from "../src/agent";
 import { openaiCompatible } from "../src/model";
 import { reason } from "../src/interfaces/reason";
+import { createStreamLogger, oneLine } from "../src/utils/stream-log.js";
 
 type Benchmark = "browsecomp" | "deepsearchqa" | "custom";
 type JudgeMode = "exact" | "reason";
@@ -101,68 +102,6 @@ function preview(value: unknown, maxLen = 140): string {
   const text = typeof value === "string" ? value : JSON.stringify(value);
   if (!text) return "";
   return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
-}
-
-function oneLine(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
-}
-
-function renderRunCodeBlock(input: unknown): string | null {
-  const obj = (input && typeof input === "object" ? input : {}) as Record<string, unknown>;
-  const code = typeof obj.code === "string" ? obj.code : null;
-  if (!code) return null;
-
-  const maxLines = 80;
-  const lines = code.split("\n");
-  const shown = lines.slice(0, maxLines);
-  const width = String(shown.length).length;
-  const numbered = shown.map((line, idx) => `${String(idx + 1).padStart(width, " ")} | ${line}`);
-
-  if (lines.length > maxLines) {
-    numbered.push(`... | (${lines.length - maxLines} more lines omitted)`);
-  }
-
-  return [
-    "[stream:tool-call] one",
-    "[stream:one-code] --- BEGIN ---",
-    ...numbered.map((line) => `[stream:one-code] ${line}`),
-    "[stream:one-code] ---- END ----",
-  ].join("\n");
-}
-
-function logChunk(chunk: any): void {
-  switch (chunk.type) {
-    case "text-delta":
-      console.log(`[stream:text] ${preview(chunk.text)}`);
-      return;
-    case "reasoning-delta":
-      console.log(
-        `[stream:reasoning] ${preview((chunk as any).text || (chunk as any).delta || "")}`,
-      );
-      return;
-    case "tool-call":
-      if (chunk.toolName === "one") {
-        const codeBlock = renderRunCodeBlock(chunk.input);
-        if (codeBlock) {
-          console.log(codeBlock);
-          return;
-        }
-      }
-      console.log(`[stream:tool-call] ${chunk.toolName} args=${preview(chunk.input ?? {}, 300)}`);
-      return;
-    case "tool-result":
-      console.log(
-        `[stream:tool-result] ${preview((chunk as any).result ?? (chunk as any).output)}`,
-      );
-      return;
-    case "error":
-      console.log(
-        `[stream:error] ${preview(chunk.error instanceof Error ? chunk.error.message : String(chunk.error))}`,
-      );
-      return;
-    default:
-      return;
-  }
 }
 
 async function downloadBrowseComp(outDir: string): Promise<string> {
@@ -359,11 +298,12 @@ async function runOneAgent(
   maxSteps: number,
   streamLog: boolean,
 ): Promise<string> {
+  const streamLogger = createStreamLogger();
   const result = await agentStream({
     messages: [
       {
         role: "user",
-        content: `${question}\n\nReturn only the final answer with no extra commentary.`,
+        content: `[Q] ${question}\n\nReturn only the final answer with no extra commentary.`,
       },
     ],
     model: openaiCompatible(model),
@@ -372,9 +312,19 @@ async function runOneAgent(
 
   let output = "";
   for await (const chunk of result.fullStream) {
-    if (streamLog) logChunk(chunk);
+    if (streamLog) {
+      for (const line of streamLogger.logChunk(chunk)) {
+        console.log(line);
+      }
+    }
     if (chunk.type === "text-delta") {
       output += chunk.text;
+    }
+  }
+
+  if (streamLog) {
+    for (const line of streamLogger.flush()) {
+      console.log(line);
     }
   }
 
