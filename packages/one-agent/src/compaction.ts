@@ -27,6 +27,72 @@ Include:
 
 Return markdown with short sections and bullets. Avoid filler.`;
 
+function getMessageParts(content: ModelMessage["content"]): any[] {
+  if (!Array.isArray(content)) {
+    return [];
+  }
+
+  return content.filter((part) => !!part && typeof part === "object");
+}
+
+function getAssistantToolCallIds(message: ModelMessage | undefined): Set<string> {
+  if (!message || message.role !== "assistant") {
+    return new Set();
+  }
+
+  return new Set(
+    getMessageParts(message.content)
+      .filter((part) => part.type === "tool-call" && typeof part.toolCallId === "string")
+      .map((part) => part.toolCallId as string),
+  );
+}
+
+function getToolResultIds(message: ModelMessage | undefined): string[] {
+  if (!message || message.role !== "tool") {
+    return [];
+  }
+
+  return getMessageParts(message.content)
+    .filter((part) => part.type === "tool-result" && typeof part.toolCallId === "string")
+    .map((part) => part.toolCallId as string);
+}
+
+function isSafeStartIndex(messages: ModelMessage[], startIndex: number): boolean {
+  const message = messages[startIndex];
+  if (!message || message.role !== "tool") {
+    return true;
+  }
+
+  if (startIndex === 0) {
+    return false;
+  }
+
+  const previousToolCallIds = getAssistantToolCallIds(messages[startIndex - 1]);
+  const toolResultIds = getToolResultIds(message);
+  if (previousToolCallIds.size === 0 || toolResultIds.length === 0) {
+    return false;
+  }
+
+  return toolResultIds.every((toolCallId) => previousToolCallIds.has(toolCallId));
+}
+
+function findNextSafeStartIndex(messages: ModelMessage[], startIndex: number): number {
+  let index = Math.max(0, startIndex);
+
+  while (index < messages.length && !isSafeStartIndex(messages, index)) {
+    index += 1;
+  }
+
+  return index;
+}
+
+function getTailMessages(messages: ModelMessage[], count: number): ModelMessage[] {
+  const tailStart = Math.max(0, messages.length - count);
+  const safeStart = findNextSafeStartIndex(messages, tailStart);
+
+  return messages.slice(safeStart);
+}
+
 function contentToText(content: ModelMessage["content"]): string {
   if (typeof content === "string") {
     return content;
@@ -138,8 +204,19 @@ export function getCompactionDiagnostics(messages: ModelMessage[], system?: stri
 function trimToTokenBudget(messages: ModelMessage[], tokenLimit: number): ModelMessage[] {
   const output = [...messages];
 
+  const initialSafeStart = findNextSafeStartIndex(output, 0);
+  if (initialSafeStart > 0) {
+    output.splice(0, initialSafeStart);
+  }
+
   while (output.length > 1 && estimateTokens(output) > tokenLimit) {
-    output.shift();
+    const nextSafeStart = findNextSafeStartIndex(output, 1);
+    if (nextSafeStart >= output.length) {
+      output.splice(0, output.length - 1);
+      break;
+    }
+
+    output.splice(0, nextSafeStart);
   }
 
   return output;
@@ -210,11 +287,11 @@ export async function autoCompactMessages(params: {
 
     // Forced compaction must always reduce history to avoid retrying the same
     // oversized payload when summarization yields empty output.
-    const fallbackTail = historyOnly.slice(-DEFAULT_TAIL_MESSAGES);
+    const fallbackTail = getTailMessages(historyOnly, DEFAULT_TAIL_MESSAGES);
     return trimToTokenBudget([...fallbackTail, ...incoming], getAutoCompactTokenLimit());
   }
 
-  const tail = historyOnly.slice(-DEFAULT_TAIL_MESSAGES);
+  const tail = getTailMessages(historyOnly, DEFAULT_TAIL_MESSAGES);
   const compacted = [compactSummaryMessage(summary), ...tail, ...incoming];
 
   return trimToTokenBudget(compacted, getAutoCompactTokenLimit());
