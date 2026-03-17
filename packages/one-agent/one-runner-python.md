@@ -10,7 +10,7 @@ deps:
       env:
         PLAYWRIGHT_MCP_HEADLESS: "0"
 refs:
-  - '<tool name="playwright.__ALL__"/>'
+#   - '<tool name="playwright.__ALL__"/>'
 ---
 
 # Python Action Execution Runtime (AER)
@@ -51,7 +51,7 @@ Call MCP server tools with exact arguments.
 
 **Parameters:**
 
-- `name` (str): Tool name (e.g., 'playwright_browser_navigate', 'bash')
+- `name` (str): Tool name (e.g., 'bash', 'websearch', 'webfetch')
 - `args`: Exact tool arguments as JSON-compatible values
 
 **Returns:**
@@ -59,7 +59,7 @@ Call MCP server tools with exact arguments.
 - `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
 - `isError`: Boolean indicating failure (optional)
 
-**Available Tools:** bash (shell commands), websearch (internet search), Playwright tools (browser automation).
+**Available Tools:** bash (shell commands), websearch (internet search), webfetch (fetch and transform page content).
 
 ## Environment Constraints
 
@@ -157,15 +157,17 @@ async def main():
 asyncio.run(main())
 ```
 
-### 4. Browser Automation with AI Analysis
+### 4. Web Fetch with AI Analysis
 
 ```python
 import asyncio
 
 async def main():
-    await act('playwright_browser_navigate', {'url': 'https://example.com'})
-    snapshot = await act('playwright_browser_snapshot', {})
-    page_content = snapshot['content'][0]['text']
+    fetched = await act('webfetch', {
+        'url': 'https://example.com',
+        'format': 'markdown'
+    })
+    page_content = fetched['content'][0]['text']
 
     result = await reason(
         f'Extract all links and categorize: {page_content[:8000]}',
@@ -205,6 +207,22 @@ async def main():
         "numResults": 5,
     })
     print(search["content"][0]["text"])
+
+asyncio.run(main())
+```
+
+### 7. Web Fetch
+
+```python
+import asyncio
+
+async def main():
+    result = await act("webfetch", {
+        "url": "https://example.com/docs",
+        "format": "text",
+        "timeout": 20,
+    })
+    print(result["content"][0]["text"][:2000])
 
 asyncio.run(main())
 ```

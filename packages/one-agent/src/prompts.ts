@@ -36,7 +36,11 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
 5. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
   - Check act results: if result.get('isError'): return print(result)
   - Check reason results: if r.get('error'): return print(r['error'])
-6. BATCH ACTIONS - Minimize conversation turns. Use reason() for dynamic decision-making or target extraction, then immediately batch ALL required act() calls in a SINGLE script. DO NOT split related actions across multiple conversations.
+6. BATCH ACTIONS - Minimize conversation turns:
+  - Batch ALL required \`act()\` calls in a SINGLE script.
+  - Use \`reason()\` for dynamic decision-making or target extraction.
+  - DO NOT split related actions across multiple conversations.
+  - DO NOT execute step-by-step.
 </code_rules>
 
 <examples>
@@ -45,7 +49,7 @@ import asyncio
 async def main():
     m = await act('__manual__', {})
     if m.get('isError'): return print(m)
-    r = await reason(f"Goal: ..., extract relevant tools from: {m['content'][0]['text']}", ['bash'])
+    r = await reason(f"Goal: web scraping. Extract relevant tools from: {m['content'][0]['text']}", ['bash'])
     if r.get('error'): return print(r['error'])
     for t in r['data']:
         d = await act('__manual__', {'name': t})
@@ -56,22 +60,58 @@ asyncio.run(main())
 <analyzing_data>
 import asyncio
 async def main():
-    items = ['text1', 'text2', 'text3']
-    r = await reason(f'Analyze: {items}', [{'text': '', 'sentiment': ''}])
+    items = ['Great product but slow shipping', 'Absolutely love it!', 'Broke after two days']
+    r = await reason(f'Classify sentiment (Positive/Negative/Neutral) and extract the core product feature mentioned in these reviews: {items}', [{'text': '', 'sentiment': '', 'feature': ''}])
     if r.get('error'): return print(r['error'])
     for x in r['data']:
-        print(f"{x.get('text')}: {x.get('sentiment')}")
+        print(f"{x.get('text')} | {x.get('sentiment')} | {x.get('feature')}")
 asyncio.run(main())
 </analyzing_data>
 
 <make_decision>
 import asyncio
 async def main():
-    r = await reason('Alert if errors > threshold? err=15, max=10', True)
+    r = await reason('Evaluate system status: 15 errors in last hour, threshold is 10. Should we trigger a critical alert?', True)
     if r.get('error'): return print(r['error'])
     if r.get('data'): print('Alert!')
 asyncio.run(main())
 </make_decision>
+
+<reason_in_act>
+import asyncio
+async def main():
+    r1 = await reason('3 distinct queries for: AGI timeline', ['q1', 'q2'])
+    if r1.get('error'): return print(r1['error'])
+    data = []
+    for q in r1['data']:
+        res = await act('websearch', {'query': q})
+        if not res.get('isError'): data.append(res['content'][0]['text'][:800])
+    if not data: return print("No data")
+    r2 = await reason(f'Summarize key milestones: {data}', {'summary': ''})
+    print(r2.get('error') or r2['data'].get('summary', ''))
+asyncio.run(main())
+</reason_in_act>
+
+<batch_actions>
+import asyncio
+async def main():
+    s = await act('websearch', {'query': 'OpenAI Sora technical report'})
+    if s.get('isError'): return print(s)
+    
+    r1 = await reason(f"Extract top 2 relevant URLs from: {s['content'][0]['text'][:1000]}", ['url1', 'url2'])
+    if r1.get('error'): return print(r1['error'])
+    
+    data = []
+    for u in r1['data']:
+        f = await act('webfetch', {'url': u})
+        if not f.get('isError'): data.append(f['content'][0]['text'][:800])
+        
+    if not data: return print("Fetch failed")
+    
+    r2 = await reason(f'Synthesize core findings: {data}', {'summary': ''})
+    print(r2.get('error') or r2['data'].get('summary', ''))
+asyncio.run(main())
+</batch_actions>
 </examples>
 
 <interfaces>

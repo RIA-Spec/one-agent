@@ -179,7 +179,7 @@ export function createBashAER(config: BashAERConfig) {
 File system: ${config.cwd} -> ${config.cwd}
 
 Usage:
-  echo '{"url":"https://example.com"}' | act playwright_browser_navigate - > a.json && \
+  echo '{"url":"https://example.com","format":"text"}' | act webfetch - > a.json && \
   cat a.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat a.json; exit 1; } && \
   cat a.json | jq -r '.text[:8000]' | reason --prompt 'Summarize:' --prompt - --structure '{"summary":""}' > r.json && \
   cat r.json | jq -r 'if .error then .error else .data.summary end'

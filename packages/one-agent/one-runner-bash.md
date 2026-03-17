@@ -10,7 +10,7 @@ deps:
       env:
         PLAYWRIGHT_MCP_HEADLESS: "0"
 refs:
-  - '<tool name="playwright.__ALL__"/>'
+#   - '<tool name="playwright.__ALL__"/>'
 ---
 
 # Bash Action Execution Runtime (AER)
@@ -33,7 +33,7 @@ Use discovery first when the tool name or schema is unclear:
 
 ```bash
 act --manual
-act --manual playwright_browser_click
+act --manual webfetch
 act --help
 ```
 
@@ -104,7 +104,7 @@ act --name "tool_name" --args -
 act bash '{"command":"ls -la"}'
 
 # Use stdin JSON
-echo '{"url":"https://google.com"}' | act playwright_browser_navigate -
+echo '{"url":"https://google.com","format":"text"}' | act webfetch -
 ```
 
 ## Pipeline Examples
@@ -181,12 +181,12 @@ cat test_results.json | \
   esac
 ```
 
-### 6. Browser Automation Pipeline
+### 6. Web Fetch + Analysis Pipeline
 
 ```bash
-# Navigate → Snapshot → AI analysis → Extract data
-act playwright_browser_navigate '{"url":"https://news.ycombinator.com"}' && \
-act playwright_browser_snapshot '{}' | \
+# Fetch page content → AI analysis → Extract data
+act webfetch '{"url":"https://news.ycombinator.com","format":"markdown"}' | \
+  jq -r '.text[:12000]' | \
   reason --prompt "Extract top 5 post titles and URLs from this page:" \
      --prompt - \
      --structure '{"posts": [{"title": "", "url": ""}]}' | \
@@ -206,7 +206,7 @@ for file in *.log; do
 done
 ```
 
-### 8. Web Search Pipeline
+### 8. Web Search + Fetch Pipeline
 
 ```bash
 # Search first, then fetch a concrete page for details

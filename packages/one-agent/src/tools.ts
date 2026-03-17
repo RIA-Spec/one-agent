@@ -10,6 +10,8 @@ import {
   createWriteTool,
   createEditTool,
   createWebSearchTool,
+  createWebFetchTool,
+  createFlowTool,
 } from "./interfaces/tools/index.js";
 import { createPythonAER } from "./aer/python.js";
 import { createBashAER } from "./aer/bash.js";
@@ -62,9 +64,8 @@ let server: Awaited<ReturnType<typeof mcpc>> | null = null;
 
 export async function getServer() {
   if (!server || DEV_MODE) {
-    // Temporarily switch cwd to one-agent package root so that
-    // npx can find locally installed MCP servers (e.g. @playwright/mcp)
-    // when the process is launched from a different workspace package.
+    // Temporarily switch cwd to one-agent package root so npx-based MCP server
+    // resolution remains stable when launched from a different workspace package.
     const originalCwd = process.cwd();
     try {
       process.chdir(projectRoot);
@@ -98,6 +99,20 @@ export async function getServer() {
                 webSearchTool.execute,
                 { internal: true },
               );
+
+              const webFetchTool = createWebFetchTool();
+              server.tool(
+                "webfetch",
+                webFetchTool.description,
+                webFetchTool.parameters,
+                webFetchTool.execute,
+                { internal: true },
+              );
+
+              const flowTool = createFlowTool(projectRoot);
+              server.tool("flow", flowTool.description, flowTool.parameters, flowTool.execute, {
+                internal: true,
+              });
 
               console.log(`✓ Bash AER enabled`);
               return;
@@ -152,6 +167,20 @@ export async function getServer() {
               webSearchTool.execute,
               { internal: true },
             );
+
+            const webFetchTool = createWebFetchTool();
+            server.tool(
+              "webfetch",
+              webFetchTool.description,
+              webFetchTool.parameters,
+              webFetchTool.execute,
+              { internal: true },
+            );
+
+            const flowTool = createFlowTool(nodeFSRoot);
+            server.tool("flow", flowTool.description, flowTool.parameters, flowTool.execute, {
+              internal: true,
+            });
           },
         },
       );
