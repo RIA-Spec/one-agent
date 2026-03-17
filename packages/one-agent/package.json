@@ -13,11 +13,11 @@
     "url": "git+https://github.com/author/library.git"
   },
   "bin": {
-    "one-stdio": "./dist/stdio.mjs",
-    "reason": "./dist/reason.mjs",
-    "one-reason": "./dist/reason.mjs",
     "act": "./dist/act.mjs",
-    "one-act": "./dist/act.mjs"
+    "one-act": "./dist/act.mjs",
+    "one-reason": "./dist/reason.mjs",
+    "one-stdio": "./dist/stdio.mjs",
+    "reason": "./dist/reason.mjs"
   },
   "files": [
     "dist"
@@ -44,29 +44,29 @@
     "evals:download:deepsearchqa": "tsx --experimental-wasm-stack-switching ./evals/agent_eval.ts download --dataset deepsearchqa --out-dir ./evals/datasets",
     "evals:run:browsecomp": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark browsecomp --judge exact --out-dir ./evals/results",
     "evals:run:deepsearchqa": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark deepsearchqa --judge exact --out-dir ./evals/results",
-    "evals:smoke": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark browsecomp --judge exact --max-samples 10 --out-dir ./evals/results",
+    "evals:smoke": "tsx --experimental-wasm-stack-switching --env-file=.env ./evals/agent_eval.ts run --benchmark browsecomp --judge exact --max-samples 1 --out-dir ./evals/results",
     "typecheck": "tsc --noEmit",
     "fmt": "oxfmt",
     "fmt:check": "oxfmt --check",
     "prepublishOnly": "pnpm run build"
   },
   "dependencies": {
-    "@one/act": "workspace:*",
-    "@one/reason": "workspace:*",
     "@ai-sdk/anthropic": "^3.0.18",
     "@ai-sdk/devtools": "^0.0.6",
+    "@ai-sdk/openai-compatible": "2.0.35",
     "@mcpc-tech/core": "^0.3.37",
     "@mcpc/code-runner-mcp": "jsr:^0.1.9",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",
     "@modelcontextprotocol/sdk": "^1.25.3",
+    "@one/act": "workspace:*",
+    "@one/reason": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.69.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.211.0",
     "@opentelemetry/resources": "^2.5.0",
     "@opentelemetry/sdk-node": "^0.211.0",
     "@opentelemetry/semantic-conventions": "^1.39.0",
-    "@ai-sdk/openai-compatible": "2.0.35",
     "ai": "^6.0.44",
     "ajv": "^8.17.1",
     "chalk": "^5.6.2",

@@ -18,6 +18,7 @@ pnpm evals:download:deepsearchqa
 ```
 
 Notes:
+
 - BrowseComp downloads from OpenAI public simple-evals storage.
 - DeepSearchQA uses Kaggle CLI (`kaggle datasets download -d deepmind/deepsearchqa`).
 - For Kaggle, configure `~/.kaggle/kaggle.json` first.
