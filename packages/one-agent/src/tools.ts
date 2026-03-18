@@ -136,6 +136,7 @@ export async function getServer() {
               async (args: any, extra: any) => pythonAER.execute(args, extra, server),
               { internal: false },
             );
+
             console.log(`✓ Python AER enabled`);
 
             // Register low-level tools for Python mode

@@ -41,6 +41,11 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Use \`reason()\` for dynamic decision-making or target extraction.
   - DO NOT split related actions across multiple conversations.
   - DO NOT execute step-by-step.
+7. FLOW REUSE - Optional for repeated work:
+  - For recurring, stable tasks, you MAY use the \`flow\` tool to save and reuse workflows.
+  - Use \`flow\` actions intentionally: \`list\` (discover), \`read\` (inspect flow.md/docs), \`upsert\` (save), \`run\` (execute).
+  - Prefer normal tool usage when the task is one-off, exploratory, or changing quickly.
+  - If using flow, keep descriptions short and specific.
 </code_rules>
 
 <examples>
@@ -153,6 +158,11 @@ When writing commands, you MUST follow these <command_styles/> and <rules> stric
   - For act output JSON: test .isError and stop if true
   - For reason output JSON: test .error and stop if present
 9. BATCH ACTIONS - minimize conversation turns. Use one reason step for dynamic targeting, then batch all related act calls in the same script/session.
+10. FLOW REUSE - optional helper for repeated tasks:
+  - Use the \`flow\` tool when reuse is likely to help.
+  - Prefer \`list\` + \`read\` before \`run\` when you need to inspect docs/parameters.
+  - Skip flow for one-off or fast-changing tasks.
+  - If you use flow, keep descriptions concise and clear.
 </rules>
 
 <examples>

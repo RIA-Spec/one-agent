@@ -2,5 +2,12 @@ import { defineConfig } from "tsdown";
 
 export default defineConfig({
   exports: true,
-  entry: ["src/index.ts", "src/repl.ts", "src/stdio.ts", "src/reason.ts", "src/act.ts"],
+  entry: [
+    "src/index.ts",
+    "src/repl.ts",
+    "src/stdio.ts",
+    "src/reason.ts",
+    "src/act.ts",
+    "src/one-agent.ts",
+  ],
 });

@@ -58,9 +58,69 @@ act = _one_tracked_act
 reason = _one_tracked_reason
 `;
 
+/**
+ * Python code to intercept flow inline-exec payloads and run them in the current Pyodide context.
+ * This avoids nested runPy calls and preserves stdout handlers so outer print() output is not lost.
+ * Must run AFTER STEP_TRACKING so the step-tracked act/reason are captured.
+ */
+const INLINE_EXEC_HANDLER = `
+import asyncio as _one_asyncio
+import base64 as _one_b64
+
+_one_inline_exec_prefix = '__ONE_INLINE_EXEC__:'
+
+_one_orig_act_ie = act
+
+async def _one_act_inline_exec(*_args, **_kwargs):
+    _result = await _one_orig_act_ie(*_args, **_kwargs)
+    if not isinstance(_result, dict):
+        return _result
+    _content = _result.get('content')
+    if not isinstance(_content, list) or not _content:
+        return _result
+    _first = _content[0]
+    _text = _first.get('text', '') if isinstance(_first, dict) else ''
+    if not isinstance(_text, str) or not _text.startswith(_one_inline_exec_prefix):
+        return _result
+
+    _encoded = _text[len(_one_inline_exec_prefix):]
+    try:
+        _code = _one_b64.b64decode(_encoded.encode('utf-8')).decode('utf-8')
+    except Exception:
+        return _result
+
+    if not _code:
+        return _result
+    # Patch asyncio.run so the flow's asyncio.run(main()) captures the coroutine
+    # instead of creating a new event loop (which would fail inside an async context).
+    _one_captured = []
+    _one_orig_run = _one_asyncio.run
+    def _one_capture_run(_coro, **_kw):
+        _one_captured.append(_coro)
+    _one_asyncio.run = _one_capture_run
+    _exec_ns = {'act': act, 'reason': reason}
+    try:
+        exec(compile(_code, '<flow>', 'exec'), _exec_ns)
+    finally:
+        _one_asyncio.run = _one_orig_run
+    for _coro in _one_captured:
+        await _coro
+    return {
+        'ok': True,
+        'content': [
+            {
+                'type': 'text',
+                'text': 'Flow executed inline. Output is streamed to stdout during execution.'
+            }
+        ]
+    }
+
+act = _one_act_inline_exec
+`;
+
 /** Markers emitted via stdout for step tracking */
-const STEP_START_RE = /\[ONE:STEP_START:(\d+)\]/;
-const STEP_END_RE = /\[ONE:STEP_END:(\d+):(ok|error)(?::([^\]]*))?\]/;
+const STEP_START_RE = /^\[ONE:STEP_START:(\d+)\]$/;
+const STEP_END_RE = /^\[ONE:STEP_END:(\d+):(ok|error)(?::([^\]]*))?\]$/;
 
 function extractUsefulFrame(lines: string[]): string | null {
   const execFrame = lines
@@ -226,9 +286,12 @@ Use packages: {"sklearn": "scikit-learn"}
 
       // Build instrumented code:
       // 1. Step tracking wrappers (runtime markers for progress)
-      // 2. Original user code
+      // 2. Inline exec handler (intercepts flow.run to avoid nested runPy)
+      // 3. Original user code
       const instrumentedCode = `
 ${STEP_TRACKING}
+
+${INLINE_EXEC_HANDLER}
 
 # === User Code ===
 ${code}

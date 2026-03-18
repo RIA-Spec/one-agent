@@ -15,6 +15,7 @@
   "bin": {
     "act": "./dist/act.mjs",
     "one-act": "./dist/act.mjs",
+    "one-agent": "./dist/one-agent.mjs",
     "one-reason": "./dist/reason.mjs",
     "one-stdio": "./dist/stdio.mjs",
     "reason": "./dist/reason.mjs"
@@ -29,6 +30,7 @@
   "exports": {
     ".": "./dist/index.mjs",
     "./act": "./dist/act.mjs",
+    "./one-agent": "./dist/one-agent.mjs",
     "./reason": "./dist/reason.mjs",
     "./repl": "./dist/repl.mjs",
     "./stdio": "./dist/stdio.mjs",

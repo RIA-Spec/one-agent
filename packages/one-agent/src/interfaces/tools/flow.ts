@@ -1,13 +1,16 @@
 /**
- * Flow tool - persistent reusable Python workflows stored in markdown files.
+ * Flow tool - persist reusable AER workflows as:
+ *   .agent/flow/<name>/flow.md  (documentation + metadata)
+ *   .agent/flow/<name>/aer.py   (executable script)
  */
 
-import { spawn } from "node:child_process";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
 import matter from "gray-matter";
 import { jsonSchema } from "ai";
+
+const INLINE_EXEC_PREFIX = "__ONE_INLINE_EXEC__:";
 
 type FlowFrontmatter = {
   description?: string;
@@ -16,9 +19,12 @@ type FlowFrontmatter = {
 
 type FlowRecord = {
   name: string;
-  path: string;
+  dir: string;
+  flowPath: string;
+  scriptPath: string;
   description: string;
   parameters: Record<string, string>;
+  docs: string;
   script: string;
 };
 
@@ -37,78 +43,25 @@ function normalizeFlowName(name: string): string {
   return cleaned;
 }
 
-function tokenize(text: string): Set<string> {
-  const stopwords = new Set([
-    "the",
-    "and",
-    "for",
-    "with",
-    "that",
-    "this",
-    "from",
-    "into",
-    "your",
-    "user",
-    "using",
-    "about",
-    "just",
-    "then",
-    "than",
-    "flow",
-    "tool",
-  ]);
-
-  const tokens = text
-    .toLowerCase()
-    .replace(/[^a-z0-9\s]/g, " ")
-    .split(/\s+/)
-    .filter((token) => token.length >= 3 && !stopwords.has(token));
-
-  return new Set(tokens);
-}
-
-function isDescriptionMatch(description: string, purpose: string): boolean {
-  const desc = description.trim().toLowerCase();
-  const intent = purpose.trim().toLowerCase();
-
-  if (!desc || !intent) {
-    return false;
-  }
-
-  if (desc.includes(intent) || intent.includes(desc)) {
-    return true;
-  }
-
-  const descTokens = tokenize(desc);
-  const intentTokens = tokenize(intent);
-
-  if (descTokens.size === 0 || intentTokens.size === 0) {
-    return false;
-  }
-
-  let overlap = 0;
-  for (const token of intentTokens) {
-    if (descTokens.has(token)) {
-      overlap += 1;
-    }
-  }
-
-  const score = overlap / Math.max(descTokens.size, intentTokens.size);
-  return score >= 0.35;
-}
-
 async function loadFlow(workflowsDir: string, fileName: string): Promise<FlowRecord> {
-  const absolutePath = join(workflowsDir, fileName);
-  const raw = await readFile(absolutePath, "utf-8");
-  const parsed = matter(raw);
+  const flowDir = join(workflowsDir, fileName);
+  const flowPath = join(flowDir, "flow.md");
+  const scriptPath = join(flowDir, "aer.py");
+
+  const rawFlow = await readFile(flowPath, "utf-8");
+  const parsed = matter(rawFlow);
+  const script = await readFile(scriptPath, "utf-8");
   const data = (parsed.data ?? {}) as FlowFrontmatter;
 
   return {
-    name: fileName.replace(/\.md$/i, ""),
-    path: absolutePath,
+    name: fileName,
+    dir: flowDir,
+    flowPath,
+    scriptPath,
     description: typeof data.description === "string" ? data.description : "",
     parameters: data.parameters && typeof data.parameters === "object" ? data.parameters : {},
-    script: parsed.content.trim(),
+    docs: parsed.content.trim(),
+    script: script.trim(),
   };
 }
 
@@ -117,90 +70,44 @@ async function discoverFlows(workflowsDir: string): Promise<FlowRecord[]> {
     return [];
   }
 
-  const files = (await readdir(workflowsDir)).filter((entry) => entry.endsWith(".md")).sort();
+  const entries = await readdir(workflowsDir, { withFileTypes: true });
+  const dirs = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
   const flows: FlowRecord[] = [];
 
-  for (const fileName of files) {
-    flows.push(await loadFlow(workflowsDir, fileName));
+  for (const dirName of dirs) {
+    const flowPath = join(workflowsDir, dirName, "flow.md");
+    const scriptPath = join(workflowsDir, dirName, "aer.py");
+    if (!existsSync(flowPath) || !existsSync(scriptPath)) {
+      continue;
+    }
+    flows.push(await loadFlow(workflowsDir, dirName));
   }
 
   return flows;
 }
 
-async function executePythonScript(
-  script: string,
-  cwd: string,
-  parameters: Record<string, unknown>,
-  timeoutSeconds: number,
-): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
-  const payload = JSON.stringify(parameters ?? {});
-  const wrappedScript = `import json\nFLOW_PARAMS = json.loads(${JSON.stringify(payload)})\n${script}\n`;
+function buildFlowDocs(description: string, parameters: Record<string, string>): string {
+  const keys = Object.keys(parameters);
+  const paramLines =
+    keys.length === 0
+      ? ["- none"]
+      : keys.map((key) => `- ${key}: ${parameters[key] || "(no description)"}`);
 
-  const runWithCommand = (command: string) =>
-    new Promise<{ stdout: string; stderr: string; exitCode: number | null }>((resolve, reject) => {
-      const proc = spawn(command, ["-c", wrappedScript], {
-        cwd,
-        env: process.env,
-        shell: false,
-      });
-
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
-
-      const timeoutHandle = setTimeout(
-        () => {
-          timedOut = true;
-          proc.kill("SIGTERM");
-          setTimeout(() => proc.kill("SIGKILL"), 4000);
-        },
-        Math.max(1, timeoutSeconds) * 1000,
-      );
-
-      proc.stdout.on("data", (chunk: Buffer) => {
-        stdout += chunk.toString();
-      });
-
-      proc.stderr.on("data", (chunk: Buffer) => {
-        stderr += chunk.toString();
-      });
-
-      proc.on("error", (error: NodeJS.ErrnoException) => {
-        clearTimeout(timeoutHandle);
-        reject(error);
-      });
-
-      proc.on("close", (code) => {
-        clearTimeout(timeoutHandle);
-        if (timedOut) {
-          reject(new Error(`Flow execution timed out after ${timeoutSeconds} seconds`));
-          return;
-        }
-        resolve({ stdout, stderr, exitCode: code });
-      });
-    });
-
-  const pythonCandidates = [process.env.PYTHON_BIN || "python3", "python"];
-  let lastError: unknown;
-
-  for (const command of pythonCandidates) {
-    try {
-      return await runWithCommand(command);
-    } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
-      if (code === "ENOENT") {
-        lastError = error;
-        continue;
-      }
-      throw error;
-    }
-  }
-
-  const message =
-    lastError instanceof Error
-      ? lastError.message
-      : "Python executable not found. Set PYTHON_BIN or install python3.";
-  throw new Error(message);
+  return [
+    "# Flow",
+    "",
+    description,
+    "",
+    "## Parameters",
+    ...paramLines,
+    "",
+    "## Execution",
+    "This flow executes the script content in aer.py.",
+    "",
+  ].join("\n");
 }
 
 export function createFlowTool(cwd: string) {
@@ -209,40 +116,41 @@ export function createFlowTool(cwd: string) {
 
   return {
     description:
-      "Manage reusable complex flows backed by markdown+python files in .agent/flow. Use list to discover, upsert to create/edit, and run to execute when purpose matches the flow description.",
+      "Persist reusable flows in .agent/flow/<name> using flow.md (docs) and aer.py (script). Action params: list(action); read(action,name,includeScript?); upsert(action,name,description,script|content,parameters?); run(action,name,parameters?).",
     parameters: jsonSchema({
       type: "object",
       properties: {
         action: {
           type: "string",
-          enum: ["list", "upsert", "run"],
-          description: "Operation to perform",
+          enum: ["list", "read", "upsert", "run"],
+          description:
+            "Operation to perform. list: discover flows; read: inspect flow docs/script; upsert: create/update flow; run: execute flow script inline.",
         },
         name: {
           type: "string",
-          description: "Flow name (filename without .md)",
-        },
-        purpose: {
-          type: "string",
-          description: "User purpose; must match flow description for run",
+          description: "Flow name (folder name under .agent/flow)",
         },
         description: {
           type: "string",
-          description: "Flow description stored in frontmatter",
+          description: "Flow description saved in frontmatter",
         },
         parameters: {
           type: "object",
           description:
-            "For upsert: parameter schema object {key: description}. For run: actual parameter values.",
+            "For upsert: schema object {key: description}. For run: concrete values; all declared keys are required.",
           additionalProperties: true,
         },
         script: {
           type: "string",
-          description: "Python script body stored in markdown content",
+          description: "Python code saved to aer.py",
         },
-        timeoutSeconds: {
-          type: "number",
-          description: "Execution timeout in seconds for run (default 120)",
+        content: {
+          type: "string",
+          description: "Deprecated alias for script (accepted for compatibility)",
+        },
+        includeScript: {
+          type: "boolean",
+          description: "For read action: include aer.py content in response",
         },
       },
       required: ["action"],
@@ -251,19 +159,19 @@ export function createFlowTool(cwd: string) {
       {
         action,
         name,
-        purpose,
         description,
         parameters,
         script,
-        timeoutSeconds,
+        content,
+        includeScript,
       }: {
-        action: "list" | "upsert" | "run";
+        action: "list" | "read" | "upsert" | "run";
         name?: string;
-        purpose?: string;
         description?: string;
         parameters?: Record<string, unknown>;
         script?: string;
-        timeoutSeconds?: number;
+        content?: string;
+        includeScript?: boolean;
       },
       _extra?: unknown,
     ) => {
@@ -276,7 +184,8 @@ export function createFlowTool(cwd: string) {
             name: flow.name,
             description: flow.description,
             parameters: flow.parameters,
-            matchesPurpose: purpose ? isDescriptionMatch(flow.description, purpose) : undefined,
+            docsPath: flow.flowPath,
+            scriptPath: flow.scriptPath,
           }));
 
           return {
@@ -302,13 +211,44 @@ export function createFlowTool(cwd: string) {
         }
 
         const flowName = normalizeFlowName(name);
-        const flowPath = join(workflowsDir, `${flowName}.md`);
+        const flowDir = join(workflowsDir, flowName);
+        const flowPath = join(flowDir, "flow.md");
+        const scriptPath = join(flowDir, "aer.py");
+
+        if (action === "read") {
+          const flow = await loadFlow(workflowsDir, flowName);
+
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: JSON.stringify(
+                  {
+                    action: "read",
+                    name: flow.name,
+                    path: flow.dir,
+                    flowPath: flow.flowPath,
+                    scriptPath: flow.scriptPath,
+                    description: flow.description,
+                    parameters: flow.parameters,
+                    docs: flow.docs,
+                    ...(includeScript ? { script: flow.script } : {}),
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        }
 
         if (action === "upsert") {
+          const normalizedScript = script?.trim() || content?.trim() || "";
+
           if (!description?.trim()) {
             throw new Error("description is required for upsert");
           }
-          if (!script?.trim()) {
+          if (!normalizedScript) {
             throw new Error("script is required for upsert");
           }
 
@@ -319,12 +259,14 @@ export function createFlowTool(cwd: string) {
             }
           }
 
-          const markdown = matter.stringify(script.trim() + "\n", {
+          const markdown = matter.stringify(buildFlowDocs(description.trim(), schemaMap), {
             description: description.trim(),
             parameters: schemaMap,
           });
 
+          await mkdir(flowDir, { recursive: true });
           await writeFile(flowPath, markdown, "utf-8");
+          await writeFile(scriptPath, normalizedScript + "\n", "utf-8");
 
           return {
             content: [
@@ -334,7 +276,9 @@ export function createFlowTool(cwd: string) {
                   {
                     action: "upsert",
                     name: flowName,
-                    path: flowPath,
+                    path: flowDir,
+                    flowPath,
+                    scriptPath,
                     folder: workflowsDir,
                     description: description.trim(),
                     parameters: schemaMap,
@@ -347,17 +291,7 @@ export function createFlowTool(cwd: string) {
           };
         }
 
-        const flow = await loadFlow(workflowsDir, `${flowName}.md`);
-
-        if (!purpose?.trim()) {
-          throw new Error("purpose is required for run");
-        }
-
-        if (!isDescriptionMatch(flow.description, purpose)) {
-          throw new Error(
-            `Flow description mismatch. Purpose does not match flow \"${flowName}\" description.`,
-          );
-        }
+        const flow = await loadFlow(workflowsDir, flowName);
 
         const runtimeParams = parameters && typeof parameters === "object" ? parameters : {};
         const requiredParamKeys = Object.keys(flow.parameters || {});
@@ -369,25 +303,17 @@ export function createFlowTool(cwd: string) {
           );
         }
 
-        const result = await executePythonScript(
-          flow.script,
-          rootDir,
-          runtimeParams,
-          timeoutSeconds ?? 120,
-        );
-
-        const output = [result.stdout, result.stderr].filter(Boolean).join("\n").trim();
+        const payload = JSON.stringify(runtimeParams ?? {});
+        const wrappedScript = `import json\nFLOW_PARAMS = json.loads(${JSON.stringify(payload)})\n${flow.script}\n`;
+        const encodedScript = Buffer.from(wrappedScript, "utf-8").toString("base64");
 
         return {
           content: [
             {
               type: "text" as const,
-              text:
-                output ||
-                JSON.stringify({ ok: true, flow: flowName, message: "(no output)" }, null, 2),
+              text: `${INLINE_EXEC_PREFIX}${encodedScript}`,
             },
           ],
-          ...(result.exitCode !== 0 && { isError: true }),
         };
       } catch (error: any) {
         return {

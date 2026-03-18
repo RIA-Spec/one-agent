@@ -408,12 +408,17 @@ function getAvailableToolNames(server: ComposableMCPServer) {
 function createUnknownToolResult(server: ComposableMCPServer, name: string) {
   const toolNames = getAvailableToolNames(server);
   const available = toolNames.length > 0 ? toolNames.join("\n") : "(no tools available)";
+  const deUnderscoredName = name.replace(/^_+|_+$/g, "");
+  const suggestion =
+    deUnderscoredName && deUnderscoredName !== name && toolNames.includes(deUnderscoredName)
+      ? `\nDid you mean: ${deUnderscoredName}`
+      : "";
 
   return {
     content: [
       {
         type: "text" as const,
-        text: `Tool ${name} not found. Available tools:\n${available}`,
+        text: `Tool ${name} not found.${suggestion}\nAvailable tools:\n${available}`,
       },
     ],
     isError: true,
