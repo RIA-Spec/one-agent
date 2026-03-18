@@ -8,6 +8,17 @@ import {
 import { isTestEnvironment } from "../constants";
 
 const THINKING_SUFFIX_REGEX = /-thinking$/;
+const DEFAULT_ONE_AGENT_MODEL = "gemini-3.1-pro";
+const DEFAULT_LIGHT_MODEL = "gemini-3.1-flash-lite";
+
+const oneAgentModelId =
+  process.env.ONE_AGENT_MODEL?.trim() || DEFAULT_ONE_AGENT_MODEL;
+const oneAgentReasoningModelId =
+  process.env.ONE_AGENT_REASONING_MODEL?.trim() || oneAgentModelId;
+const oneTitleModelId =
+  process.env.ONE_TITLE_MODEL?.trim() || DEFAULT_LIGHT_MODEL;
+const oneArtifactModelId =
+  process.env.ONE_ARTIFACT_MODEL?.trim() || DEFAULT_LIGHT_MODEL;
 
 export const myProvider = isTestEnvironment
   ? (() => {
@@ -35,7 +46,12 @@ export function getLanguageModel(modelId: string) {
 
   // ONE Agent models - use OpenAI-compatible provider
   if (modelId === "one-agent" || modelId === "one-agent-reasoning") {
-    const model = openaiCompatible("gemini-3.1-pro") as Parameters<
+    const resolvedModelId =
+      modelId === "one-agent-reasoning"
+        ? oneAgentReasoningModelId
+        : oneAgentModelId;
+
+    const model = openaiCompatible(resolvedModelId) as Parameters<
       typeof wrapLanguageModel
     >[0]["model"];
 
@@ -69,7 +85,7 @@ export function getTitleModel() {
     return myProvider.languageModel("title-model");
   }
   // Use OpenAI-compatible provider for title generation instead of AI Gateway
-  return openaiCompatible("gemini-3.1-flash-lite");
+  return openaiCompatible(oneTitleModelId);
 }
 
 export function getArtifactModel() {
@@ -77,5 +93,5 @@ export function getArtifactModel() {
     return myProvider.languageModel("artifact-model");
   }
   // Use OpenAI-compatible provider for artifact generation instead of AI Gateway
-  return openaiCompatible("gemini-3.1-flash-lite");
+  return openaiCompatible(oneArtifactModelId);
 }

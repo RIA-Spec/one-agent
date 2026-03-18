@@ -5,6 +5,15 @@ const API_SEARCH_ENDPOINT = "/mcp";
 const DEFAULT_NUM_RESULTS = 8;
 const DEFAULT_TIMEOUT_MS = 25_000;
 
+function buildSearchUrl(exaApiKey?: string): string {
+  const url = new URL(`${API_BASE_URL}${API_SEARCH_ENDPOINT}`);
+  const key = exaApiKey?.trim();
+  if (key) {
+    url.searchParams.set("exaApiKey", key);
+  }
+  return url.toString();
+}
+
 type SearchRequest = {
   jsonrpc: "2.0";
   id: number;
@@ -118,6 +127,10 @@ export function createWebSearchTool() {
           type: "number",
           description: "Timeout in seconds (default: 25)",
         },
+        exaApiKey: {
+          type: "string",
+          description: "Exa API key (optional; defaults to ONE_EXA_API_KEY/EXA_API_KEY)",
+        },
       },
       required: ["query"],
     }),
@@ -129,6 +142,7 @@ export function createWebSearchTool() {
         type,
         contextMaxCharacters,
         timeoutSeconds,
+        exaApiKey,
       }: {
         query: string;
         numResults?: number;
@@ -136,6 +150,7 @@ export function createWebSearchTool() {
         type?: "auto" | "fast" | "deep";
         contextMaxCharacters?: number;
         timeoutSeconds?: number;
+        exaApiKey?: string;
       },
       extra?: any,
     ) => {
@@ -159,7 +174,12 @@ export function createWebSearchTool() {
           },
         };
 
-        const response = await fetch(`${API_BASE_URL}${API_SEARCH_ENDPOINT}`, {
+        const resolvedApiKey =
+          exaApiKey?.trim() ||
+          process.env.ONE_EXA_API_KEY?.trim() ||
+          process.env.EXA_API_KEY?.trim();
+
+        const response = await fetch(buildSearchUrl(resolvedApiKey), {
           method: "POST",
           headers: {
             accept: "application/json, text/event-stream",
