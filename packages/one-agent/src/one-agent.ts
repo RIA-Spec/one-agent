@@ -2,6 +2,7 @@
 import { runActCli } from "@one/act";
 import { runReasonCli } from "@one/reason";
 import { getToolFn } from "./interfaces/act.js";
+import { runReplCli } from "./repl.js";
 import { getServer } from "./tools.js";
 import { shutdownTracing, startTracing } from "./tracing.js";
 
@@ -9,6 +10,25 @@ type ActResult = {
   content?: Array<{ type?: string; text?: unknown }>;
   isError?: boolean;
 };
+
+function restoreTerminalState() {
+  // Best-effort reset for terminal modes that can leak from dependencies.
+  // Includes kitty CSI-u keyboard protocol and bracketed paste mode.
+  const reset = "\u001b[<u\u001b[?2004l\u001b[?25h\u001b[0m\u001b>";
+  if (process.stderr.isTTY) {
+    process.stderr.write(reset);
+  } else if (process.stdout.isTTY) {
+    process.stdout.write(reset);
+  }
+
+  if (process.stdin.isTTY && typeof process.stdin.setRawMode === "function") {
+    try {
+      process.stdin.setRawMode(false);
+    } catch {
+      // Ignore raw mode reset errors.
+    }
+  }
+}
 
 function parseJsonObject(raw: string, flagName: string): Record<string, unknown> {
   try {
@@ -31,6 +51,7 @@ function printHelp() {
     "  one-agent <command>",
     "",
     "Commands:",
+    "  repl                        Run interactive one-agent REPL",
     "  act [...args]                Run one-act CLI",
     "  reason [...args]             Run one-reason CLI",
     "  flow list                    List saved flows",
@@ -40,6 +61,7 @@ function printHelp() {
     "                               Execute a flow by name",
     "",
     "Examples:",
+    "  one-agent repl",
     "  one-agent flow list",
     "  one-agent flow read 10-life-hacks --include-script",
     "  one-agent flow run 10-life-hacks --params '{\"x\":1}'",
@@ -150,6 +172,11 @@ export async function runOneAgentCli(argv = process.argv.slice(2)) {
     return;
   }
 
+  if (command === "repl") {
+    await runReplCli();
+    return;
+  }
+
   if (command === "reason") {
     await runReasonCli(rest);
     return;
@@ -177,6 +204,7 @@ runOneAgentCli()
   })
   .finally(async () => {
     await shutdownTracing();
+    restoreTerminalState();
     if (isDirectCliInvocation) {
       process.exit(process.exitCode ?? 0);
     }

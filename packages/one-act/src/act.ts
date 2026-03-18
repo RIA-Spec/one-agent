@@ -529,9 +529,11 @@ async function runActRequest(options: {
       } catch {
         // Ignore cleanup errors so command result remains primary.
       }
-
-      restoreTerminalState();
     }
+
+    // Always restore terminal modes because dependencies can leak keyboard
+    // protocol / bracketed-paste state even when we reuse a server instance.
+    restoreTerminalState();
   }
 }
 

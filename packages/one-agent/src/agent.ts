@@ -39,6 +39,17 @@ const DEFAULT_MODEL_CONTEXT_WINDOW = 65_536;
 const DEFAULT_STEP_GUARD_RESERVE_TOKENS = 2_048;
 const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 const TOOL_RESULT_TOKENS_PER_CHAR = 0.5;
+const DEFAULT_CHAT_MODEL_ID = "gemini-3.1-pro";
+
+function resolveDefaultChatModelId(): string {
+  // Keep aligned with web runtime precedence for one-agent chat model selection.
+  return (
+    process.env.ONE_CHAT_MODEL?.trim() ||
+    process.env.ONE_AGENT_MODEL?.trim() ||
+    process.env.MODEL?.trim() ||
+    DEFAULT_CHAT_MODEL_ID
+  );
+}
 
 function estimateToolResultsTokens(toolResults: unknown): number {
   if (!toolResults) {
@@ -192,7 +203,7 @@ export async function agentStream(
 ): Promise<StreamTextResult<any, any>> {
   const {
     messages,
-    model = openaiCompatible("gemini-3.1-pro"),
+    model,
     system = AGENT_SYSTEM_PROMPT,
     maxSteps = 101,
     abortSignal,
@@ -202,6 +213,8 @@ export async function agentStream(
     onError,
   } = options;
 
+  const resolvedModel = model ?? openaiCompatible(resolveDefaultChatModelId());
+
   const tools = convertToAISDKTools(await getServer(), {
     tool: tool,
     jsonSchema: jsonSchema,
@@ -210,7 +223,7 @@ export async function agentStream(
   const diagnosticsBefore = getCompactionDiagnostics(messages, system);
   const streamMessages = enableAutoCompact
     ? await autoCompactMessages({
-        model,
+        model: resolvedModel,
         system,
         messages,
         abortSignal,
@@ -267,7 +280,7 @@ export async function agentStream(
         thinkingEnabled: true,
       },
     },
-    model,
+    model: resolvedModel,
     maxOutputTokens,
     abortSignal,
     tools: { one: tools["one"] },
@@ -328,7 +341,7 @@ export async function agentStream(
       });
 
       const compactedMessages = await autoCompactMessages({
-        model,
+        model: resolvedModel,
         system,
         messages: effectiveMessages,
         abortSignal,
