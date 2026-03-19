@@ -190,6 +190,10 @@ function shouldAutoCompact(messages: ModelMessage[], system?: string): boolean {
   return estimateTokens(messages, system) >= getAutoCompactTokenLimit();
 }
 
+function getSummarizationHistoryTokenLimit(reservedTokens: number): number {
+  return Math.max(1, getAutoCompactTokenLimit() - Math.max(0, reservedTokens));
+}
+
 export function getCompactionDiagnostics(messages: ModelMessage[], system?: string) {
   const estimatedTokens = estimateTokens(messages, system);
   const tokenLimit = getAutoCompactTokenLimit();
@@ -242,7 +246,7 @@ async function summarizeHistory(params: {
   const { model, system, history, reservedTokens = DEFAULT_RESERVED_TOKENS, abortSignal } = params;
   if (history.length === 0) return null;
 
-  const compactLimit = Math.max(8_000, getAutoCompactTokenLimit() - reservedTokens);
+  const compactLimit = getSummarizationHistoryTokenLimit(reservedTokens);
   const trimmedHistory = trimToTokenBudget(history, compactLimit);
 
   const { text } = await generateText({

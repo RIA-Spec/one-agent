@@ -90,6 +90,7 @@ function expectNoOrphanToolMessages(messages: ModelMessage[]) {
 afterEach(() => {
   generateTextMock.mockReset();
   delete process.env.ONE_AUTO_COMPACT_TOKEN_LIMIT;
+  delete process.env.ONE_MODEL_CONTEXT_WINDOW;
 });
 
 describe("autoCompactMessages", () => {
@@ -173,5 +174,35 @@ describe("autoCompactMessages", () => {
     expect(compacted[0]?.role).not.toBe("tool");
     expectNoOrphanToolMessages(compacted);
     expect(compacted.every((message) => message.role !== "tool")).toBe(true);
+  });
+
+  it("does not keep an oversized summarization history floor under a small context window", async () => {
+    process.env.ONE_MODEL_CONTEXT_WINDOW = "5000";
+    generateTextMock.mockResolvedValue({ text: "summary" });
+
+    const { autoCompactMessages } = await import("../src/compaction.js");
+    const largeText = "x".repeat(3000);
+
+    await autoCompactMessages({
+      model: {} as any,
+      system: "system",
+      messages: [
+        createAssistantMessage(largeText),
+        createUserMessage(largeText),
+        createAssistantMessage(largeText),
+        createUserMessage("latest question"),
+      ],
+      force: true,
+    });
+
+    const generateCall = generateTextMock.mock.calls.at(0)?.[0] as
+      | { messages?: ModelMessage[] }
+      | undefined;
+
+    expect(generateCall?.messages).toHaveLength(2);
+    expect(generateCall?.messages?.[1]).toMatchObject({
+      role: "user",
+      content: expect.stringContaining("context checkpoint compaction"),
+    });
   });
 });
