@@ -20,6 +20,9 @@ export const ACT_DAEMON_LOG_PATH = getOneConfigPath("act-daemon.log");
 const DAEMON_START_TIMEOUT_MS = 10_000;
 const DAEMON_STOP_TIMEOUT_MS = 5_000;
 const DAEMON_POLL_INTERVAL_MS = 100;
+const DAEMON_HEALTH_TIMEOUT_MS = 3_000;
+const DAEMON_CONTROL_TIMEOUT_MS = 5_000;
+const DAEMON_INVOKE_TIMEOUT_MS = 300_000;
 
 type DaemonModeConfig =
   | boolean
@@ -203,17 +206,24 @@ function isProcessRunning(pid: number) {
 async function requestDaemon<T>(
   state: ActDaemonState,
   path: string,
-  init?: Omit<RequestInit, "headers"> & { headers?: Record<string, string> },
+  init?: Omit<RequestInit, "headers"> & {
+    headers?: Record<string, string>;
+    timeoutMs?: number;
+  },
 ): Promise<T> {
   const headers: Record<string, string> = {
     "x-one-act-token": state.token,
     ...(init?.headers ?? {}),
   };
 
+  const { timeoutMs, ...requestInit } = init ?? {};
+
   const response = await fetch(`http://${ACT_DAEMON_HOST}:${state.port}${path}`, {
-    ...init,
+    ...requestInit,
     headers,
-    signal: init?.signal ?? AbortSignal.timeout(3_000),
+    signal:
+      requestInit.signal ??
+      (typeof timeoutMs === "number" ? AbortSignal.timeout(timeoutMs) : undefined),
   });
 
   const bodyText = await response.text();
@@ -231,7 +241,10 @@ async function requestDaemon<T>(
 }
 
 async function readDaemonHealth(state: ActDaemonState): Promise<ActDaemonHealth> {
-  return requestDaemon<ActDaemonHealth>(state, "/health", { method: "GET" });
+  return requestDaemon<ActDaemonHealth>(state, "/health", {
+    method: "GET",
+    timeoutMs: DAEMON_HEALTH_TIMEOUT_MS,
+  });
 }
 
 async function waitForDaemonStatus(configHash: string): Promise<ActDaemonStatus> {
@@ -386,6 +399,7 @@ export async function ensureActDaemonClient(
       const response = await requestDaemon<{ value: string }>(state, "/invoke", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        timeoutMs: DAEMON_INVOKE_TIMEOUT_MS,
         body: JSON.stringify({ kind: "manual-list", forceJson } satisfies ActDaemonInvokePayload),
       });
       return response.value;
@@ -394,6 +408,7 @@ export async function ensureActDaemonClient(
       const response = await requestDaemon<{ value: string }>(state, "/invoke", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        timeoutMs: DAEMON_INVOKE_TIMEOUT_MS,
         body: JSON.stringify({ kind: "manual-tool", name } satisfies ActDaemonInvokePayload),
       });
       return response.value;
@@ -402,6 +417,7 @@ export async function ensureActDaemonClient(
       const response = await requestDaemon<{ value: unknown }>(state, "/invoke", {
         method: "POST",
         headers: { "content-type": "application/json" },
+        timeoutMs: DAEMON_INVOKE_TIMEOUT_MS,
         body: JSON.stringify({ kind: "call-tool", name, args } satisfies ActDaemonInvokePayload),
       });
       return response.value;
@@ -419,6 +435,7 @@ export async function stopActDaemon(): Promise<boolean> {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({}),
+        timeoutMs: DAEMON_CONTROL_TIMEOUT_MS,
       });
     } catch {
       // Fall back to process signals below.
