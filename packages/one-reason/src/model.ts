@@ -23,7 +23,11 @@ type WrappedModelConfig = Parameters<typeof wrapLanguageModel>[0];
 type AcpProviderConfig = Parameters<typeof createACPProvider>[0];
 type AcpSessionConfig = NonNullable<AcpProviderConfig["session"]>;
 
-function wrap(model: LanguageModel): LanguageModel {
+function wrap(model: LanguageModel, enableDevTools: boolean): LanguageModel {
+  if (!enableDevTools) {
+    return model;
+  }
+
   return wrapLanguageModel({
     model: model as WrappedModelConfig["model"],
     middleware: devToolsMiddleware() as WrappedModelConfig["middleware"],
@@ -75,8 +79,19 @@ function readScopedValue(scope: Scope, key: string, config: ScopeConfig): string
 function parseBoolean(value: string | undefined): boolean | undefined {
   if (value == null || value === "") return undefined;
   if (value === "1" || value.toLowerCase() === "true") return true;
+  if (value.toLowerCase() === "yes" || value.toLowerCase() === "on") return true;
   if (value === "0" || value.toLowerCase() === "false") return false;
+  if (value.toLowerCase() === "no" || value.toLowerCase() === "off") return false;
   return undefined;
+}
+
+function isDebugEnabled(scope: Scope, config: ScopeConfig): boolean {
+  const scopedValue = parseBoolean(readScopedValue(scope, "DEBUG", config));
+  if (scopedValue != null) {
+    return scopedValue;
+  }
+
+  return parseBoolean(process.env.DEBUG) ?? false;
 }
 
 function parseJson<T>(value: string | undefined, fallback: T): T {
@@ -99,6 +114,7 @@ export async function resolveInterfaceModel(
   defaultModelId = "gemini-3.1-flash-lite",
 ): Promise<ResolvedInterfaceModel> {
   const config = loadScopedConfig(scope);
+  const enableDevTools = isDebugEnabled(scope, config);
   const provider = (
     readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
   ).toLowerCase() as InterfaceProvider;
@@ -112,7 +128,7 @@ export async function resolveInterfaceModel(
     });
 
     return {
-      model: wrap(anthropicProvider(modelId)),
+      model: wrap(anthropicProvider(modelId), enableDevTools),
       provider,
       modelId,
     };
@@ -132,7 +148,7 @@ export async function resolveInterfaceModel(
     });
 
     return {
-      model: wrap(openaiProvider(modelId)),
+      model: wrap(openaiProvider(modelId), enableDevTools),
       provider,
       modelId,
     };
@@ -156,7 +172,7 @@ export async function resolveInterfaceModel(
     });
 
     return {
-      model: wrap(compatibleProvider(modelId)),
+      model: wrap(compatibleProvider(modelId), enableDevTools),
       provider,
       modelId,
     };
@@ -189,7 +205,10 @@ export async function resolveInterfaceModel(
     const acpModeId = readScopedValue(scope, "ACP_MODE", config);
 
     return {
-      model: wrap(acpProvider.languageModel(acpModelId || undefined, acpModeId || undefined)),
+      model: wrap(
+        acpProvider.languageModel(acpModelId || undefined, acpModeId || undefined),
+        enableDevTools,
+      ),
       provider,
       modelId: acpModelId,
       cleanup: async () => {
