@@ -21,23 +21,18 @@ import {
 const ACT_CONFIG_PATH = getOneConfigPath("act.json");
 const MANUAL_TOOL_NAME = "__manual__";
 const HELP_DESCRIPTION =
-  "Deterministic MCP tool runner for agents: inspect tool schemas, invoke one tool with exact JSON, and optionally reuse a background daemon.";
-const HELP_MENTAL_MODEL = [
-  "act is stateless: every call must include the full tool name and complete JSON args.",
-  "act --manual is the source of truth for available tools and input schemas.",
-  "daemon reuses MCP connections across calls, but does not preserve tool-call context for you.",
+  "Deterministic MCP tool runner: discover tools, inspect schemas, call one tool with exact JSON, and optionally reuse a daemon.";
+const HELP_QUICKSTART = [
+  "List tools: act --manual",
+  "Inspect one schema: act --manual <tool>",
+  'Call one tool: act <tool> \'{"key":"value"}\'',
+  "Pipe generated JSON: jq -c '{...}' file.json | act <tool> -",
 ];
-const HELP_WORKFLOW = [
-  "1. List tools: act --manual",
-  "2. Inspect one schema: act --manual <tool>",
-  '3. Call exactly one tool with exact JSON: act <tool> \'{"key":"value"}\'',
-  "4. For generated JSON, pipe via stdin: jq -c '{...}' file.json | act <tool> -",
-  "5. For repeated calls, start daemon first: act daemon start",
-];
-const HELP_RULES = [
-  "Do not guess tool names or arguments. Read them from act --manual output.",
-  "Keep args as valid JSON objects. Use --args - or positional '-' for stdin JSON.",
-  "Use daemon for long-lived MCP processes or repeated calls; stop it when finished.",
+const HELP_CONFIGURATION = [
+  `Default config file: ${ACT_CONFIG_PATH}`,
+  "File config keys: daemon, mcpServers",
+  "Env override: ONE_ACT_MCP_SERVERS='<json>'",
+  "Daemon override: ONE_ACT_DAEMON=true|false",
 ];
 const HELP_DAEMON = [
   "act daemon start     Start background daemon and keep MCP servers alive",
@@ -49,8 +44,9 @@ const HELP_EXAMPLES = [
   "act --manual",
   "act --manual chrome-devtools_navigate_page",
   'act chrome-devtools_new_page \'{"url":"https://example.com"}\'',
-  "jq -c '{url: .url}' page.json | act chrome-devtools_navigate_page -",
   "act daemon start",
+  "ONE_ACT_MCP_SERVERS=" +
+    '\'{"chrome-devtools":{"transportType":"stdio","command":"npx","args":["-y","chrome-devtools-mcp@latest","--autoConnect"]}}\' act --manual',
 ];
 
 export function getToolFn(server: ComposableMCPServer) {
@@ -718,16 +714,12 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
       body: HELP_DESCRIPTION,
     });
     sections.push({
-      title: "Mental Model",
-      body: HELP_MENTAL_MODEL.map((line) => `  ${line}`).join("\n"),
+      title: "Quickstart",
+      body: HELP_QUICKSTART.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
-      title: "Workflow",
-      body: HELP_WORKFLOW.map((line) => `  ${line}`).join("\n"),
-    });
-    sections.push({
-      title: "Rules",
-      body: HELP_RULES.map((line) => `  ${line}`).join("\n"),
+      title: "Configuration",
+      body: HELP_CONFIGURATION.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Daemon",
