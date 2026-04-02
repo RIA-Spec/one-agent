@@ -10,7 +10,17 @@ import { reason } from "./reason.js";
 const STDIN_POSITIONAL_SENTINEL = "__STDIN_POSITIONAL__";
 const REASON_CONFIG_PATH = getOneConfigPath("reason.json");
 const HELP_DESCRIPTION =
-  "AI command for structured extraction and decision-making: read prompt text, reason over it, and output JSON matching the required structure.";
+  "Structured reasoning runner: read prompt text, match a required JSON shape, and emit JSON.";
+const HELP_QUICKSTART = [
+  'Inline prompt: reason "hi" \'{"text":""}\'',
+  'Piped prompt: echo "hi" | reason - \'{"text":""}\'',
+  "The structure argument is required and must be valid JSON.",
+];
+const HELP_CONFIGURATION = [
+  `Default config file: ${REASON_CONFIG_PATH}`,
+  "Interactive setup: reason auth",
+  "Environment variables override file config.",
+];
 const HELP_EXAMPLES = [
   'reason "hi" \'{"text":""}\'',
   'echo "hi" | reason - \'{"text":""}\'',
@@ -241,6 +251,14 @@ export async function runReasonCli(args = process.argv.slice(2)) {
     sections.push({
       title: "Description",
       body: HELP_DESCRIPTION,
+    });
+    sections.push({
+      title: "Quickstart",
+      body: HELP_QUICKSTART.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Configuration",
+      body: HELP_CONFIGURATION.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Examples",
