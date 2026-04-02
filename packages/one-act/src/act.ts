@@ -1,23 +1,56 @@
-import {
-  mcpc,
-  type ComposableMCPServer,
-  type McpServerConfig,
-  type ToolRefXml,
-} from "@mcpc-tech/core";
+import { mcpc, type ComposableMCPServer, type ToolRefXml } from "@mcpc-tech/core";
 import { cac } from "cac";
-import { cancel, intro, isCancel, outro, select, text } from "@clack/prompts";
+import { cancel, confirm, intro, isCancel, outro, select, text } from "@clack/prompts";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
+import {
+  computeDaemonConfigHash,
+  ensureActDaemonClient,
+  getActDaemonStatus,
+  isDaemonRuntimeEnabled,
+  normalizeMcpServersForRuntime,
+  runActDaemonServer,
+  startActDaemon,
+  stopActDaemon,
+  type ActDaemonClient,
+  type ActDaemonSpawnOptions,
+  type McpServersConfig,
+} from "./daemon.js";
 
 const ACT_CONFIG_PATH = getOneConfigPath("act.json");
 const MANUAL_TOOL_NAME = "__manual__";
 const HELP_DESCRIPTION =
-  "Deterministic MCP tool invocation command: connect configured MCP servers, call tools with exact JSON args, and return structured output.";
+  "Deterministic MCP tool runner for agents: inspect tool schemas, invoke one tool with exact JSON, and optionally reuse a background daemon.";
+const HELP_MENTAL_MODEL = [
+  "act is stateless: every call must include the full tool name and complete JSON args.",
+  "act --manual is the source of truth for available tools and input schemas.",
+  "daemon reuses MCP connections across calls, but does not preserve tool-call context for you.",
+];
+const HELP_WORKFLOW = [
+  "1. List tools: act --manual",
+  "2. Inspect one schema: act --manual <tool>",
+  '3. Call exactly one tool with exact JSON: act <tool> \'{"key":"value"}\'',
+  "4. For generated JSON, pipe via stdin: jq -c '{...}' file.json | act <tool> -",
+  "5. For repeated calls, start daemon first: act daemon start",
+];
+const HELP_RULES = [
+  "Do not guess tool names or arguments. Read them from act --manual output.",
+  "Keep args as valid JSON objects. Use --args - or positional '-' for stdin JSON.",
+  "Use daemon for long-lived MCP processes or repeated calls; stop it when finished.",
+];
+const HELP_DAEMON = [
+  "act daemon start     Start background daemon and keep MCP servers alive",
+  "act daemon status    Show daemon status",
+  "act daemon restart   Restart daemon after config changes",
+  "act daemon stop      Stop daemon and release MCP processes",
+];
 const HELP_EXAMPLES = [
-  'act bash \'{"command":"ls -la"}\'',
-  "jq -c '{command: .action}' result.json | act bash -",
-  "act --manual playwright_browser_click",
+  "act --manual",
+  "act --manual chrome-devtools_navigate_page",
+  'act chrome-devtools_new_page \'{"url":"https://example.com"}\'',
+  "jq -c '{url: .url}' page.json | act chrome-devtools_navigate_page -",
+  "act daemon start",
 ];
 
 export function getToolFn(server: ComposableMCPServer) {
@@ -63,8 +96,6 @@ type ToolListingServer = ComposableMCPServer & {
   getPublicTools?: () => unknown;
 };
 
-type McpServersConfig = Record<string, McpServerConfig>;
-
 function parseMcpServersValue(value: unknown): McpServersConfig | null {
   if (value == null || value === "") return null;
 
@@ -107,13 +138,14 @@ function createGetServerFromMcpServers(mcpServers: McpServersConfig): GetServerF
   return async () => {
     if (cachedServer) return cachedServer;
 
+    const runtimeMcpServers = normalizeMcpServersForRuntime(mcpServers);
     const refs = getMcpServerNames(mcpServers).map(
       (name) => `<tool name="${name}.__ALL__"/>` as ToolRefXml,
     );
     const composeEntry = {
       name: "one-act-runtime",
       description: "MCP tool runtime for act",
-      deps: { mcpServers },
+      deps: { mcpServers: runtimeMcpServers },
       options: { refs },
     };
 
@@ -266,6 +298,18 @@ async function runActConfigCli() {
     if (envRaw) {
       serverConfig.env = parseEnvInput(envRaw);
     }
+  }
+
+  const daemonMode = await confirm({
+    message: "keep this MCP server running in one-act daemon?",
+    initialValue: transportType === "stdio",
+  });
+  if (isCancel(daemonMode)) {
+    cancel("Operation cancelled.");
+    return;
+  }
+  if (daemonMode) {
+    serverConfig.daemon = true;
   }
 
   if (transportType === "streamable-http" || transportType === "sse") {
@@ -463,6 +507,7 @@ async function runActRequest(options: {
   rawArgs?: string;
   cliOptions: ActCommandOptions;
   getServer?: GetServerFn;
+  daemonClient?: ActDaemonClient;
   shouldCleanupServer: boolean;
   outputHelp: () => void;
 }) {
@@ -495,18 +540,22 @@ async function runActRequest(options: {
     return;
   }
 
-  if (!options.getServer) {
+  if (!options.getServer && !options.daemonClient) {
     throw new Error(
       "No MCP server configuration found. Configure mcpServers in ~/.config/one/act.json (or ONE_ACT_MCP_SERVERS).",
     );
   }
 
-  const server = await options.getServer();
+  const server = options.getServer ? await options.getServer() : null;
   try {
     if (showManual) {
-      const output = manualToolName
-        ? formatManualTool(server, manualToolName)
-        : formatManualList(server, forceJson);
+      const output = options.daemonClient
+        ? manualToolName
+          ? await options.daemonClient.formatManualTool(manualToolName)
+          : await options.daemonClient.formatManualList(forceJson)
+        : manualToolName
+          ? formatManualTool(server as ComposableMCPServer, manualToolName)
+          : formatManualList(server as ComposableMCPServer, forceJson);
       process.stdout.write(`${output}\n`);
       return;
     }
@@ -514,8 +563,9 @@ async function runActRequest(options: {
     const stdin = needsStdin ? await readStdin() : "";
     const toolArgs = parseJson(needsStdin ? stdin : argsSource, "--args");
 
-    const act = getToolFn(server);
-    const result = await act(toolName, toolArgs);
+    const result = options.daemonClient
+      ? await options.daemonClient.callTool(toolName, toolArgs)
+      : await getToolFn(server as ComposableMCPServer)(toolName, toolArgs);
     const output = formatCliOutput(result, forceJson);
 
     process.stdout.write(`${output}\n`);
@@ -523,7 +573,7 @@ async function runActRequest(options: {
       process.exitCode = 1;
     }
   } finally {
-    if (options.shouldCleanupServer) {
+    if (options.shouldCleanupServer && server) {
       try {
         await server.close();
       } catch {
@@ -537,22 +587,151 @@ async function runActRequest(options: {
   }
 }
 
+function createDaemonSpawnOptions(): ActDaemonSpawnOptions {
+  const scriptPath = process.argv[1];
+  if (!scriptPath) {
+    throw new Error("Cannot determine act CLI entrypoint for daemon startup.");
+  }
+
+  return {
+    execPath: process.execPath,
+    execArgv: process.execArgv,
+    scriptPath,
+  };
+}
+
+function requireConfiguredMcpServers(mcpServers: McpServersConfig | null): McpServersConfig {
+  if (mcpServers) return mcpServers;
+  throw new Error(
+    "No MCP server configuration found. Configure mcpServers in ~/.config/one/act.json (or ONE_ACT_MCP_SERVERS).",
+  );
+}
+
+async function runActDaemonServe(mcpServers: McpServersConfig) {
+  const server = await createGetServerFromMcpServers(mcpServers)();
+  const configHash = computeDaemonConfigHash(mcpServers);
+
+  await runActDaemonServer({
+    configHash,
+    handlers: {
+      formatManualList: (forceJson) => formatManualList(server, forceJson),
+      formatManualTool: (name) => formatManualTool(server, name),
+      callTool: (name, args) => getToolFn(server)(name, args),
+      close: async () => {
+        await server.close();
+      },
+    },
+  });
+}
+
+function formatDaemonStatusOutput(status: Awaited<ReturnType<typeof getActDaemonStatus>>) {
+  if (!status.running) {
+    return `one-act daemon: stopped (${status.reason})`;
+  }
+
+  if (!status.healthy) {
+    return `one-act daemon: unhealthy (${status.reason}) pid=${status.pid ?? "?"} port=${status.port ?? "?"}`;
+  }
+
+  return `one-act daemon: running pid=${status.pid} port=${status.port} started=${status.startedAt}`;
+}
+
+async function runDaemonCommand(
+  action: string | undefined,
+  configuredMcpServers: McpServersConfig | null,
+  daemonConfigHash: string | undefined,
+  daemonSpawnOptions: ActDaemonSpawnOptions | undefined,
+) {
+  switch (action) {
+    case "start": {
+      const mcpServers = requireConfiguredMcpServers(configuredMcpServers);
+      const spawnOptions = daemonSpawnOptions ?? createDaemonSpawnOptions();
+      const status = await startActDaemon(spawnOptions, computeDaemonConfigHash(mcpServers));
+      process.stdout.write(`${formatDaemonStatusOutput(status)}\n`);
+      return;
+    }
+    case "stop": {
+      const stopped = await stopActDaemon();
+      process.stdout.write(
+        `${stopped ? "one-act daemon: stopped" : "one-act daemon: not running"}\n`,
+      );
+      return;
+    }
+    case "restart": {
+      const mcpServers = requireConfiguredMcpServers(configuredMcpServers);
+      const spawnOptions = daemonSpawnOptions ?? createDaemonSpawnOptions();
+      await stopActDaemon();
+      const status = await startActDaemon(spawnOptions, computeDaemonConfigHash(mcpServers));
+      process.stdout.write(`${formatDaemonStatusOutput(status)}\n`);
+      return;
+    }
+    case "status": {
+      const status = await getActDaemonStatus(daemonConfigHash);
+      process.stdout.write(`${formatDaemonStatusOutput(status)}\n`);
+      if (status.running && !status.healthy) {
+        process.exitCode = 1;
+      }
+      return;
+    }
+    case "serve": {
+      await runActDaemonServe(requireConfiguredMcpServers(configuredMcpServers));
+      return;
+    }
+    default:
+      throw new Error("Unknown daemon command. Use: start | stop | restart | status");
+  }
+}
+
 export async function runActCli(options?: { getServer?: GetServerFn; argv?: string[] }) {
   const args = options?.argv ?? process.argv.slice(2);
+  if (args[0] === "auth") {
+    throw new Error("'act auth' was removed. Use 'act config' instead.");
+  }
+
   const actConfig = readActConfig();
   const configuredMcpServers = readConfiguredMcpServers(actConfig);
+  const daemonEnabled =
+    !options?.getServer &&
+    Boolean(configuredMcpServers) &&
+    isDaemonRuntimeEnabled(actConfig, configuredMcpServers as McpServersConfig);
+  const daemonConfigHash = configuredMcpServers
+    ? computeDaemonConfigHash(configuredMcpServers)
+    : undefined;
+  const daemonSpawnOptions = daemonEnabled ? createDaemonSpawnOptions() : undefined;
   const getServer =
-    options?.getServer ??
-    (configuredMcpServers ? createGetServerFromMcpServers(configuredMcpServers) : undefined);
-  const shouldCleanupServer = !options?.getServer;
+    daemonEnabled || !configuredMcpServers
+      ? options?.getServer
+      : (options?.getServer ?? createGetServerFromMcpServers(configuredMcpServers));
+  const shouldCleanupServer = !options?.getServer && !daemonEnabled;
+
+  if (args[0] === "daemon" && !args.includes("--help") && !args.includes("-h")) {
+    await runDaemonCommand(args[1], configuredMcpServers, daemonConfigHash, daemonSpawnOptions);
+    return;
+  }
 
   const cli = cac("act");
 
-  cli.usage(`${HELP_DESCRIPTION}\n\n<tool> <json|->`);
+  cli.usage(`${HELP_DESCRIPTION}\n\n[--manual [tool]] | <tool> <json|-> | daemon <command>`);
   cli.help((sections) => {
     sections.push({
       title: "Description",
       body: HELP_DESCRIPTION,
+    });
+    sections.push({
+      title: "Mental Model",
+      body: HELP_MENTAL_MODEL.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Workflow",
+      body: HELP_WORKFLOW.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Rules",
+      body: HELP_RULES.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Daemon",
+      body: HELP_DAEMON.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Examples",
@@ -567,12 +746,16 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
     pending = runActConfigCli();
   });
 
-  cli.command("auth", "Deprecated alias for config").action(() => {
-    pending = (async () => {
-      console.error("'act auth' is deprecated. Use 'act config' instead.");
-      await runActConfigCli();
-    })();
-  });
+  cli
+    .command("daemon <action>", "Manage background daemon: start | status | restart | stop")
+    .action((action: string) => {
+      pending = runDaemonCommand(
+        action,
+        configuredMcpServers,
+        daemonConfigHash,
+        daemonSpawnOptions,
+      );
+    });
 
   cli
     .command("[tool] [toolArgs]", "Deterministic MCP tool invocation")
@@ -586,14 +769,22 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
         toolArgs: string | undefined,
         cliOptions: ActCommandOptions,
       ) => {
-        pending = runActRequest({
-          toolName,
-          rawArgs: toolArgs,
-          cliOptions,
-          getServer,
-          shouldCleanupServer,
-          outputHelp: () => cli.outputHelp(),
-        });
+        pending = (async () => {
+          const daemonClient =
+            daemonEnabled && daemonSpawnOptions && daemonConfigHash
+              ? await ensureActDaemonClient(daemonSpawnOptions, daemonConfigHash)
+              : undefined;
+
+          await runActRequest({
+            toolName,
+            rawArgs: toolArgs,
+            cliOptions,
+            getServer,
+            daemonClient,
+            shouldCleanupServer,
+            outputHelp: () => cli.outputHelp(),
+          });
+        })();
       },
     );
 
