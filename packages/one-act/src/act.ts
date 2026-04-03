@@ -1,8 +1,20 @@
 import { mcpc, type ComposableMCPServer, type ToolRefXml } from "@mcpc-tech/core";
 import { cac } from "cac";
 import { cancel, confirm, intro, isCancel, outro, select, text } from "@clack/prompts";
+import {
+  CallToolResultSchema,
+  type AudioContent,
+  type BlobResourceContents,
+  type CallToolResult,
+  type ContentBlock,
+  type EmbeddedResource,
+  type ImageContent,
+  type ResourceLink,
+  type TextContent,
+  type TextResourceContents,
+} from "@modelcontextprotocol/sdk/types.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname, extname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
 import {
   computeDaemonConfigHash,
@@ -19,6 +31,7 @@ import {
 } from "./daemon.js";
 
 const ACT_CONFIG_PATH = getOneConfigPath("act.json");
+const ACT_OUTPUT_DIR = getOneConfigPath("act-output");
 const MANUAL_TOOL_NAME = "__manual__";
 const HELP_DESCRIPTION =
   "Deterministic MCP tool runner: discover tools, inspect schemas, call one tool with exact JSON, and optionally reuse a daemon.";
@@ -50,7 +63,7 @@ const HELP_EXAMPLES = [
 ];
 
 export function getToolFn(server: ComposableMCPServer) {
-  const act = async (name: string, args: unknown) => {
+  const act = async (name: string, args: unknown): Promise<CallToolResult> => {
     if (name === MANUAL_TOOL_NAME) {
       const manualArgs = (args ?? {}) as { name?: string };
       const text = manualArgs.name
@@ -64,7 +77,7 @@ export function getToolFn(server: ComposableMCPServer) {
       return createUnknownToolResult(server, name);
     }
 
-    return server.callTool(name, args);
+    return parseCallToolResult(await server.callTool(name, args));
   };
 
   return act;
@@ -90,6 +103,33 @@ type ToolListingServer = ComposableMCPServer & {
   getAllComposedTools?: () => unknown;
   getAllTools?: () => unknown;
   getPublicTools?: () => unknown;
+};
+
+type SerializedImageContent = Omit<ImageContent, "data"> & {
+  filePath: string;
+};
+
+type SerializedAudioContent = Omit<AudioContent, "data"> & {
+  filePath: string;
+};
+
+type SerializedBlobResourceContents = Omit<BlobResourceContents, "blob"> & {
+  filePath: string;
+};
+
+type SerializedEmbeddedResource = Omit<EmbeddedResource, "resource"> & {
+  resource: TextResourceContents | SerializedBlobResourceContents;
+};
+
+type SerializedContentBlock =
+  | TextContent
+  | SerializedImageContent
+  | SerializedAudioContent
+  | ResourceLink
+  | SerializedEmbeddedResource;
+
+type SerializedCallToolResult = Omit<CallToolResult, "content"> & {
+  content: SerializedContentBlock[];
 };
 
 function parseMcpServersValue(value: unknown): McpServersConfig | null {
@@ -359,26 +399,260 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-function formatCliOutput(result: unknown, forceJson: boolean) {
+function parseCallToolResult(result: unknown): CallToolResult {
+  const parsed = CallToolResultSchema.safeParse(result);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  throw new Error(`Invalid MCP tool result: ${parsed.error.message}`);
+}
+
+function sanitizeFileName(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return "artifact";
+
+  return trimmed
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function getMimeExtension(mimeType?: string) {
+  switch ((mimeType ?? "").toLowerCase()) {
+    case "image/png":
+      return ".png";
+    case "image/jpeg":
+      return ".jpg";
+    case "image/webp":
+      return ".webp";
+    case "image/gif":
+      return ".gif";
+    case "image/svg+xml":
+      return ".svg";
+    case "audio/mpeg":
+      return ".mp3";
+    case "audio/wav":
+    case "audio/x-wav":
+      return ".wav";
+    case "audio/ogg":
+      return ".ogg";
+    case "audio/flac":
+      return ".flac";
+    case "audio/webm":
+      return ".webm";
+    case "application/pdf":
+      return ".pdf";
+    case "application/json":
+      return ".json";
+    case "text/plain":
+      return ".txt";
+    case "text/html":
+      return ".html";
+    case "text/csv":
+      return ".csv";
+    case "application/xml":
+    case "text/xml":
+      return ".xml";
+    default:
+      return "";
+  }
+}
+
+function getUriExtension(uri?: string) {
+  if (!uri) return "";
+
+  try {
+    const parsed = new URL(uri);
+    return extname(parsed.pathname);
+  } catch {
+    return extname(uri);
+  }
+}
+
+function getUriBaseName(uri?: string) {
+  if (!uri) return "artifact";
+
+  try {
+    const parsed = new URL(uri);
+    const name = basename(parsed.pathname);
+    return name || "artifact";
+  } catch {
+    const name = basename(uri);
+    return name || "artifact";
+  }
+}
+
+function createArtifactFilePath(options: {
+  kind: string;
+  index: number;
+  mimeType?: string;
+  uri?: string;
+}) {
+  mkdirSync(ACT_OUTPUT_DIR, { recursive: true });
+
+  const uriBaseName = sanitizeFileName(getUriBaseName(options.uri));
+  const baseName = uriBaseName === "artifact" ? options.kind : uriBaseName;
+  const derivedExtension =
+    getUriExtension(options.uri) || getMimeExtension(options.mimeType) || ".bin";
+  const timestamp = new Date().toISOString().replace(/[.:]/g, "-");
+  const fileName = `${timestamp}-${process.pid}-${options.index}-${sanitizeFileName(baseName)}${derivedExtension}`;
+  return getOneConfigPath(`act-output/${fileName}`);
+}
+
+function writeBinaryArtifact(options: {
+  kind: string;
+  index: number;
+  data: string;
+  mimeType?: string;
+  uri?: string;
+}) {
+  const filePath = createArtifactFilePath(options);
+  writeFileSync(filePath, Buffer.from(options.data, "base64"));
+  return filePath;
+}
+
+type CliRenderedItem = {
+  text: string;
+  json: SerializedContentBlock;
+};
+
+function renderTextContent(item: TextContent): CliRenderedItem {
+  return {
+    text: item.text,
+    json: item,
+  };
+}
+
+function renderImageContent(item: ImageContent, index: number, total: number): CliRenderedItem {
+  const filePath = writeBinaryArtifact({
+    kind: "image",
+    index,
+    data: item.data,
+    mimeType: item.mimeType,
+  });
+
+  return {
+    text: total === 1 ? filePath : `[image saved to ${filePath}]`,
+    json: {
+      type: item.type,
+      mimeType: item.mimeType,
+      annotations: item.annotations,
+      _meta: item._meta,
+      filePath,
+    },
+  };
+}
+
+function renderAudioContent(item: AudioContent, index: number, total: number): CliRenderedItem {
+  const filePath = writeBinaryArtifact({
+    kind: "audio",
+    index,
+    data: item.data,
+    mimeType: item.mimeType,
+  });
+
+  return {
+    text: total === 1 ? filePath : `[audio saved to ${filePath}]`,
+    json: {
+      type: item.type,
+      mimeType: item.mimeType,
+      annotations: item.annotations,
+      _meta: item._meta,
+      filePath,
+    },
+  };
+}
+
+function renderResourceLink(item: ResourceLink, total: number): CliRenderedItem {
+  return {
+    text: total === 1 ? item.uri : `[resource link ${item.uri}]`,
+    json: item,
+  };
+}
+
+function renderEmbeddedResource(
+  item: EmbeddedResource,
+  index: number,
+  total: number,
+): CliRenderedItem {
+  const resource = item.resource;
+
+  if ("text" in resource) {
+    const textResource: TextResourceContents = resource;
+    return {
+      text:
+        total === 1 || !textResource.uri
+          ? textResource.text
+          : `[resource ${textResource.uri}]\n${textResource.text}`,
+      json: {
+        ...item,
+        resource: textResource,
+      },
+    };
+  }
+
+  const blobResource: BlobResourceContents = resource;
+  const filePath = writeBinaryArtifact({
+    kind: "resource",
+    index,
+    data: blobResource.blob,
+    mimeType: blobResource.mimeType,
+    uri: blobResource.uri,
+  });
+
+  return {
+    text: total === 1 ? filePath : `[resource saved to ${filePath}]`,
+    json: {
+      ...item,
+      resource: {
+        uri: blobResource.uri,
+        mimeType: blobResource.mimeType,
+        _meta: blobResource._meta,
+        filePath,
+      },
+    },
+  };
+}
+
+function renderContentItem(item: ContentBlock, index: number, total: number): CliRenderedItem {
+  switch (item.type) {
+    case "text":
+      return renderTextContent(item);
+    case "image":
+      return renderImageContent(item, index, total);
+    case "audio":
+      return renderAudioContent(item, index, total);
+    case "resource_link":
+      return renderResourceLink(item, total);
+    case "resource":
+      return renderEmbeddedResource(item, index, total);
+  }
+}
+
+function serializeCliResult(result: CallToolResult): SerializedCallToolResult {
+  const content = result.content;
+
+  return {
+    ...result,
+    content: content.map((item, index) => renderContentItem(item, index + 1, content.length).json),
+  };
+}
+
+function formatCliOutput(result: CallToolResult, forceJson: boolean) {
   if (forceJson) {
-    return JSON.stringify(result, null, 2);
+    return JSON.stringify(serializeCliResult(result), null, 2);
   }
 
-  if (isRecord(result) && Array.isArray(result.content)) {
-    const allText = result.content.every(
-      (item) =>
-        isRecord(item) &&
-        item.type === "text" &&
-        (item.text == null || typeof item.text === "string"),
-    );
-    if (allText) {
-      return result.content
-        .map((item) => (isRecord(item) && typeof item.text === "string" ? item.text : ""))
-        .join("\n");
-    }
+  const content = result.content;
+  const allText = content.every((item): item is TextContent => item.type === "text");
+  if (allText) {
+    return content.map((item) => item.text).join("\n");
   }
 
-  return JSON.stringify(result, null, 2);
+  return content
+    .map((item, index) => renderContentItem(item, index + 1, content.length).text)
+    .join("\n\n");
 }
 
 function parseJson(value: string, label: string) {
@@ -445,7 +719,7 @@ function getAvailableToolNames(server: ComposableMCPServer) {
     .sort((left, right) => left.localeCompare(right));
 }
 
-function createUnknownToolResult(server: ComposableMCPServer, name: string) {
+function createUnknownToolResult(server: ComposableMCPServer, name: string): CallToolResult {
   const toolNames = getAvailableToolNames(server);
   const available = toolNames.length > 0 ? toolNames.join("\n") : "(no tools available)";
   const deUnderscoredName = name.replace(/^_+|_+$/g, "");
@@ -559,13 +833,13 @@ async function runActRequest(options: {
     const stdin = needsStdin ? await readStdin() : "";
     const toolArgs = parseJson(needsStdin ? stdin : argsSource, "--args");
 
-    const result = options.daemonClient
+    const result: CallToolResult = options.daemonClient
       ? await options.daemonClient.callTool(toolName, toolArgs)
       : await getToolFn(server as ComposableMCPServer)(toolName, toolArgs);
     const output = formatCliOutput(result, forceJson);
 
     process.stdout.write(`${output}\n`);
-    if (isRecord(result) && Boolean(result.isError)) {
+    if (result.isError) {
       process.exitCode = 1;
     }
   } finally {

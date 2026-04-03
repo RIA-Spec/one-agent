@@ -1,4 +1,5 @@
 import type { McpServerConfig } from "@mcpc-tech/core";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
 import {
@@ -89,13 +90,13 @@ export type ActDaemonStatus = {
 export type ActDaemonClient = {
   formatManualList: (forceJson: boolean) => Promise<string>;
   formatManualTool: (name: string) => Promise<string>;
-  callTool: (name: string, args: unknown) => Promise<unknown>;
+  callTool: (name: string, args: unknown) => Promise<CallToolResult>;
 };
 
 export type ActDaemonHandlers = {
   formatManualList: (forceJson: boolean) => string;
   formatManualTool: (name: string) => string;
-  callTool: (name: string, args: unknown) => Promise<unknown>;
+  callTool: (name: string, args: unknown) => Promise<CallToolResult>;
   close: () => Promise<void>;
 };
 
@@ -414,7 +415,7 @@ export async function ensureActDaemonClient(
       return response.value;
     },
     callTool: async (name: string, args: unknown) => {
-      const response = await requestDaemon<{ value: unknown }>(state, "/invoke", {
+      const response = await requestDaemon<{ value: CallToolResult }>(state, "/invoke", {
         method: "POST",
         headers: { "content-type": "application/json" },
         timeoutMs: DAEMON_INVOKE_TIMEOUT_MS,
