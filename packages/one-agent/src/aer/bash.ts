@@ -170,7 +170,7 @@ export function createBashAER(config: BashAERConfig) {
     name: "bash",
     description: `Bash Action Execution Runtime - Execute bash with built-in reason and act commands.
 
-  reason --prompt "text" [--prompt -] [--structure '{"key":""}']  (returns JSON with data/error)
+  reason [--prompt "text"] [prompt|-] [--structure '{"key":""}'|structure]  (returns JSON with data/error)
   act --manual [tool]
   act <tool> '{"key":"value"}'
   act <tool> -
@@ -181,7 +181,7 @@ File system: ${config.cwd} -> ${config.cwd}
 Usage:
   echo '{"url":"https://example.com","format":"text"}' | act webfetch - > a.json && \
   cat a.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat a.json; exit 1; } && \
-  cat a.json | jq -r '.text[:8000]' | reason --prompt 'Summarize:' --prompt - --structure '{"summary":""}' > r.json && \
+  cat a.json | jq -r '.text[:8000]' | reason --prompt 'Summarize:' - '{"summary":""}' > r.json && \
   cat r.json | jq -r 'if .error then .error else .data.summary end'
 
 Execute Bash commands on host shell runtime. Return stdout/stderr.
@@ -214,7 +214,7 @@ echo 'hello world' | tr 'a-z' 'A-Z'
 \`\`\`bash
 act --manual > m.json && \
 cat m.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat m.json; exit 1; } && \
-cat m.json | jq -r '.text[:3000]' | reason --prompt 'Extract likely tool names as array' --prompt - --structure '["bash"]' > r.json && \
+cat m.json | jq -r '.text[:3000]' | reason --prompt 'Extract likely tool names as array' - '["bash"]' > r.json && \
 cat r.json | jq -r 'if .error then .error else .data[] end'
 \`\`\`
 

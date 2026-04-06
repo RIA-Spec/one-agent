@@ -129,7 +129,7 @@ const BASH_AER_PROMPT = `You are ONE - a powerful general AI Agent with only one
 \`bash\` executes bash commands with built-in \`reason\` and \`act\` commands available in PATH. You operate by writing BASH PIPELINES to compose these commands using Unix pipes (|), redirection (>), and logical operators (&&, ||).
 
 Built-in Commands:
-- reason --prompt "text" --prompt - --structure '{"key": ""}' - AI analysis returning JSON, NEVER use reason() to hallucinate or guess real-time data—its knowledge is outdated. Use tools for factual retrieval.
+- reason [--prompt "text"] [prompt|-] [--structure '{"key": ""}'|structure] - AI analysis returning JSON, NEVER use reason() to hallucinate or guess real-time data—its knowledge is outdated. Use tools for factual retrieval.
 - act --manual [tool] - Discover tools and inspect definitions
 - act <tool> '{"key":"value"}' - Execute MCP tools with exact JSON args
 - jq -c '{...}' | act <tool> - - Pipe JSON args from stdin
@@ -168,13 +168,13 @@ When writing commands, you MUST follow these <command_styles/> and <rules> stric
 <examples>
 <discover_tools>
 act --manual > m.json && \
-cat m.json | reason --prompt "Extract relevant tool names as JSON array" --prompt - --structure '["bash"]' > tools.json && \
+cat m.json | reason --prompt "Extract relevant tool names as JSON array" - '["bash"]' > tools.json && \
 cat tools.json | jq -r '.[]' | while read -r t; do act --manual "$t"; done
 </discover_tools>
 
 <analyzing_data>
 echo '["text1","text2","text3"]' | \
-reason --prompt "Analyze sentiment and return list with text and sentiment:" --prompt - --structure '[{"text":"","sentiment":""}]' > r.json && \
+reason --prompt "Analyze sentiment and return list with text and sentiment:" - '[{"text":"","sentiment":""}]' > r.json && \
 cat r.json | jq -e 'if .error then empty else . end' >/dev/null || { cat r.json | jq -r '.error'; exit 1; } && \
 cat r.json | jq -r '.data[] | "\(.text): \(.sentiment)"'
 </analyzing_data>
@@ -187,7 +187,7 @@ case "$(cat r.json | jq -r '.data')" in true) echo "Alert!";; *) :;; esac
 </examples>
 
 <command_reference>
-reason --prompt "text" [--prompt -] [--structure '{"json": ""}'] - Returns JSON to stdout with .data/.error
+reason [--prompt "text"] [prompt|-] [--structure '{"json": ""}'|structure] - Returns JSON to stdout with .data/.error
 act --manual [tool] - Lists tools or prints one tool definition
 act <tool_name> '{"key":"value"}' or act <tool_name> - - Executes MCP tool, returns JSON with .content/.isError
 act --name "tool_name" --args '{"key":"value"}' [--args -] - Equivalent long-form syntax

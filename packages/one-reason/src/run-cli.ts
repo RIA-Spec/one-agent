@@ -7,14 +7,22 @@ import pc from "picocolors";
 import { getOneConfigPath } from "./config-path.js";
 import { reason } from "./reason.js";
 
-const STDIN_POSITIONAL_SENTINEL = "__STDIN_POSITIONAL__";
 const REASON_CONFIG_PATH = getOneConfigPath("reason.json");
 const HELP_DESCRIPTION =
   "Structured reasoning runner: read prompt text, match a required JSON shape, and emit JSON.";
+const HELP_USAGE = "reason [--prompt <text>] [observation|-] [--structure <json>|structure]";
 const HELP_QUICKSTART = [
-  'Inline prompt: reason "hi" \'{"text":""}\'',
-  'Piped prompt: echo "hi" | reason - \'{"text":""}\'',
+  'Layered prompt: cat build.log | reason --prompt "goal: detect failures" - \'{"failed":false,"reason":""}\'',
   "The structure argument is required and must be valid JSON.",
+];
+const HELP_ARGUMENTS = [
+  "observation     Optional positional observation text. Use '-' to read observation text from stdin.",
+  "structure       Required JSON example for structured output when --structure is not used.",
+];
+const HELP_OPTIONS = [
+  "--prompt <text>     Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
+  "--structure <json>  Required JSON structure example. Equivalent to the second positional argument.",
+  "-h, --help          Display this message.",
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
@@ -22,15 +30,21 @@ const HELP_CONFIGURATION = [
   "Environment variables override file config.",
 ];
 const HELP_EXAMPLES = [
-  'reason "hi" \'{"text":""}\'',
-  'echo "hi" | reason - \'{"text":""}\'',
-  "cat build.log | reason - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
+  'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',
+  "cat build.log | reason --prompt 'goal: decide whether to deploy; constraints: return deploy=false unless the log is clean; if deploy=true, provide the exact command' - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
 ];
 
 type ProviderChoice = "openai-compatible" | "openai" | "anthropic";
-type ReasonCliOptions = {
-  prompt?: string;
-  structure?: string;
+type ParsedReasonRequestArgs = {
+  promptValues: string[];
+  positionalPrompt?: string;
+  positionalStructure?: string;
+  structureOption?: string;
+};
+
+type BuildReasonRequestOptions = {
+  stdinIsTTY?: boolean;
+  readStdin?: () => Promise<string>;
 };
 
 function readReasonConfig(): Record<string, unknown> {
@@ -193,41 +207,103 @@ function parseStructureJson(raw: string) {
   }
 }
 
-async function runReasonRequest(
-  rawPrompt: string | undefined,
-  rawStructure: string | undefined,
-  options: ReasonCliOptions,
-) {
-  const promptOption = typeof options?.prompt === "string" ? options.prompt : "";
-  const structureOption = typeof options?.structure === "string" ? options.structure : "";
+export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs {
+  const promptValues: string[] = [];
+  const positionals: string[] = [];
+  let structureOption: string | undefined;
 
-  const promptInput = promptOption || rawPrompt || "";
-  const structureRaw = structureOption || rawStructure || "";
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
 
-  let needsStdin = false;
-  const prompts: string[] = [];
-
-  if (!promptInput) {
-    if (!process.stdin.isTTY) {
-      needsStdin = true;
+    if (arg === "--prompt") {
+      const value = args[index + 1];
+      if (value == null) throw new Error("--prompt requires a value");
+      promptValues.push(value);
+      index += 1;
+      continue;
     }
-  } else if (promptInput === "-") {
+
+    if (arg.startsWith("--prompt=")) {
+      promptValues.push(arg.slice("--prompt=".length));
+      continue;
+    }
+
+    if (arg === "--structure") {
+      const value = args[index + 1];
+      if (value == null) throw new Error("--structure requires a value");
+      structureOption = value;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--structure=")) {
+      structureOption = arg.slice("--structure=".length);
+      continue;
+    }
+
+    if (arg.startsWith("-") && arg !== "-") {
+      throw new Error(`Unknown option: ${arg}`);
+    }
+
+    positionals.push(arg);
+  }
+
+  if (positionals.length > 2) {
+    throw new Error("Too many positional arguments; expected [prompt] [structure]");
+  }
+
+  return {
+    promptValues,
+    positionalPrompt: positionals[0],
+    positionalStructure: positionals[1],
+    structureOption,
+  };
+}
+
+export async function buildReasonRequestInput(
+  request: ParsedReasonRequestArgs,
+  options: BuildReasonRequestOptions = {},
+) {
+  const stdinIsTTY = options.stdinIsTTY ?? process.stdin.isTTY;
+  const readStdinFn = options.readStdin ?? readStdin;
+  const promptParts = request.promptValues.filter((value) => value !== "-");
+  const positionalPrompt = request.positionalPrompt;
+  const structureRaw = request.structureOption || request.positionalStructure || "";
+  let needsStdin = request.promptValues.includes("-");
+
+  if (positionalPrompt) {
+    if (positionalPrompt === "-") {
+      needsStdin = true;
+    } else {
+      promptParts.push(positionalPrompt);
+    }
+  }
+
+  if (promptParts.length === 0 && !needsStdin && !stdinIsTTY) {
     needsStdin = true;
-  } else {
-    prompts.push(promptInput);
   }
 
   if (!structureRaw) {
     throw new Error("--structure is required");
   }
 
-  if (prompts.length === 0 && !needsStdin) {
+  if (promptParts.length === 0 && !needsStdin) {
     throw new Error("prompt is required");
   }
 
-  const stdin = needsStdin ? await readStdin() : "";
-  const prompt = prompts.length > 0 ? prompts.join("\n") : stdin;
-  const example = parseStructureJson(structureRaw);
+  const stdin = needsStdin ? await readStdinFn() : "";
+  if (needsStdin) {
+    promptParts.push(stdin);
+  }
+
+  return {
+    prompt: promptParts.join("\n"),
+    example: parseStructureJson(structureRaw),
+  };
+}
+
+async function runReasonRequest(request: ParsedReasonRequestArgs) {
+  const { prompt, example } = await buildReasonRequestInput(request);
 
   const result = await reason(prompt, example);
 
@@ -243,14 +319,25 @@ async function runReasonRequest(
 }
 
 export async function runReasonCli(args = process.argv.slice(2)) {
-  const normalizedArgs = args.map((arg) => (arg === "-" ? STDIN_POSITIONAL_SENTINEL : arg));
   const cli = cac("reason");
 
-  cli.usage(`${HELP_DESCRIPTION}\n\n[prompt] [structure]`);
+  cli.usage(`${HELP_DESCRIPTION}\n\n${HELP_USAGE}`);
   cli.help((sections) => {
     sections.push({
       title: "Description",
       body: HELP_DESCRIPTION,
+    });
+    sections.push({
+      title: "Usage",
+      body: `  ${HELP_USAGE}`,
+    });
+    sections.push({
+      title: "Arguments",
+      body: HELP_ARGUMENTS.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Options",
+      body: HELP_OPTIONS.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Quickstart",
@@ -273,20 +360,11 @@ export async function runReasonCli(args = process.argv.slice(2)) {
     pending = runReasonAuthCli();
   });
 
-  cli
-    .command("[prompt] [structure]", "Analyze input in pipelines and emit structured JSON")
-    .option("--prompt <text>", "Prompt text, use '-' to read from stdin")
-    .option("--structure <json>", "Required JSON structure example")
-    .action(
-      (prompt: string | undefined, structure: string | undefined, options: ReasonCliOptions) => {
-        const resolvedPrompt = prompt === STDIN_POSITIONAL_SENTINEL ? "-" : prompt;
-        pending = runReasonRequest(resolvedPrompt, structure, options);
-      },
-    );
+  if (args.includes("--help") || args.includes("-h") || args[0] === "auth") {
+    cli.parse(["node", "reason", ...args]);
+  }
 
-  cli.parse(["node", "reason", ...normalizedArgs]);
-
-  if (normalizedArgs.includes("--help") || normalizedArgs.includes("-h")) {
+  if (args.includes("--help") || args.includes("-h")) {
     return;
   }
 
@@ -295,8 +373,13 @@ export async function runReasonCli(args = process.argv.slice(2)) {
     return;
   }
 
+  if (args.length > 0) {
+    await runReasonRequest(parseReasonRequestArgs(args));
+    return;
+  }
+
   if (!process.stdin.isTTY) {
-    pending = runReasonRequest(undefined, undefined, {});
+    pending = runReasonRequest(parseReasonRequestArgs(args));
     await pending;
     return;
   }

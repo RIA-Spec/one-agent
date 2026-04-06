@@ -7,12 +7,31 @@
 
 function getReasonScriptBody() {
   return `
-  let prompts = [], structure = '';
+  let prompts = [], positionals = [], structure = '';
   for (let i = 0; i < args.length; i++) {
-    if (args[i] === '--prompt') { prompts.push(args[++i] === '-' ? stdin : args[i]); }
-    else if (args[i] === '--structure') { structure = args[++i]; }
+    const arg = args[i];
+    if (arg === '--prompt') {
+      const value = args[++i];
+      if (value == null) { console.error('--prompt requires a value'); process.exit(1); }
+      prompts.push(value === '-' ? stdin : value);
+    }
+    else if (arg.startsWith('--prompt=')) { prompts.push(arg.slice('--prompt='.length) === '-' ? stdin : arg.slice('--prompt='.length)); }
+    else if (arg === '--structure') {
+      const value = args[++i];
+      if (value == null) { console.error('--structure requires a value'); process.exit(1); }
+      structure = value;
+    }
+    else if (arg.startsWith('--structure=')) { structure = arg.slice('--structure='.length); }
+    else if (!arg.startsWith('-') || arg === '-') { positionals.push(arg); }
+    else { console.error('Unknown argument: ' + arg); process.exit(1); }
   }
-  const body = { prompt: prompts.join('\\n'), example: structure ? JSON.parse(structure) : '' };
+  if (positionals.length > 2) { console.error('Too many positional arguments'); process.exit(1); }
+  const promptArg = positionals[0] || '';
+  const structureRaw = structure || positionals[1] || '';
+  if (promptArg) prompts.push(promptArg === '-' ? stdin : promptArg);
+  if (!structureRaw) { console.error('--structure is required'); process.exit(1); }
+  if (prompts.length === 0) { console.error('prompt is required'); process.exit(1); }
+  const body = { prompt: prompts.join('\\n'), example: JSON.parse(structureRaw) };
   `;
 }
 
@@ -64,7 +83,31 @@ function getActScriptBody() {
 function buildScript(dataDir: string, type: "reason" | "act") {
   const isReason = type === "reason";
   const needsStdinExpr = isReason
-    ? "args.some((a, i) => a === '--prompt' && args[i + 1] === '-')"
+    ? `(() => {
+  let positionalIndex = 0;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--prompt') {
+      if (args[i + 1] === '-') return true;
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--prompt=')) {
+      if (arg.slice('--prompt='.length) === '-') return true;
+      continue;
+    }
+    if (arg === '--structure') {
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--structure=')) continue;
+    if (!arg.startsWith('-') || arg === '-') {
+      if (positionalIndex === 0 && arg === '-') return true;
+      positionalIndex++;
+    }
+  }
+  return false;
+})()`
     : `(() => {
   let toolName = '', needsJsonStdin = false, showManual = false;
   for (let i = 0; i < args.length; i++) {
