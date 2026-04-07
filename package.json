@@ -3,6 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "description": "ONE Agent + Chat SDK Integration Monorepo",
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "pnpm --parallel --filter=@one/agent --filter=web dev",

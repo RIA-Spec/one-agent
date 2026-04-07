@@ -2,7 +2,7 @@
   "name": "@one/reason",
   "version": "0.0.0",
   "description": "Structured reasoning interface and CLI for ONE.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
@@ -12,7 +12,8 @@
     "one-reason": "./dist/cli/reason.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "exports": {
     ".": "./dist/index.mjs",

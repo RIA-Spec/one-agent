@@ -2,7 +2,7 @@
   "name": "@one/act",
   "version": "0.0.0",
   "description": "Tool invocation interface and CLI for ONE.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
@@ -12,7 +12,8 @@
     "one-act": "./dist/cli/act.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "exports": {
     ".": "./dist/index.mjs",

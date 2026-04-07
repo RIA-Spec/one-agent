@@ -6,7 +6,7 @@
   "bugs": {
     "url": "https://github.com/author/library/issues"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Author Name <author.name@mail.com>",
   "repository": {
     "type": "git",
@@ -21,7 +21,8 @@
     "reason": "./dist/reason.mjs"
   },
   "files": [
-    "dist"
+    "dist",
+    "NOTICE"
   ],
   "type": "module",
   "main": "./dist/index.mjs",

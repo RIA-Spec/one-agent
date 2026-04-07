@@ -134,6 +134,10 @@ pnpm run build
 pnpm run typecheck
 ```
 
+## License
+
+This repository is licensed under Apache-2.0. See `LICENSE` and `NOTICE` at the repository root.
+
 ## Scripts
 
 - `pnpm run repl` - Start the interactive REPL
