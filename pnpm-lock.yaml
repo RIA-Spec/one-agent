@@ -351,8 +351,8 @@ importers:
         specifier: ^0.1.50
         version: 0.1.50(hono@4.11.4)
       '@mcpc-tech/core':
-        specifier: ^0.3.37
-        version: 0.3.37(hono@4.11.4)(zod@3.25.76)
+        specifier: ^0.3.43
+        version: 0.3.43(hono@4.11.4)(zod@3.25.76)
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.25.3(hono@4.11.4)(zod@3.25.76)
@@ -397,8 +397,8 @@ importers:
         specifier: 2.0.35
         version: 2.0.35(zod@4.3.5)
       '@mcpc-tech/core':
-        specifier: ^0.3.37
-        version: 0.3.37(hono@4.11.4)(zod@4.3.5)
+        specifier: ^0.3.43
+        version: 0.3.43(hono@4.11.4)(zod@4.3.5)
       '@mcpc/code-runner-mcp':
         specifier: jsr:^0.1.9
         version: '@jsr/mcpc__code-runner-mcp@0.1.9(hono@4.11.4)'
@@ -569,6 +569,12 @@ packages:
     engines: {node: '>=18'}
     peerDependencies:
       zod: ^3.25.76 || ^4
+
+  '@ai-sdk/provider-utils@2.2.8':
+    resolution: {integrity: sha512-fqhG+4sCVv8x7nFzYnFo19ryhAa3w096Kmc3hWxMQfW/TubPOmt3A6tYZhl4mUfQWWQMsuSkLrtjlWuXBVSGQA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      zod: ^3.23.8
 
   '@ai-sdk/provider-utils@3.0.9':
     resolution: {integrity: sha512-Pm571x5efqaI4hf9yW4KsVlDBDme8++UepZRnq+kqVBWWjgvGhQlzU8glaFq0YJEB9kkxZHbRRyVeHoV2sRYaQ==}
@@ -1484,8 +1490,11 @@ packages:
   '@mcpc-tech/acp-ai-provider@0.1.50':
     resolution: {integrity: sha512-BRZkTKd2F/XB0gcap9+Xgq6ajOQAKoTd4jrAT7j2Cr3nqSPElwp/B8xBGtSc68tiXDh53KAipyu3IsubUz+Ftw==}
 
-  '@mcpc-tech/core@0.3.37':
-    resolution: {integrity: sha512-K06PTBGEnVhohzu0RzhdHm0J1nxE2oDH5XGMERiS/LZkNXuVoX3U/n+7fu+E3Q6EbJF6gotBHBDzQcX0EBB7HA==}
+  '@mcpc-tech/acp-ai-provider@0.1.58':
+    resolution: {integrity: sha512-ONpvqWSJBEdfaJCH/xCN7TDBQn+ufKWlACfOcCpoBUMc2HpunF17JnAtOdy5tJR8Vyh+E7BgvSXxOKkVM/4ZYg==}
+
+  '@mcpc-tech/core@0.3.43':
+    resolution: {integrity: sha512-ksuOWeHR3bVJ7kDVHf2haoxOTmcyf6SqD1W6BkDbcHmeLgwIcgG2b4XmmDtsdxqyKjlYif/KIdBXaCGSWXq/XA==}
 
   '@mcpc-tech/ripgrep-napi-android-arm-eabi@0.0.4':
     resolution: {integrity: sha512-Y52S9IdbqMYvet7hDGk/DRdKFM7ED6tSQmBtrWVzdeqVWPMayZvrKdlcceBykdKjbmgnlqtulzEtHBF2iXmXwA==}
@@ -5659,6 +5668,9 @@ packages:
     resolution: {integrity: sha512-vfD3pmTzGpufjScBh50YHKzEu2lxBWhVEHsNGoEXmCmn2hKGfeNLYMzCJpe8cD7gqX7TJluOVpBkAequ6dgMmA==}
     engines: {node: '>=4'}
 
+  secure-json-parse@2.7.0:
+    resolution: {integrity: sha512-6aU+Rwsezw7VR8/nyvKTx8QpWH9FrcYiXXlqC4z5d5XQBDRqtbfsRjnwGyqbi3gddNtWHuEk9OANUotL26qKUw==}
+
   semver@7.7.3:
     resolution: {integrity: sha512-SdsKMrI9TdgjdweUSR9MweHA4EJ8YxHn8DFaDisvhVlUOe4BF1tLD7GAj0lIqWVl+dPb/rExr0Btby5loQm20Q==}
     engines: {node: '>=10'}
@@ -6279,6 +6291,13 @@ snapshots:
       '@ai-sdk/provider': 3.0.4
       '@ai-sdk/provider-utils': 3.0.9(zod@4.3.5)
       zod: 4.3.5
+
+  '@ai-sdk/provider-utils@2.2.8(zod@3.25.76)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      nanoid: 3.3.11
+      secure-json-parse: 2.7.0
+      zod: 3.25.76
 
   '@ai-sdk/provider-utils@3.0.9(zod@4.3.5)':
     dependencies:
@@ -7103,10 +7122,23 @@ snapshots:
       - hono
       - supports-color
 
-  '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@3.25.76)':
+  '@mcpc-tech/acp-ai-provider@0.1.58(hono@4.11.4)':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.4.9
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
+      ai: 6.0.44(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+
+  '@mcpc-tech/core@0.3.43(hono@4.11.4)(zod@3.25.76)':
     dependencies:
       '@ai-sdk/provider': 3.0.4
-      '@mcpc-tech/acp-ai-provider': 0.1.50(hono@4.11.4)
+      '@mcpc-tech/acp-ai-provider': 0.1.58(hono@4.11.4)
       '@mcpc-tech/ripgrep-napi': 0.0.4
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
       '@opentelemetry/api': 1.9.0
@@ -7129,10 +7161,10 @@ snapshots:
       - supports-color
       - zod
 
-  '@mcpc-tech/core@0.3.37(hono@4.11.4)(zod@4.3.5)':
+  '@mcpc-tech/core@0.3.43(hono@4.11.4)(zod@4.3.5)':
     dependencies:
       '@ai-sdk/provider': 3.0.4
-      '@mcpc-tech/acp-ai-provider': 0.1.50(hono@4.11.4)
+      '@mcpc-tech/acp-ai-provider': 0.1.58(hono@4.11.4)
       '@mcpc-tech/ripgrep-napi': 0.0.4
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@4.3.5)
       '@opentelemetry/api': 1.9.0
@@ -11841,6 +11873,8 @@ snapshots:
     dependencies:
       extend-shallow: 2.0.1
       kind-of: 6.0.3
+
+  secure-json-parse@2.7.0: {}
 
   semver@7.7.3: {}
 

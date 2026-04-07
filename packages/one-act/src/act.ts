@@ -47,6 +47,12 @@ const HELP_CONFIGURATION = [
   "Env override: ONE_ACT_MCP_SERVERS='<json>'",
   "Daemon override: ONE_ACT_DAEMON=true|false",
 ];
+const HELP_MCP_FORMAT = [
+  "Common fields: disabled, disabledReason, toolCallTimeout",
+  'stdio: {"transportType":"stdio","command":"npx","args":[...],"env":{"KEY":"VALUE"}}',
+  'http: {"transportType":"streamable-http"|"sse","url":"https://...","headers":{"Authorization":"Bearer ..."}}',
+  'one-act extension: {"daemon":true} on each mcpServers.<name>',
+];
 const HELP_DAEMON = [
   "act daemon start     Start background daemon and keep MCP servers alive",
   "act daemon status    Show daemon status",
@@ -994,6 +1000,10 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
     sections.push({
       title: "Configuration",
       body: HELP_CONFIGURATION.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "MCP Config Format",
+      body: HELP_MCP_FORMAT.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Daemon",
