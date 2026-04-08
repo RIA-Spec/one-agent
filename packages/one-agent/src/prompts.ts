@@ -2,6 +2,14 @@
  * System prompts for different agent modes
  */
 
+function parseBooleanEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+  return fallback;
+}
+
 const PYTHON_RAS_PROMPT = `You are ONE - a powerful general AI Agent with only one tool named \`one\`.
 
 Your core values:
@@ -196,6 +204,59 @@ reason(prompt, example) -> {'data': Any, 'error': str|None}
 act(name, args) -> {'content': [{type: 'text', text: '...'}], 'isError': bool}
 </interfaces>`;
 
+const PYTHON_AGENT_EXTENSION_PROMPT = `<agent_extension>
+Optional extension interface (enabled):
+agent(prompt, config?) -> string | { error }
+
+Use RAS to harness agent() as a bounded delegated worker under explicit runtime control.
+Keep outer-loop policy and decision authority in the current RAS script, and validate delegated outputs explicitly.
+
+Config hints:
+- budget: { maxSteps, maxMinutes, maxOutputTokens, maxRetries }
+- on_error: "fail" | "return_error" | "retry_within_budget"
+
+Minimal pattern:
+import asyncio
+async def main():
+  max_iterations = 3
+  for i in range(max_iterations):
+    out = await agent(
+      f"Investigate and summarize failures. Attempt {i + 1}/{max_iterations}.",
+      {"budget": {"maxSteps": 20, "maxMinutes": 10}, "on_error": "return_error"}
+    )
+
+    if isinstance(out, dict) and out.get("error"):
+      decision = await reason(
+        f"Goal: decide retry or escalate. Observation: {out['error']}. Constraints: return action with short reason.",
+        {"action": "retry", "reason": ""}
+      )
+      if decision.get("error"):
+        print(decision["error"])
+        return
+      if decision["data"]["action"] == "retry" and i < max_iterations - 1:
+        continue
+      print({"status": "escalate", "reason": decision["data"]["reason"]})
+      return
+
+    check = await reason(
+      f"Goal: verify delegated result. Observation: {out}. Constraints: return done/continue/escalate with reason.",
+      {"action": "continue", "reason": ""}
+    )
+    if check.get("error"):
+      print(check["error"])
+      return
+    if check["data"]["action"] == "done":
+      print(out)
+      return
+    if check["data"]["action"] == "continue" and i < max_iterations - 1:
+      continue
+    print({"status": "escalate", "reason": check["data"]["reason"]})
+    return
+
+  print({"status": "escalate", "reason": "max iterations reached"})
+asyncio.run(main())
+</agent_extension>`;
+
 const BASH_RAS_PROMPT = `You are ONE - a powerful general AI Agent with only one tool named \`bash\`.
 
 Your core values:
@@ -299,6 +360,29 @@ act --name "tool_name" --args '{"key":"value"}' [--args -] - Equivalent long-for
 jq - JSON processor (use -r for raw output, -e for checks, | for pipes)
 </command_reference>`;
 
+const BASH_AGENT_EXTENSION_PROMPT = `<agent_extension>
+Optional extension interface (enabled):
+agent --prompt "text" [--config '{"budget":{"maxSteps":20}}']
+
+Use RAS to harness the agent command as a bounded delegated worker under explicit runtime control.
+Keep outer-loop policy and decision authority in bash, and validate delegated output before deciding next action.
+
+Minimal pattern:
+agent --prompt "Investigate and summarize failures in one paragraph" --config '{"on_error":"return_error","budget":{"maxSteps":20,"maxMinutes":10}}' > a.txt || { cat a.txt; exit 1; }
+cat a.txt
+</agent_extension>`;
+
 // Select prompt based on runtime mode.
 const RAS_MODE = (process.env.RAS_MODE || "python").toLowerCase();
-export const AGENT_SYSTEM_PROMPT = RAS_MODE === "bash" ? BASH_RAS_PROMPT : PYTHON_RAS_PROMPT;
+const AGENT_EXTENSION_ENABLED = parseBooleanEnv("ONE_AGENT_EXTENSION_ENABLED", false);
+const BASE_PROMPT = RAS_MODE === "bash" ? BASH_RAS_PROMPT : PYTHON_RAS_PROMPT;
+const EXTENSION_PROMPT =
+  AGENT_EXTENSION_ENABLED && RAS_MODE === "bash"
+    ? BASH_AGENT_EXTENSION_PROMPT
+    : AGENT_EXTENSION_ENABLED
+      ? PYTHON_AGENT_EXTENSION_PROMPT
+      : "";
+
+export const AGENT_SYSTEM_PROMPT = EXTENSION_PROMPT
+  ? `${BASE_PROMPT}\n\n${EXTENSION_PROMPT}`
+  : BASE_PROMPT;
