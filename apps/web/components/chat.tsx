@@ -247,7 +247,11 @@ export function Chat({
             <div className="flex w-full items-start gap-2 md:gap-3">
               {messages.length > 0 && <div className="size-8 shrink-0" />}
 
-              <div className="min-w-0 flex-1">
+              <div
+                className={cn("min-w-0 flex-1", {
+                  "ml-px": messages.length > 0,
+                })}
+              >
                 <MultimodalInput
                   attachments={attachments}
                   chatId={id}
