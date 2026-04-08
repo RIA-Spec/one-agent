@@ -244,24 +244,24 @@ export function Chat({
 
         <div className="sticky bottom-0 z-1 mx-auto flex w-full max-w-4xl gap-2 border-t-0 bg-background px-2 pb-3 md:px-4 md:pb-4">
           {!isReadonly && (
-            <div
-              className={cn("w-full", {
-                "pl-8 md:pl-9": messages.length > 0,
-              })}
-            >
-              <MultimodalInput
-                attachments={attachments}
-                chatId={id}
-                input={input}
-                messages={messages}
-                selectedVisibilityType={visibilityType}
-                sendMessage={sendMessage}
-                setAttachments={setAttachments}
-                setInput={setInput}
-                setMessages={setMessages}
-                status={status}
-                stop={stop}
-              />
+            <div className="flex w-full items-start gap-2 md:gap-3">
+              {messages.length > 0 && <div className="size-8 shrink-0" />}
+
+              <div className="min-w-0 flex-1">
+                <MultimodalInput
+                  attachments={attachments}
+                  chatId={id}
+                  input={input}
+                  messages={messages}
+                  selectedVisibilityType={visibilityType}
+                  sendMessage={sendMessage}
+                  setAttachments={setAttachments}
+                  setInput={setInput}
+                  setMessages={setMessages}
+                  status={status}
+                  stop={stop}
+                />
+              </div>
             </div>
           )}
         </div>
