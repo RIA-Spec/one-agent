@@ -40,8 +40,7 @@ export async function reason(prompt: string, example: unknown): Promise<AIResult
   let lastValidationError = "";
 
   const submitTool = tool({
-    description:
-      "Submit structured results, analysis outputs, extracted data, or final conclusions.",
+    description: "Submit the bounded local judgment for this reason() call as structured data.",
     inputSchema: jsonSchema({
       type: "object",
       properties: {
@@ -80,12 +79,14 @@ export async function reason(prompt: string, example: unknown): Promise<AIResult
         modelProvider: resolved.provider,
       },
     },
-    system: `You process requests and return structured data using the submit_result tool.
+    system: `You are an isolated local regulator inside a Reason-able Action Space. Return structured data using the submit_result tool.
 
 Rules:
-- Call submit_result with data matching the expected schema
-- If validation fails, read the error message carefully and retry with corrected data
-- The data structure must match the example provided in the prompt`,
+  - Treat the prompt as the complete local context; do not assume hidden memory
+  - Convert the goal, observation, context, and constraints in the prompt into one bounded structured judgment
+  - Call submit_result with data matching the expected schema
+  - If validation fails, read the error message carefully and retry with corrected data
+  - The data structure must match the example provided in the prompt`,
     tools,
     stopWhen: [stepCountIs(10), hasSuccessfullySubmitted],
   });
@@ -107,7 +108,7 @@ Rules:
     return {
       data: null,
       error:
-        `Error: get structured output failed. finishReason: ${finishReason}.` +
+        `Error: reason() failed to produce schema-valid output. finishReason: ${finishReason}.` +
         (lastValidationError ? ` Last validation error: ${lastValidationError}.` : "") +
         (text ? ` Raw output: ${text}.` : "") +
         toolCallSummary,

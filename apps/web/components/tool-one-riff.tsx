@@ -33,13 +33,13 @@ import {
 import type { ASTStep } from "@/lib/types";
 
 type ExecutionState = "pending" | "streaming" | "available" | "error";
-type AERMode = "python" | "bash";
+type RASMode = "python" | "bash";
 
 interface ToolOneRiffProps {
-  flowId?: string;
+  riffId?: string;
   useRealtimeProgress?: boolean;
   state: ExecutionState;
-  mode?: AERMode;
+  mode?: RASMode;
   code?: string;
   output?: string;
   isError?: boolean;
@@ -176,10 +176,10 @@ const nodeTypes = {
 };
 
 /**
- * Parse code to AST steps tree based on AER mode.
+ * Parse code to AST steps tree based on runtime mode.
  * Produces a tree with control flow (loop/condition/error-handling) nodes.
  */
-function parseCodeToSteps(code: string, mode: AERMode = "python"): ASTStep[] {
+function parseCodeToSteps(code: string, mode: RASMode = "python"): ASTStep[] {
   if (!code || code.trim().length === 0) {
     return [];
   }
@@ -935,7 +935,7 @@ function buildEdgesFromFlat(
 }
 
 export function ToolOneRiff({
-  flowId,
+  riffId,
   useRealtimeProgress = true,
   state,
   mode = "python",
@@ -1001,7 +1001,7 @@ export function ToolOneRiff({
     return labels;
   }, [flatNodes, isError]);
 
-  const graphKey = `${flowId ?? "tool-riff"}-${state}-${nodes.length}-${edges.length}`;
+  const graphKey = `${riffId ?? "tool-riff"}-${state}-${nodes.length}-${edges.length}`;
 
   // No steps found — show simple inline progress
   if (flatNodes.length === 0) {
@@ -1039,7 +1039,7 @@ export function ToolOneRiff({
       <div className="overflow-x-auto" style={{ height: `${containerHeight}px` }}>
         <ReactFlow
           key={graphKey}
-          id={flowId}
+          id={riffId}
           edges={edges}
           fitView
           fitViewOptions={{ padding: 0.15 }}

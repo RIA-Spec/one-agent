@@ -11,24 +11,24 @@ import {
   createEditTool,
   createWebSearchTool,
   createWebFetchTool,
-  createFlowTool,
+  createRiffTool,
 } from "./interfaces/tools/index.js";
-import { createPythonAER } from "./aer/python.js";
-import { createBashAER } from "./aer/bash.js";
+import { createPythonRAS } from "./ras/python.js";
+import { createBashRAS } from "./ras/bash.js";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { tool, jsonSchema } from "ai";
 
-type AERReasonResult = {
+type RASReasonResult = {
   data?: unknown;
   error?: string;
 };
 
-type AERActResult = {
+type RASActResult = {
   content?: Array<{ type?: string; text?: unknown }>;
   isError?: boolean;
 };
 
-const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<AERReasonResult> => {
+const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<RASReasonResult> => {
   const result = await reason(prompt, example);
   return {
     data: result.data,
@@ -38,8 +38,8 @@ const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<A
 
 const adaptedActHandler =
   (server: unknown) =>
-  (name: string, args: unknown): Promise<AERActResult> =>
-    getToolFn(server as Parameters<typeof getToolFn>[0])(name, args) as Promise<AERActResult>;
+  (name: string, args: unknown): Promise<RASActResult> =>
+    getToolFn(server as Parameters<typeof getToolFn>[0])(name, args) as Promise<RASActResult>;
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -47,15 +47,14 @@ const projectRoot = resolve(__dirname, "..");
 const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
-// AER Mode: "bash" | "python"
-// Controls which Action Execution Runtime to enable (only one at a time)
-const AER_MODE = (process.env.AER_MODE || "python").toLowerCase();
+// RAS mode: "bash" | "python"
+const RAS_MODE = (process.env.RAS_MODE || "python").toLowerCase();
 
-// Use Markdown configuration file based on AER mode
+// Use Markdown configuration file based on runtime mode.
 const composeFile = resolve(
   __dirname,
   "..",
-  AER_MODE === "bash" ? "one-runner-bash.md" : "one-runner-python.md",
+  RAS_MODE === "bash" ? "one-runner-bash.md" : "one-runner-python.md",
 );
 
 const DEV_MODE = true;
@@ -75,22 +74,22 @@ export async function getServer() {
         {
           plugins: [markdownLoaderPlugin() as any],
           setup: (server) => {
-            // Register Bash AER (Unix Philosophy approach) - early return
-            if (AER_MODE === "bash") {
-              const bashAER = createBashAER({
+            // Register Bash RAS (Unix philosophy approach) - early return.
+            if (RAS_MODE === "bash") {
+              const bashRAS = createBashRAS({
                 cwd: projectRoot,
                 reasonHandler: adaptedReasonHandler,
                 actHandler: adaptedActHandler,
               });
               server.tool(
-                bashAER.name,
-                bashAER.description,
-                bashAER.parameters,
-                async (args: any, extra: any) => bashAER.execute(args, extra, server),
+                bashRAS.name,
+                bashRAS.description,
+                bashRAS.parameters,
+                async (args: any, extra: any) => bashRAS.execute(args, extra, server),
                 { internal: false },
               );
 
-              // Register low-level web tools so Bash AER can call them via `act`.
+              // Register low-level web tools so Bash RAS can call them via `act`.
               const webSearchTool = createWebSearchTool();
               server.tool(
                 "websearch",
@@ -109,35 +108,35 @@ export async function getServer() {
                 { internal: true },
               );
 
-              const flowTool = createFlowTool(projectRoot);
-              server.tool("flow", flowTool.description, flowTool.parameters, flowTool.execute, {
+              const riffTool = createRiffTool(projectRoot);
+              server.tool("riff", riffTool.description, riffTool.parameters, riffTool.execute, {
                 internal: true,
               });
 
-              console.log(`✓ Bash AER enabled`);
+              console.log(`✓ Bash RAS enabled`);
               return;
             }
 
-            // Register Python AER (Code Interpreter approach) - default mode
-            if (AER_MODE !== "python") {
-              console.warn(`⚠ Unknown AER_MODE: ${AER_MODE}, defaulting to Python`);
+            // Register Python RAS (code interpreter approach) - default mode.
+            if (RAS_MODE !== "python") {
+              console.warn(`⚠ Unknown RAS_MODE: ${RAS_MODE}, defaulting to Python`);
             }
 
-            const pythonAER = createPythonAER({
+            const pythonRAS = createPythonRAS({
               nodeFSRoot,
               nodeFSMountPoint,
               reasonHandler: adaptedReasonHandler,
               actHandler: adaptedActHandler,
             });
             server.tool(
-              pythonAER.name,
-              pythonAER.description,
-              pythonAER.parameters,
-              async (args: any, extra: any) => pythonAER.execute(args, extra, server),
+              pythonRAS.name,
+              pythonRAS.description,
+              pythonRAS.parameters,
+              async (args: any, extra: any) => pythonRAS.execute(args, extra, server),
               { internal: false },
             );
 
-            console.log(`✓ Python AER enabled`);
+            console.log(`✓ Python RAS enabled`);
 
             // Register low-level tools for Python mode
             const bashTool = createBashTool(nodeFSRoot);
@@ -178,8 +177,8 @@ export async function getServer() {
               { internal: true },
             );
 
-            const flowTool = createFlowTool(nodeFSRoot);
-            server.tool("flow", flowTool.description, flowTool.parameters, flowTool.execute, {
+            const riffTool = createRiffTool(nodeFSRoot);
+            server.tool("riff", riffTool.description, riffTool.parameters, riffTool.execute, {
               internal: true,
             });
           },

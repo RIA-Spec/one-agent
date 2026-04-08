@@ -131,19 +131,15 @@ describe("one tool", () => {
   it("handles Python errors gracefully", async () => {
     const code = readFileSync(resolve(examplesDir, "error_example.py"), "utf-8");
 
-    try {
-      await client.callTool({
-        name: "one",
-        arguments: { code },
-      });
-      // Should not reach here
-      expect.fail("Expected error to be thrown");
-    } catch (error: any) {
-      // Should contain error information about division by zero
-      const errorMsg = error.message.toLowerCase();
-      expect(errorMsg).toContain("zerodivisionerror");
-      expect(errorMsg).toContain("division");
-    }
+    const result = await client.callTool({
+      name: "one",
+      arguments: { code },
+    });
+
+    expect((result as CallToolResult).isError).toBe(true);
+    const output = getTextOutput(result).toLowerCase();
+    expect(output).toContain("zerodivisionerror");
+    expect(output).toContain("division");
   }, 30000);
 
   // Now works with pool: "forks" instead of worker threads

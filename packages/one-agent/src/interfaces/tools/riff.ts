@@ -1,7 +1,7 @@
 /**
- * Flow tool - persist reusable AER workflows as:
- *   .agent/flow/<name>/flow.md  (documentation + metadata)
- *   .agent/flow/<name>/aer.py   (executable script)
+ * Riff tool - persist reusable RAS workflows as:
+ *   .agent/riff/<name>/riff.md  (documentation + metadata)
+ *   .agent/riff/<name>/ras.py   (executable script)
  */
 
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
@@ -12,15 +12,15 @@ import { jsonSchema } from "ai";
 
 const INLINE_EXEC_PREFIX = "__ONE_INLINE_EXEC__:";
 
-type FlowFrontmatter = {
+type RiffFrontmatter = {
   description?: string;
   parameters?: Record<string, string>;
 };
 
-type FlowRecord = {
+type RiffRecord = {
   name: string;
   dir: string;
-  flowPath: string;
+  riffPath: string;
   scriptPath: string;
   description: string;
   parameters: Record<string, string>;
@@ -32,31 +32,31 @@ function resolveToCwd(path: string, cwd: string): string {
   return isAbsolute(path) ? path : resolve(cwd, path);
 }
 
-function normalizeFlowName(name: string): string {
+function normalizeRiffName(name: string): string {
   const cleaned = name.trim().replace(/\.md$/i, "");
   if (!cleaned) {
-    throw new Error("Flow name is required");
+    throw new Error("Riff name is required");
   }
   if (!/^[a-zA-Z0-9._-]+$/.test(cleaned)) {
-    throw new Error("Flow name must match /^[a-zA-Z0-9._-]+$/");
+    throw new Error("Riff name must match /^[a-zA-Z0-9._-]+$/");
   }
   return cleaned;
 }
 
-async function loadFlow(workflowsDir: string, fileName: string): Promise<FlowRecord> {
-  const flowDir = join(workflowsDir, fileName);
-  const flowPath = join(flowDir, "flow.md");
-  const scriptPath = join(flowDir, "aer.py");
+async function loadRiff(workflowsDir: string, fileName: string): Promise<RiffRecord> {
+  const riffDir = join(workflowsDir, fileName);
+  const riffPath = join(riffDir, "riff.md");
+  const scriptPath = join(riffDir, "ras.py");
 
-  const rawFlow = await readFile(flowPath, "utf-8");
-  const parsed = matter(rawFlow);
+  const rawRiff = await readFile(riffPath, "utf-8");
+  const parsed = matter(rawRiff);
   const script = await readFile(scriptPath, "utf-8");
-  const data = (parsed.data ?? {}) as FlowFrontmatter;
+  const data = (parsed.data ?? {}) as RiffFrontmatter;
 
   return {
     name: fileName,
-    dir: flowDir,
-    flowPath,
+    dir: riffDir,
+    riffPath,
     scriptPath,
     description: typeof data.description === "string" ? data.description : "",
     parameters: data.parameters && typeof data.parameters === "object" ? data.parameters : {},
@@ -65,7 +65,7 @@ async function loadFlow(workflowsDir: string, fileName: string): Promise<FlowRec
   };
 }
 
-async function discoverFlows(workflowsDir: string): Promise<FlowRecord[]> {
+async function discoverRiffs(workflowsDir: string): Promise<RiffRecord[]> {
   if (!existsSync(workflowsDir)) {
     return [];
   }
@@ -75,21 +75,21 @@ async function discoverFlows(workflowsDir: string): Promise<FlowRecord[]> {
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
     .sort();
-  const flows: FlowRecord[] = [];
+  const riffs: RiffRecord[] = [];
 
   for (const dirName of dirs) {
-    const flowPath = join(workflowsDir, dirName, "flow.md");
-    const scriptPath = join(workflowsDir, dirName, "aer.py");
-    if (!existsSync(flowPath) || !existsSync(scriptPath)) {
+    const riffPath = join(workflowsDir, dirName, "riff.md");
+    const scriptPath = join(workflowsDir, dirName, "ras.py");
+    if (!existsSync(riffPath) || !existsSync(scriptPath)) {
       continue;
     }
-    flows.push(await loadFlow(workflowsDir, dirName));
+    riffs.push(await loadRiff(workflowsDir, dirName));
   }
 
-  return flows;
+  return riffs;
 }
 
-function buildFlowDocs(description: string, parameters: Record<string, string>): string {
+function buildRiffDocs(description: string, parameters: Record<string, string>): string {
   const keys = Object.keys(parameters);
   const paramLines =
     keys.length === 0
@@ -97,7 +97,7 @@ function buildFlowDocs(description: string, parameters: Record<string, string>):
       : keys.map((key) => `- ${key}: ${parameters[key] || "(no description)"}`);
 
   return [
-    "# Flow",
+    "# Riff",
     "",
     description,
     "",
@@ -105,18 +105,18 @@ function buildFlowDocs(description: string, parameters: Record<string, string>):
     ...paramLines,
     "",
     "## Execution",
-    "This flow executes the script content in aer.py.",
+    "This riff executes the script content in ras.py.",
     "",
   ].join("\n");
 }
 
-export function createFlowTool(cwd: string) {
+export function createRiffTool(cwd: string) {
   const rootDir = resolveToCwd(cwd, cwd);
-  const workflowsDir = join(rootDir, ".agent", "flow");
+  const workflowsDir = join(rootDir, ".agent", "riff");
 
   return {
     description:
-      "Persist reusable flows in .agent/flow/<name> using flow.md (docs) and aer.py (script). Action params: list(action); read(action,name,includeScript?); upsert(action,name,description,script|content,parameters?); run(action,name,parameters?).",
+      "Persist reusable riffs in .agent/riff/<name> using riff.md (docs) and ras.py (script). Action params: list(action); read(action,name,includeScript?); upsert(action,name,description,script|content,parameters?); run(action,name,parameters?).",
     parameters: jsonSchema({
       type: "object",
       properties: {
@@ -124,15 +124,15 @@ export function createFlowTool(cwd: string) {
           type: "string",
           enum: ["list", "read", "upsert", "run"],
           description:
-            "Operation to perform. list: discover flows; read: inspect flow docs/script; upsert: create/update flow; run: execute flow script inline.",
+            "Operation to perform. list: discover riffs; read: inspect riff docs/script; upsert: create/update riff; run: execute riff script inline.",
         },
         name: {
           type: "string",
-          description: "Flow name (folder name under .agent/flow)",
+          description: "Riff name (folder name under .agent/riff)",
         },
         description: {
           type: "string",
-          description: "Flow description saved in frontmatter",
+          description: "Riff description saved in frontmatter",
         },
         parameters: {
           type: "object",
@@ -142,7 +142,7 @@ export function createFlowTool(cwd: string) {
         },
         script: {
           type: "string",
-          description: "Python code saved to aer.py",
+          description: "Python code saved to ras.py",
         },
         content: {
           type: "string",
@@ -150,7 +150,7 @@ export function createFlowTool(cwd: string) {
         },
         includeScript: {
           type: "boolean",
-          description: "For read action: include aer.py content in response",
+          description: "For read action: include ras.py content in response",
         },
       },
       required: ["action"],
@@ -179,13 +179,13 @@ export function createFlowTool(cwd: string) {
         await mkdir(workflowsDir, { recursive: true });
 
         if (action === "list") {
-          const flows = await discoverFlows(workflowsDir);
-          const summary = flows.map((flow) => ({
-            name: flow.name,
-            description: flow.description,
-            parameters: flow.parameters,
-            docsPath: flow.flowPath,
-            scriptPath: flow.scriptPath,
+          const riffs = await discoverRiffs(workflowsDir);
+          const summary = riffs.map((riff) => ({
+            name: riff.name,
+            description: riff.description,
+            parameters: riff.parameters,
+            docsPath: riff.riffPath,
+            scriptPath: riff.scriptPath,
           }));
 
           return {
@@ -196,7 +196,7 @@ export function createFlowTool(cwd: string) {
                   {
                     folder: workflowsDir,
                     total: summary.length,
-                    flows: summary,
+                    riffs: summary,
                   },
                   null,
                   2,
@@ -210,13 +210,13 @@ export function createFlowTool(cwd: string) {
           throw new Error("name is required for this action");
         }
 
-        const flowName = normalizeFlowName(name);
-        const flowDir = join(workflowsDir, flowName);
-        const flowPath = join(flowDir, "flow.md");
-        const scriptPath = join(flowDir, "aer.py");
+        const riffName = normalizeRiffName(name);
+        const riffDir = join(workflowsDir, riffName);
+        const riffPath = join(riffDir, "riff.md");
+        const scriptPath = join(riffDir, "ras.py");
 
         if (action === "read") {
-          const flow = await loadFlow(workflowsDir, flowName);
+          const riff = await loadRiff(workflowsDir, riffName);
 
           return {
             content: [
@@ -225,14 +225,14 @@ export function createFlowTool(cwd: string) {
                 text: JSON.stringify(
                   {
                     action: "read",
-                    name: flow.name,
-                    path: flow.dir,
-                    flowPath: flow.flowPath,
-                    scriptPath: flow.scriptPath,
-                    description: flow.description,
-                    parameters: flow.parameters,
-                    docs: flow.docs,
-                    ...(includeScript ? { script: flow.script } : {}),
+                    name: riff.name,
+                    path: riff.dir,
+                    riffPath: riff.riffPath,
+                    scriptPath: riff.scriptPath,
+                    description: riff.description,
+                    parameters: riff.parameters,
+                    docs: riff.docs,
+                    ...(includeScript ? { script: riff.script } : {}),
                   },
                   null,
                   2,
@@ -259,13 +259,13 @@ export function createFlowTool(cwd: string) {
             }
           }
 
-          const markdown = matter.stringify(buildFlowDocs(description.trim(), schemaMap), {
+          const markdown = matter.stringify(buildRiffDocs(description.trim(), schemaMap), {
             description: description.trim(),
             parameters: schemaMap,
           });
 
-          await mkdir(flowDir, { recursive: true });
-          await writeFile(flowPath, markdown, "utf-8");
+          await mkdir(riffDir, { recursive: true });
+          await writeFile(riffPath, markdown, "utf-8");
           await writeFile(scriptPath, normalizedScript + "\n", "utf-8");
 
           return {
@@ -275,9 +275,9 @@ export function createFlowTool(cwd: string) {
                 text: JSON.stringify(
                   {
                     action: "upsert",
-                    name: flowName,
-                    path: flowDir,
-                    flowPath,
+                    name: riffName,
+                    path: riffDir,
+                    riffPath,
                     scriptPath,
                     folder: workflowsDir,
                     description: description.trim(),
@@ -291,20 +291,20 @@ export function createFlowTool(cwd: string) {
           };
         }
 
-        const flow = await loadFlow(workflowsDir, flowName);
+        const riff = await loadRiff(workflowsDir, riffName);
 
         const runtimeParams = parameters && typeof parameters === "object" ? parameters : {};
-        const requiredParamKeys = Object.keys(flow.parameters || {});
+        const requiredParamKeys = Object.keys(riff.parameters || {});
         const missingParams = requiredParamKeys.filter((key) => !(key in runtimeParams));
 
         if (missingParams.length > 0) {
           throw new Error(
-            `Missing required parameters for flow \"${flowName}\": ${missingParams.join(", ")}`,
+            `Missing required parameters for riff \"${riffName}\": ${missingParams.join(", ")}`,
           );
         }
 
         const payload = JSON.stringify(runtimeParams ?? {});
-        const wrappedScript = `import json\nFLOW_PARAMS = json.loads(${JSON.stringify(payload)})\n${flow.script}\n`;
+        const wrappedScript = `import json\nRIFF_PARAMS = json.loads(${JSON.stringify(payload)})\n${riff.script}\n`;
         const encodedScript = Buffer.from(wrappedScript, "utf-8").toString("base64");
 
         return {

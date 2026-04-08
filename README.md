@@ -1,12 +1,25 @@
 # One Agent
 
-An AI agent with Action Execution Runtime (AER) support for Python and Bash.
+An AI agent with Reason-able Action Space (RAS) support for Python and Bash.
 
-## Action Execution Runtime (AER)
+## Re in Act
 
-AER defines the environment and interfaces for agents to reason in action. Two approaches:
+This monorepo implements the Re in Act programming model described in [RIA-Spec/re-in-act](https://github.com/RIA-Spec/re-in-act).
 
-### 1. Python AER (Code Interpreter) - Default
+In this repository, that means:
+
+- `reason()` is used for bounded local thinking that must return structured data.
+- `act()` is used for external actions and tool execution.
+- reusable workflows are modeled as `riff`s.
+- the agent can operate through either a Python or Bash runtime surface.
+
+The implementation here focuses on making those ideas executable in a real agent/runtime/web stack, rather than only documenting the spec terms.
+
+## Reason-able Action Space (RAS)
+
+RAS defines the bounded environment and interfaces for agents to reason in action. Two approaches:
+
+### 1. Python RAS (Code Interpreter) - Default
 
 **The Programmatic Approach**: Manage control flows using code execution (conditions, loops, branches).
 
@@ -31,7 +44,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 2. Bash AER (Unix Philosophy)
+### 2. Bash RAS (Unix Philosophy)
 
 **The Unix Philosophy**: Control flow using pipes (|) and redirection (>).
 
@@ -53,16 +66,16 @@ Notes:
 
 ## Environment Variables
 
-### AER Mode Selection
+### RAS Mode Selection
 
-Control which Action Execution Runtime to enable (only one at a time):
+Control which RAS runtime surface to enable (only one at a time):
 
 ```bash
-# Enable Python AER (default)
-export AER_MODE=python
+# Enable Python RAS (default)
+export RAS_MODE=python
 
-# Enable Bash AER
-export AER_MODE=bash
+# Enable Bash RAS
+export RAS_MODE=bash
 ```
 
 ### File System Configuration

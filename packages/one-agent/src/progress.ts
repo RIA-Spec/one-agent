@@ -1,5 +1,5 @@
 /**
- * Execution progress event emitter for AER runtimes.
+ * Execution progress event emitter for RAS runtimes.
  *
  * Enables real-time step tracking by forwarding progress events
  * from the runtime to the frontend via dataStream.

@@ -28,7 +28,7 @@ import { MessageActions } from "./message-actions";
 import { MessageEditor } from "./message-editor";
 import { MessageReasoning } from "./message-reasoning";
 import { PreviewAttachment } from "./preview-attachment";
-import { ToolOneFlow } from "./tool-one-flow";
+import { ToolOneRiff } from "./tool-one-riff";
 import { Weather } from "./weather";
 
 function getToolOutputText(output: any) {
@@ -381,7 +381,7 @@ const PurePreviewMessage = ({
 
             if (type === "tool-one" || type === "tool-bash") {
               const { toolCallId, state } = part;
-              const aerMode = type === "tool-bash" ? "bash" : "python";
+              const rasMode = type === "tool-bash" ? "bash" : "python";
               const codeOrCommand =
                 type === "tool-bash" ? part.input?.command : part.input?.code;
 
@@ -389,14 +389,14 @@ const PurePreviewMessage = ({
                 <Tool defaultOpen={true} key={toolCallId}>
                   <ToolHeader state={state} type={type} />
                   <ToolContent>
-                    {/* Execution Flow Visualization */}
+                    {/* Execution Riff Visualization */}
                     {codeOrCommand && (
                       <div className="p-3">
-                        <ToolOneFlow
+                        <ToolOneRiff
                           code={codeOrCommand}
-                          flowId={toolCallId}
+                          riffId={toolCallId}
                           isError={part.output?.isError}
-                          mode={aerMode}
+                          mode={rasMode}
                           useRealtimeProgress={
                             toolCallId === activeStreamingToolCallId
                           }
@@ -424,7 +424,7 @@ const PurePreviewMessage = ({
                           state === "input-streaming") && (
                           <div className="space-y-1.5 overflow-hidden p-3 border-t">
                             <h4 className="font-medium text-muted-foreground text-[10px] uppercase tracking-wide">
-                              {aerMode === "bash" ? "Command" : "Code"}
+                              {rasMode === "bash" ? "Command" : "Code"}
                             </h4>
                             <pre className="overflow-x-auto rounded bg-muted/50 p-2 font-mono text-[10px]">
                               {codeOrCommand || ""}
@@ -435,7 +435,7 @@ const PurePreviewMessage = ({
                           <>
                             <div className="space-y-1.5 overflow-hidden border-t p-3">
                               <h4 className="font-medium text-muted-foreground text-[10px] uppercase tracking-wide">
-                                {aerMode === "bash" ? "Command" : "Code"}
+                                {rasMode === "bash" ? "Command" : "Code"}
                               </h4>
                               <pre className="overflow-x-auto rounded bg-muted/50 p-2 font-mono text-[10px]">
                                 {codeOrCommand || ""}
@@ -501,7 +501,7 @@ export const ThinkingMessage = () => {
 
         <div className="flex w-full flex-col gap-2 md:gap-4">
           <div className="flex items-center gap-1 p-0 text-muted-foreground text-sm">
-            <span className="animate-pulse">Thinking</span>
+            <span className="animate-pulse">Reasoning</span>
             <span className="inline-flex">
               <span className="animate-bounce [animation-delay:0ms]">.</span>
               <span className="animate-bounce [animation-delay:150ms]">.</span>

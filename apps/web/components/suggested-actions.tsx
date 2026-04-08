@@ -14,10 +14,38 @@ type SuggestedActionsProps = {
 };
 
 const SUGGESTED_ACTIONS = [
-  "Break down this goal into a clear step-by-step plan and start with step one",
-  "Review this code and propose the smallest safe refactor",
-  "Draft a concise project brief with risks, assumptions, and next actions",
-  "Help me troubleshoot this issue and suggest the most likely root cause",
+  {
+    badge: "__manual__",
+    title: "Discover tools and execute a concrete first action",
+    detail:
+      "List tools, inspect one schema, then run a real action with fixed inputs.",
+    suggestion:
+      "Call act('__manual__', {}) to list tools, then act('__manual__', {'name':'websearch'}). After that, run act('websearch', {'query':'OpenTelemetry tracing best practices for AI agents'}) and return the top findings.",
+  },
+  {
+    badge: "bash + edit",
+    title: "Run `npm run test` and patch minimally",
+    detail:
+      "Use one explicit command, find the first actionable error, fix only that, then rerun.",
+    suggestion:
+      "Run `npm run test` with bash. If it fails, identify the first actionable error, update only the minimum lines needed with edit/write, then rerun `npm run test` and report pass/fail plus the changed file.",
+  },
+  {
+    badge: "websearch + webfetch",
+    title: "Research one topic and return a cited recommendation",
+    detail:
+      "Use fixed source count and produce a short answer with citations.",
+    suggestion:
+      "Use websearch to find 5 sources about 'MCP server security best practices', fetch the top 3 with webfetch, then provide a 6-bullet recommendation with inline source links.",
+  },
+  {
+    badge: "riff",
+    title: "Create and run a concrete reusable riff",
+    detail:
+      "Define one named workflow with explicit params and run it with sample input.",
+    suggestion:
+      "Create a riff named `weekly-status-summary` with parameters `raw_updates` and `tone`, save docs plus script, then run it once with sample updates and tone='concise'.",
+  },
 ];
 
 function PureSuggestedActions({ chatId, sendMessage }: SuggestedActionsProps) {
@@ -31,11 +59,11 @@ function PureSuggestedActions({ chatId, sendMessage }: SuggestedActionsProps) {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 20 }}
           initial={{ opacity: 0, y: 20 }}
-          key={suggestedAction}
+          key={suggestedAction.title}
           transition={{ delay: 0.05 * index }}
         >
           <Suggestion
-            className="h-auto w-full whitespace-normal p-3 text-left"
+            className="h-auto w-full whitespace-normal border-border/70 bg-background/90 px-4 py-4 shadow-sm transition-transform duration-200 hover:-translate-y-0.5 hover:border-foreground/20 hover:bg-background"
             onClick={(suggestion) => {
               window.history.pushState({}, "", `/chat/${chatId}`);
               sendMessage({
@@ -43,9 +71,19 @@ function PureSuggestedActions({ chatId, sendMessage }: SuggestedActionsProps) {
                 parts: [{ type: "text", text: suggestion }],
               });
             }}
-            suggestion={suggestedAction}
+            suggestion={suggestedAction.suggestion}
           >
-            {suggestedAction}
+            <div className="flex min-h-[86px] flex-col items-start gap-2 text-left">
+              <span className="rounded-full border border-border/70 bg-muted/60 px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                {suggestedAction.badge}
+              </span>
+              <div className="text-pretty font-medium text-[15px] leading-snug text-foreground">
+                {suggestedAction.title}
+              </div>
+              <div className="text-pretty text-left text-sm leading-snug text-muted-foreground">
+                {suggestedAction.detail}
+              </div>
+            </div>
           </Suggestion>
         </motion.div>
       ))}

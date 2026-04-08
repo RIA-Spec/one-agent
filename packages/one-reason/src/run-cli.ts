@@ -9,11 +9,11 @@ import { reason } from "./reason.js";
 
 const REASON_CONFIG_PATH = getOneConfigPath("reason.json");
 const HELP_DESCRIPTION =
-  "Structured reasoning runner: read prompt text, match a required JSON shape, and emit JSON.";
+  "Local structured judgment runner: read prompt text, match a required JSON shape, and emit JSON.";
 const HELP_USAGE = "reason [--prompt <text>] [observation|-] [--structure <json>|structure]";
 const HELP_QUICKSTART = [
   'Layered prompt: cat build.log | reason --prompt "goal: detect failures" - \'{"failed":false,"reason":""}\'',
-  "The structure argument is required and must be valid JSON.",
+  "The structure argument is required and must be valid JSON; prompts should include goal, observation, context, and constraints.",
 ];
 const HELP_ARGUMENTS = [
   "observation     Optional positional observation text. Use '-' to read observation text from stdin.",
@@ -31,7 +31,7 @@ const HELP_CONFIGURATION = [
 ];
 const HELP_EXAMPLES = [
   'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',
-  "cat build.log | reason --prompt 'goal: decide whether to deploy; constraints: return deploy=false unless the log is clean; if deploy=true, provide the exact command' - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
+  "cat build.log | reason --prompt 'goal: decide whether to deploy; observation: latest build log from CI; constraints: return deploy=false unless the log is clean; if deploy=true, provide the exact command' - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
 ];
 
 type ProviderChoice = "openai-compatible" | "openai" | "anthropic";

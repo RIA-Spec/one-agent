@@ -26,12 +26,12 @@ async def main():
         return print('Search failed: no usable sources found.')
 
     prompt = (
-        'Create 10 practical life experience tricks/hacks. '
-        'Audience: someone who feels they lack common sense in daily situations. '
-        'Focus areas: cooking, traveling, money, home, communication, planning. '
-        'Each item must be simple and directly actionable. '\
-        'For each item return: rank, title, category, why_it_helps, steps, example, avoid_this. '
-        'The example must be realistic and easy to understand in 2-4 short sentences. '\
+        'Goal: create 10 practical life experience tricks or hacks. '
+        'Observation: source snippets collected from web search. '
+        'Context: audience is someone who feels they lack common sense in daily situations. '
+        'Constraints: focus on cooking, traveling, money, home, communication, and planning. '
+        'For each item return rank, title, category, why_it_helps, steps, example, avoid_this. '
+        'The example must be realistic and easy to understand in 2-4 short sentences. '
         'Keep language plain and non-judgmental. '
         'Source snippets:\n\n' + '\n\n'.join(snippets)
     )

@@ -54,29 +54,29 @@ function printHelp() {
     "  repl                        Run interactive one-agent REPL",
     "  act [...args]                Run one-act CLI",
     "  reason [...args]             Run one-reason CLI",
-    "  flow list                    List saved flows",
-    "  flow read <name> [--include-script]",
-    "                               Read flow docs and metadata",
-    "  flow run <name> [--params <json>]",
-    "                               Execute a flow by name",
+    "  riff list                    List saved riffs",
+    "  riff read <name> [--include-script]",
+    "                               Read riff docs and metadata",
+    "  riff run <name> [--params <json>]",
+    "                               Execute a riff by name",
     "",
     "Examples:",
     "  one-agent repl",
-    "  one-agent flow list",
-    "  one-agent flow read 10-life-hacks --include-script",
-    "  one-agent flow run 10-life-hacks --params '{\"x\":1}'",
+    "  one-agent riff list",
+    "  one-agent riff read 10-life-hacks --include-script",
+    "  one-agent riff run 10-life-hacks --params '{\"x\":1}'",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
 }
 
-function parseFlowArgs(args: string[]): {
+function parseRiffArgs(args: string[]): {
   action: "list" | "read" | "run";
   payload: Record<string, unknown>;
 } {
   const sub = args[0];
 
   if (!sub || sub === "--help" || sub === "-h") {
-    throw new Error("flow command requires a subcommand: list | read | run");
+    throw new Error("riff command requires a subcommand: list | read | run");
   }
 
   if (sub === "list") {
@@ -86,7 +86,7 @@ function parseFlowArgs(args: string[]): {
   if (sub === "read") {
     const name = args[1];
     if (!name) {
-      throw new Error("flow read requires <name>");
+      throw new Error("riff read requires <name>");
     }
     const includeScript = args.includes("--include-script");
     return {
@@ -98,7 +98,7 @@ function parseFlowArgs(args: string[]): {
   if (sub === "run") {
     const name = args[1];
     if (!name) {
-      throw new Error("flow run requires <name>");
+      throw new Error("riff run requires <name>");
     }
 
     const paramsIndex = args.findIndex((arg) => arg === "--params" || arg === "--parameters");
@@ -117,23 +117,23 @@ function parseFlowArgs(args: string[]): {
     };
   }
 
-  throw new Error(`Unknown flow subcommand: ${sub}`);
+  throw new Error(`Unknown riff subcommand: ${sub}`);
 }
 
-async function runFlowCommand(action: "list" | "read" | "run", payload: Record<string, unknown>) {
+async function runRiffCommand(action: "list" | "read" | "run", payload: Record<string, unknown>) {
   const server = await getServer();
   try {
     const act = getToolFn(server);
     let result: ActResult;
 
     if (action === "run") {
-      const flowArgs = JSON.stringify({ action, ...payload });
+      const riffArgs = JSON.stringify({ action, ...payload });
       const code = [
         "import asyncio",
         "import json",
         "",
         "async def main():",
-        `    r = await act('flow', json.loads(${JSON.stringify(flowArgs)}))`,
+        `    r = await act('riff', json.loads(${JSON.stringify(riffArgs)}))`,
         "    if r.get('isError'):",
         "        print(r)",
         "",
@@ -142,7 +142,7 @@ async function runFlowCommand(action: "list" | "read" | "run", payload: Record<s
 
       result = (await act("one", { code })) as ActResult;
     } else {
-      result = (await act("flow", { action, ...payload })) as ActResult;
+      result = (await act("riff", { action, ...payload })) as ActResult;
     }
 
     const text = result.content?.find((item) => item?.type === "text")?.text;
@@ -182,9 +182,9 @@ export async function runOneAgentCli(argv = process.argv.slice(2)) {
     return;
   }
 
-  if (command === "flow") {
-    const { action, payload } = parseFlowArgs(rest);
-    await runFlowCommand(action, payload);
+  if (command === "riff") {
+    const { action, payload } = parseRiffArgs(rest);
+    await runRiffCommand(action, payload);
     return;
   }
 

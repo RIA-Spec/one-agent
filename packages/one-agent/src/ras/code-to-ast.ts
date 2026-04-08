@@ -2,7 +2,7 @@
  * Code-to-AST: TypeScript-side extraction of code structure + act()/reason() calls.
  *
  * Parses code strings to extract structured step plans (tree) for execution visualization.
- * Supports both Python and Bash AER modes with mode-specific block-aware parsers.
+ * Supports both Python and Bash RAS modes with mode-specific block-aware parsers.
  *
  * Detects:
  * - act() / reason() calls (trackable steps with runtime progress)
@@ -14,13 +14,13 @@
 
 import type { ASTStep } from "../progress.js";
 
-export type AERMode = "python" | "bash";
+export type RASMode = "python" | "bash";
 
 /**
- * Extract structured AST tree from code based on AER mode.
+ * Extract structured AST tree from code based on runtime mode.
  * Returns a tree of steps for execution visualization and progress tracking.
  */
-export function codeToAST(code: string, mode: AERMode): ASTStep[] {
+export function codeToAST(code: string, mode: RASMode): ASTStep[] {
   if (!code || code.trim().length === 0) return [];
 
   switch (mode) {

@@ -6,10 +6,10 @@
   "license": "Apache-2.0",
   "type": "module",
   "scripts": {
-    "dev": "pnpm --parallel --filter=@one/agent --filter=web dev",
-    "build": "pnpm --filter=@one/agent build && pnpm --filter=web build",
+    "dev": "pnpm --parallel --filter=@one/agent --filter=ai-chatbot dev",
+    "build": "pnpm --filter=@one/agent build && pnpm --filter=ai-chatbot build",
     "build:agent": "pnpm --filter=@one/agent build",
-    "build:web": "pnpm --filter=web build",
+    "build:web": "pnpm --filter=ai-chatbot build",
     "fmt": "pnpm --filter=@one/agent exec oxfmt src && pnpm --filter=@one/act exec oxfmt src && pnpm --filter=@one/reason exec oxfmt src",
     "fmt:check": "pnpm --filter=@one/agent exec oxfmt --check src && pnpm --filter=@one/act exec oxfmt --check src && pnpm --filter=@one/reason exec oxfmt --check src",
     "repl": "pnpm --filter=@one/agent repl",

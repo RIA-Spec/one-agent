@@ -2,6 +2,8 @@
 
 `apps/web` is the web chat interface for one agent, built with Next.js App Router.
 
+It is the UI layer for this repository's Re in Act implementation: the chat experience renders `reason()`/`act()` execution, riff reuse, and the Python/Bash runtime surfaces exposed by the agent.
+
 ## What it includes
 
 - Chat UI and conversation history

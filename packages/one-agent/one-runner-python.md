@@ -13,32 +13,39 @@ refs:
 #   - '<tool name="playwright.__ALL__"/>'
 ---
 
-# Python Action Execution Runtime (AER)
+# Python Reason-able Action Space (RAS)
 
-**The Programmatic Approach**: Manage control flows using code execution (conditions, loops, branches).
+**The Programmatic Approach**: manage deterministic execution inside a Reason-able Action Space (RAS) using code (conditions, loops, branches).
 
 ## API Reference
 
 ### reason(prompt, example) -> {data, error}
 
-Call LLM for structured data extraction and decision-making.
+Use `reason()` only when local evidence inside the RAS must be denoised into a judgment, a smaller structured result, or the next-step decision.
+
+Do not manually rewrite or hand-type tool output into a new `reason()` prompt. Pass tool output to `reason()` programmatically from variables, parser results, or other in-script data flow.
 
 **Parameters:**
 
-- `prompt` (str): What you want the AI to do
-- `example`: Expected output shape - AI returns data matching this structure
+- `prompt` (str): Include the goal, observation, relevant context, and constraints
+- `example`: Expected output shape - reason() returns data matching this structure
 
 **Returns:**
 
 - `data`: Structured result (bool, array, object, number, string)
-- `error`: Error message if validation fails, null otherwise
+- `error`: Error message if schema validation fails repeatedly, null otherwise
 
 **Use Cases:**
 
-- Boolean decisions: `await reason('Should we alert?', True)`
-- Array extraction: `await reason('List top 3 items', ['item1'])`
-- Object structuring: `await reason('Categorize data', {'cat1': [], 'cat2': []})`
-- Batch analysis: `await reason('Analyze all items', [{'item': '', 'summary': ''}])`
+- Boolean decisions: `await reason('Goal: decide if we should alert. Observation: ... Constraints: return true/false.', True)`
+- Array extraction: `await reason('Goal: list the top 3 items. Observation: ... Constraints: return only strings.', ['item1'])`
+- Object structuring: `await reason('Goal: categorize the local data. Observation: ... Constraints: use these keys only.', {'cat1': [], 'cat2': []})`
+- Batch analysis: `await reason('Goal: analyze all items. Observation: ... Constraints: return one record per item.', [{'item': '', 'summary': ''}])`
+- Batched act flow: use `reason()` between `act()` calls when tool output is noisy and you need to choose the next target, branch, retry, escalate, or summarize only the signal before the next action
+
+**Do not use it for:** cases where the exact output or exact next edit is already clear.
+
+When writing a Python RAS script, prefer batching related `act()` calls in one run. Put `reason()` only at the decision nodes inside that batch. After a command/tool call, use `reason()` only if you need to denoise the output into a smaller structured result or the next control decision for the workflow or the user. Observation content should come directly from runtime data, not hand-written restatements.
 
 ### act(name, args) -> {content, isError}
 
@@ -61,6 +68,8 @@ Call MCP server tools with exact arguments.
 
 **Available Tools:** bash (shell commands), websearch (internet search), webfetch (fetch and transform page content).
 
+**Reusable workflows:** use the `riff` tool for recurring, stable workflows. Storage lives under `.agent/riff/<name>/riff.md` and `.agent/riff/<name>/ras.py`.
+
 ## Environment Constraints
 
 - Python runs in WebAssembly sandbox (Pyodide)
@@ -73,7 +82,7 @@ Call MCP server tools with exact arguments.
 import asyncio
 
 async def main():
-    result = await reason('prompt', example)
+    result = await reason('Goal: ... Observation: ... Constraints: ...', example)
     data = await act('tool_name', {'key': 'value'})
     print(result['data'])
 
@@ -93,7 +102,7 @@ async def main():
     log_content = open("build.log").read() if os.path.exists("build.log") else "No log"
 
     result = await reason(
-        f"Analyze this build log: {log_content}\nDid the build succeed?",
+        f"Goal: decide if the build succeeded. Observation: {log_content}\nConstraints: return success plus a short grounded reason.",
         {"success": False, "reason": ""}
     )
 
@@ -114,7 +123,7 @@ import asyncio
 async def main():
     news = ['News A', 'News B', 'News C']
     result = await reason(
-        f'Analyze each news item and overall trend: {news}',
+        f'Goal: analyze each news item and the overall trend. Observation: {news}. Constraints: keep each summary brief and grounded in the input.',
         {
             'analyses': [{'title': 'News A', 'summary': 'brief analysis'}],
             'trend': 'overall trend summary'
@@ -144,7 +153,7 @@ async def main():
         data = response['content'][0]['text']
 
         check = await reason(
-            f"Is this API response valid JSON? {data[:200]}",
+            f"Goal: decide whether this API response is valid JSON. Observation: {data[:200]}. Constraints: return valid plus one short next action.",
             {"valid": False, "action": ""}
         )
 
@@ -170,7 +179,7 @@ async def main():
     page_content = fetched['content'][0]['text']
 
     result = await reason(
-        f'Extract all links and categorize: {page_content[:8000]}',
+        f'Goal: extract links and categorize them. Observation: {page_content[:8000]}. Constraints: return only the requested buckets.',
         {'nav_links': [], 'content_links': [], 'external_links': []}
     )
     print(result['data'])
@@ -184,7 +193,7 @@ asyncio.run(main())
 import asyncio
 
 async def main():
-    result = await reason('Extract data', {'items': []})
+    result = await reason('Goal: extract the items. Observation: local input data. Constraints: return {items}.', {'items': []})
     if result['error']:
         print(f"Error: {result['error']}")
     elif result['data'] is None:

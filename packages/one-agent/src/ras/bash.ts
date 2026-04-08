@@ -1,5 +1,5 @@
 /**
- * Bash AER - Unix pipe-based Action Execution Runtime
+ * Bash RAS - Unix pipe-based Reason-able Action Space runtime
  *
  * `reason` and `act` commands block until results are ready (like curl).
  * IPC: child writes req file → parent polls & processes → writes resp file → child reads.
@@ -31,7 +31,7 @@ type BashReasonResult = {
   error?: string;
 };
 
-export interface BashAERConfig {
+export interface BashRASConfig {
   cwd: string;
   reasonHandler: (prompt: string, example: unknown) => Promise<BashReasonResult>;
   actHandler: (server: unknown) => (name: string, args: unknown) => Promise<ActResultLike>;
@@ -74,8 +74,8 @@ function serializeActResult(result: unknown): string {
 /** Process pending request files */
 async function processRequests(
   dataDir: string,
-  reasonHandler: BashAERConfig["reasonHandler"],
-  actHandler: BashAERConfig["actHandler"],
+  reasonHandler: BashRASConfig["reasonHandler"],
+  actHandler: BashRASConfig["actHandler"],
   server: unknown,
   stepCounter?: { value: number },
 ) {
@@ -165,10 +165,10 @@ async function processRequests(
   }
 }
 
-export function createBashAER(config: BashAERConfig) {
+export function createBashRAS(config: BashRASConfig) {
   return {
     name: "bash",
-    description: `Bash Action Execution Runtime - Execute bash with built-in reason and act commands.
+    description: `Bash Reason-able Action Space runtime - Execute bash with built-in reason and act commands.
 
   reason [--prompt "text"] [prompt|-] [--structure '{"key":""}'|structure]  (returns JSON with data/error)
   act --manual [tool]

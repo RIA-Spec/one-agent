@@ -13,9 +13,9 @@ refs:
 #   - '<tool name="playwright.__ALL__"/>'
 ---
 
-# Bash Action Execution Runtime (AER)
+# Bash Reason-able Action Space (RAS)
 
-Control flow using unix pipes (|) and redirection (>). Intermediate data is persisted transparently on the file system.
+Run a Bash RAS using unix pipes (|) and redirection (>). Deterministic control flow stays in shell while intermediate data is persisted transparently on the file system.
 
 ## How to Use
 
@@ -45,9 +45,11 @@ cat file.txt | reason --prompt "Analyze:" --prompt - | jq -r '.summary'
 
 ## Built-in Commands
 
-### reason - AI Analysis Command
+### reason - Local Judgment Command
 
-Call AI for structured data extraction and decision-making in bash pipelines.
+Use `reason` only when local evidence inside the RAS must be denoised into a judgment, a smaller structured result, or the next-step decision.
+
+Do not manually rewrite or hand-type `act` output into a new `reason` prompt. Pipe current command/tool output to `reason` directly (for example with `--prompt -` and stdin), or pass it through variables/parsers first.
 
 **Syntax:**
 
@@ -61,17 +63,21 @@ reason --prompt "text" --prompt - --structure '{"key": ""}'
 - `--prompt -`: Read prompt from stdin
 - `--structure '{"json": ""}'`: Expected output structure (optional)
 
-**Output:** JSON data to stdout
+**Output:** JSON data to stdout matching the requested structure
 
 **Examples:**
 
 ```bash
-# Simple AI call
+# Simple local judgment
 echo "Python is awesome" | reason --prompt "Summarize:" --prompt - --structure '{"summary": ""}'
 
 # Extract structured data
 cat api_docs.md | reason --prompt "Extract API endpoints" --structure '{"endpoints": []}'
 ```
+
+Do not use `reason` when the exact output or exact next edit is already clear.
+
+When batching multiple `act` calls in one shell session, place `reason` at the decision nodes inside that batch. After a command/tool call, use `reason` only if you need to denoise the output into a smaller structured result or the next control decision for the next step or for the user. Keep the observation flow machine-to-machine (pipe/variable), not hand-written.
 
 ### act - MCP Tool Command
 
@@ -105,6 +111,18 @@ act bash '{"command":"ls -la"}'
 
 # Use stdin JSON
 echo '{"url":"https://google.com","format":"text"}' | act webfetch -
+```
+
+### riff - Reusable Workflow Command
+
+Use the `riff` tool for recurring, stable workflows that should be saved and reused.
+
+Examples:
+
+```bash
+act riff '{"action":"list"}'
+act riff '{"action":"read","name":"10-life-hacks","includeScript":true}'
+act riff '{"action":"run","name":"10-life-hacks"}'
 ```
 
 ## Pipeline Examples
@@ -215,7 +233,7 @@ act websearch '{"query":"TypeScript AbortSignal timeout best practices","type":"
 
 ## Best Practices
 
-### Bash AER Best For:
+### Bash RAS Best For:
 
 - ✅ Linear pipelines
 - ✅ Unix tool composition (grep, awk, jq, etc.)

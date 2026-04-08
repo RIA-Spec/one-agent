@@ -2,6 +2,8 @@
 
 TypeScript benchmark runner that calls the real ONE agent runtime.
 
+These evals measure the behavior of this repository's Re in Act implementation against real tasks and datasets, using the actual agent runtime rather than a mocked interface.
+
 ## Files
 
 - `agent_eval.ts`: benchmark runner

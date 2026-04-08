@@ -1,5 +1,5 @@
 /**
- * Python AER - Code-based Action Execution Runtime
+ * Python RAS - Code-based Reason-able Action Space runtime
  *
  * Agent controls deterministic execution via Python logic (conditions, loops, branches).
  * Built-in async reason() and act() functions provide local structured judgment and external actions inside the RAS.
@@ -14,7 +14,7 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
 
-export interface PythonAERConfig {
+export interface PythonRASConfig {
   nodeFSRoot: string;
   nodeFSMountPoint: string;
   reasonHandler: (prompt: string, example: any) => Promise<any>;
@@ -195,12 +195,12 @@ function prettifyPythonOutput(raw: string): { text: string; isError: boolean } {
   return { text: fallbackLines.join("\n"), isError: true };
 }
 
-export function createPythonAER(config: PythonAERConfig) {
+export function createPythonRAS(config: PythonRASConfig) {
   const { nodeFSRoot, nodeFSMountPoint, reasonHandler, actHandler } = config;
 
   return {
     name: "one",
-    description: `Python Action Execution Runtime - Execute Python inside a Reason-able Action Space with built-in reason() and act() functions.
+    description: `Python Reason-able Action Space runtime - Execute Python inside a bounded workspace with built-in reason() and act() functions.
 
   reason(prompt, example) -> {data, error}  (async, use with asyncio.run, returns bounded local judgment)
   act(name, args) -> result                 (async, use with asyncio.run, runs on host machine)

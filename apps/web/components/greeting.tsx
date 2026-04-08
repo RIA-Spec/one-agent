@@ -22,7 +22,7 @@ export const Greeting = () => {
         initial={{ opacity: 0, y: 10 }}
         transition={{ delay: 0.6 }}
       >
-        I can help you plan, create, and complete complex tasks end-to-end.
+        I can run real tool workflows: bash, read/edit/write, websearch/webfetch, and riff.
       </motion.div>
     </div>
   );

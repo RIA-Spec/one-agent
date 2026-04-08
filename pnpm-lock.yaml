@@ -400,8 +400,8 @@ importers:
         specifier: ^0.3.43
         version: 0.3.43(hono@4.11.4)(zod@4.3.5)
       '@mcpc/code-runner-mcp':
-        specifier: jsr:^0.1.9
-        version: '@jsr/mcpc__code-runner-mcp@0.1.9(hono@4.11.4)'
+        specifier: jsr:^0.1.14
+        version: '@jsr/mcpc__code-runner-mcp@0.1.14(hono@4.11.4)'
       '@mcpc/mcp-sampling-ai-provider':
         specifier: jsr:^0.1.21
         version: '@jsr/mcpc__mcp-sampling-ai-provider@0.1.21(hono@4.11.4)(zod@4.3.5)'
@@ -1412,14 +1412,17 @@ packages:
   '@jsr/es-toolkit__es-toolkit@1.44.0':
     resolution: {integrity: sha512-UiD+M4YWgPaqvmM701xJT76BgAnIysgtbku77BKptIjtXq146uzi8GIs2tuFP8ujYuRuaR2MJl2sgLltE68Xjw==, tarball: https://npm.jsr.io/~/11/@jsr/es-toolkit__es-toolkit/1.44.0.tgz}
 
-  '@jsr/mcpc__code-runner-mcp@0.1.9':
-    resolution: {integrity: sha512-eoUzXdvgdQDKdSJztj8LoBgLevvQXxCNshU0wodHt7p3NEApNYZ72U+ibko/ORP66qH5+MD6Y7/oCOLIiuBnlg==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__code-runner-mcp/0.1.9.tgz}
+  '@jsr/mcpc__code-runner-mcp@0.1.14':
+    resolution: {integrity: sha512-u8OnlSTxe5snSwTRLxoe0UofQxGiZGse9lBNIxw/mJIKNXYXSPpDK8JlvRIcc56FMe0PDcuJIzin4SGp/yaGXg==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__code-runner-mcp/0.1.14.tgz}
 
   '@jsr/mcpc__core@0.1.14':
     resolution: {integrity: sha512-oWoSThkDZSiyHJxzJRZRWY3UZrA7Pho4+6qZGoJ68kIM9bMIUWPiU9yaV0DDcKRsGQoMP+GirB2W8Ba+XEForA==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__core/0.1.14.tgz}
 
   '@jsr/mcpc__core@0.3.34':
     resolution: {integrity: sha512-uE0fZKN7TyS0gzI71eFawGjixZ9Q2kebkhrp5j/i/stK4is47sIh5imz5AClk0lAXJsQ/prTNCscfuRHFFtULA==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__core/0.3.34.tgz}
+
+  '@jsr/mcpc__handle-sandbox@0.0.11':
+    resolution: {integrity: sha512-R+CmHxa+mhhYdCJmPlSiL0tRKuvM15VntJOe/hERRYdxx1oCtChh4GztV7FWQMpuLiopv9fZY0e2QGcM6QCQzw==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__handle-sandbox/0.0.11.tgz}
 
   '@jsr/mcpc__mcp-sampling-ai-provider@0.1.21':
     resolution: {integrity: sha512-E2WbTzWqfe+AQzLFLw+D4vtbtSS1XyVedcsTJggfsD3OE3GyKNdB1uQTXDAqrV8Mec9VL6Y/JBG1bj+TBwH1OQ==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__mcp-sampling-ai-provider/0.1.21.tgz}
@@ -6929,10 +6932,12 @@ snapshots:
 
   '@jsr/es-toolkit__es-toolkit@1.44.0': {}
 
-  '@jsr/mcpc__code-runner-mcp@0.1.9(hono@4.11.4)':
+  '@jsr/mcpc__code-runner-mcp@0.1.14(hono@4.11.4)':
     dependencies:
       '@hono/zod-openapi': 0.19.10(hono@4.11.4)(zod@3.25.76)
       '@jsr/mcpc__core': 0.1.14(hono@4.11.4)
+      '@jsr/mcpc__handle-sandbox': 0.0.11
+      '@jsr/std__cli': 1.0.27
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
       env-paths: 4.0.0
       pyodide: 0.29.3
@@ -6994,6 +6999,8 @@ snapshots:
       - hono
       - supports-color
       - zod
+
+  '@jsr/mcpc__handle-sandbox@0.0.11': {}
 
   '@jsr/mcpc__mcp-sampling-ai-provider@0.1.21(hono@4.11.4)(zod@4.3.5)':
     dependencies:

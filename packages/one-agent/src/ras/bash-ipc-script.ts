@@ -1,7 +1,7 @@
 /**
- * Script generators for Bash AER IPC client commands.
+ * Script generators for Bash RAS IPC client commands.
  *
- * Keeping the generated CJS templates in one place makes Bash AER
+ * Keeping the generated CJS templates in one place makes Bash RAS
  * runtime logic easier to maintain and review.
  */
 

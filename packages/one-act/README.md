@@ -2,6 +2,8 @@
 
 Deterministic MCP tool runner for ONE.
 
+Within this repository's Re in Act implementation, `@one/act` is the external action layer: it is responsible for deterministic tool execution, while higher-level agent logic decides when to call `act()`.
+
 ## MCP Config
 
 `one-act` reads MCP server config from `~/.config/one/act.json` or `ONE_ACT_MCP_SERVERS`.

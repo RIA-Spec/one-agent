@@ -1,7 +1,7 @@
 {
   "name": "@one/agent",
   "version": "0.0.0",
-  "description": "ONE Agent - AI Agent with code execution runtime (AER).",
+  "description": "ONE Agent - AI agent with a code execution RAS.",
   "homepage": "https://github.com/author/library#readme",
   "bugs": {
     "url": "https://github.com/author/library/issues"
@@ -58,7 +58,7 @@
     "@ai-sdk/devtools": "^0.0.6",
     "@ai-sdk/openai-compatible": "2.0.35",
     "@mcpc-tech/core": "^0.3.43",
-    "@mcpc/code-runner-mcp": "jsr:^0.1.9",
+    "@mcpc/code-runner-mcp": "jsr:^0.1.14",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",
     "@modelcontextprotocol/sdk": "^1.25.3",
