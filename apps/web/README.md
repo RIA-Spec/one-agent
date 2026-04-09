@@ -41,4 +41,4 @@ Then open http://localhost:3000.
 - `pnpm start` – start production server
 - `pnpm lint` – run ultracite checks
 - `pnpm test` – run Playwright tests
-- `pnpm test:bench` – run one-agent eval smoke benchmark (`pnpm --filter @one/agent evals:smoke`)
+- `pnpm test:bench` – run one-agent eval smoke benchmark (`pnpm --filter @one-agent/agent evals:smoke`)

@@ -1,5 +1,5 @@
 import { gateway } from "@ai-sdk/gateway";
-import { openaiCompatible } from "@one/agent";
+import { openaiCompatible } from "@one-agent/agent";
 import {
   customProvider,
   extractReasoningMiddleware,

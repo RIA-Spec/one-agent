@@ -140,7 +140,7 @@ export async function POST(request: Request) {
           setProgressCallback,
           autoCompactMessages,
           AGENT_SYSTEM_PROMPT,
-        } = await import("@one/agent");
+        } = await import("@one-agent/agent");
 
         const model = openaiCompatible(resolvedChatModel);
 
