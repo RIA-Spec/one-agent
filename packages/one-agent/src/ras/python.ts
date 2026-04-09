@@ -19,6 +19,7 @@ export interface PythonRASConfig {
   nodeFSMountPoint: string;
   reasonHandler: (prompt: string, example: any) => Promise<any>;
   actHandler: (server: any) => (name: string, args: unknown) => Promise<any>;
+  agentHandler: (server: any) => (prompt: string, config?: unknown) => Promise<any>;
 }
 
 /**
@@ -196,16 +197,17 @@ function prettifyPythonOutput(raw: string): { text: string; isError: boolean } {
 }
 
 export function createPythonRAS(config: PythonRASConfig) {
-  const { nodeFSRoot, nodeFSMountPoint, reasonHandler, actHandler } = config;
+  const { nodeFSRoot, nodeFSMountPoint, reasonHandler, actHandler, agentHandler } = config;
 
   return {
     name: "one",
-    description: `Python Reason-able Action Space runtime - Execute Python inside a bounded workspace with built-in reason() and act() functions.
+    description: `Python Reason-able Action Space runtime - Execute Python inside a bounded workspace with built-in reason(), act(), and optional agent() extension.
 
   reason(prompt, example) -> {data, error}  (async, use with asyncio.run, returns bounded local judgment)
   act(name, args) -> result                 (async, use with asyncio.run, runs on host machine)
   act('__manual__', {}) -> list tools       (async)
   act('__manual__', {'name': 'bash'}) -> tool definition
+  agent(prompt, config?) -> string|{error}  (async delegated worker; returns plain text on success)
 
 Usage:
   import asyncio
@@ -299,7 +301,11 @@ ${code}
 
       try {
         const stream = await runPy(instrumentedCode, {
-          handlers: { reason: reasonHandler, act: actHandler(server) },
+          handlers: {
+            reason: reasonHandler,
+            act: actHandler(server),
+            agent: agentHandler(server),
+          },
           packages,
           nodeFSRoot,
           nodeFSMountPoint,

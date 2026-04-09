@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { runActCli } from "@one/act";
-import { runReasonCli } from "@one/reason";
+import { runActCli } from "@one-agent/act";
+import { runReasonCli } from "@one-agent/reason";
 import { getToolFn } from "./interfaces/act.js";
 import { runReplCli } from "./repl.js";
 import { getServer } from "./tools.js";

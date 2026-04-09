@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runActCli } from "@one/act";
+import { runActCli } from "@one-agent/act";
 import { getServer } from "./tools.js";
 import { startTracing } from "./tracing.js";
 

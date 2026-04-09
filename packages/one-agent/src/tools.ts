@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { reason } from "./interfaces/reason";
 import { getToolFn } from "./interfaces/act";
+import { agent as delegatedAgent } from "./interfaces/agent";
+import type { AgentConfig, AgentResult } from "./interfaces/agent";
 import { createBashTool } from "./interfaces/tools/bash.js";
 import {
   createReadTool,
@@ -28,6 +30,68 @@ type RASActResult = {
   isError?: boolean;
 };
 
+type RASAgentResult = AgentResult;
+
+function parseBooleanEnv(name: string, fallback: boolean): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return fallback;
+  if (raw === "1" || raw === "true" || raw === "yes" || raw === "on") return true;
+  if (raw === "0" || raw === "false" || raw === "no" || raw === "off") return false;
+  return fallback;
+}
+
+function getActPrimaryText(result: RASActResult): string {
+  const text = result.content?.find((entry) => entry.type === "text")?.text;
+  return typeof text === "string" ? text : "";
+}
+
+const AGENT_EXTENSION_ENABLED = parseBooleanEnv("ONE_AGENT_EXTENSION_ENABLED", false);
+const AGENT_EXTENSION_INJECT_SYSTEM_PROMPT = parseBooleanEnv(
+  "ONE_AGENT_EXTENSION_INJECT_SYSTEM_PROMPT",
+  true,
+);
+const AGENT_EXTENSION_INJECT_TOOLS = parseBooleanEnv("ONE_AGENT_EXTENSION_INJECT_TOOLS", true);
+const AGENT_EXTENSION_TOOL_HINT_MAX_CHARS = 12_000;
+/**
+ * Delegated worker policy injected into `agent(prompt, config)` when extension is enabled.
+ *
+ * agent() interface:
+ *   agent(prompt, config?) -> string | { error }
+ *
+ * Suggested config fields:
+ * - budget: { maxSteps, maxMinutes, maxOutputTokens, maxRetries }
+ * - model: optional model hint for ACP provider
+ * - on_error: "fail" | "return_error" | "retry_within_budget"
+ * - extension: { enabled, injectSystemPrompt, injectTools }
+ *
+ * Minimal example:
+ *   const out = await agent("Inspect failing test and propose patch", {
+ *     budget: { maxSteps: 40, maxMinutes: 30 },
+ *     on_error: "return_error",
+ *   });
+ *   if (typeof out === "string") {
+ *     // plain-text delegated result
+ *   } else {
+ *     // explicit error envelope: { error }
+ *   }
+ *
+ * How to use agent() at runtime (caller side):
+ * - Enable extension: ONE_AGENT_EXTENSION_ENABLED=1
+ * - Optional injection toggles:
+ *   - ONE_AGENT_EXTENSION_INJECT_SYSTEM_PROMPT=1
+ *   - ONE_AGENT_EXTENSION_INJECT_TOOLS=1
+ * - Optional ACP backend config (consumed by @one-agent/agent-extension):
+ *   - ONE_AGENT_EXTENSION_ACP_COMMAND=claude-agent-acp
+ *   - ONE_AGENT_EXTENSION_ACP_MODEL=default
+ *   - ONE_AGENT_EXTENSION_ACP_ARGS=--permission-mode acceptEdits
+ */
+const AGENT_EXTENSION_BASE_SYSTEM_PROMPT = `You are a delegated local worker inside the current Reason-able Action Space (RAS).
+Role boundary: act as a bounded delegated executor, not as a top-level planner.
+Contract: do not bypass reason()/act() contracts, sandbox rules, or policy gates.
+Grounding: base claims on observed tool outputs and explicit context only.
+Output rule: return plain text only; keep it concise and auditable.
+Failure rule: if blocked by budget/policy/runtime limits, report constraints clearly and stop; do not invent capabilities.`;
+
 const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<RASReasonResult> => {
   const result = await reason(prompt, example);
   return {
@@ -40,6 +104,50 @@ const adaptedActHandler =
   (server: unknown) =>
   (name: string, args: unknown): Promise<RASActResult> =>
     getToolFn(server as Parameters<typeof getToolFn>[0])(name, args) as Promise<RASActResult>;
+
+const adaptedAgentHandler =
+  (server: unknown) =>
+  async (prompt: string, config: unknown): Promise<RASAgentResult> => {
+    if (!AGENT_EXTENSION_ENABLED) {
+      return {
+        error: "agent() extension is disabled. Set ONE_AGENT_EXTENSION_ENABLED=1 to enable it.",
+      };
+    }
+
+    const baseConfig =
+      config && typeof config === "object" ? (config as Record<string, unknown>) : {};
+    const extensionBase =
+      baseConfig.extension && typeof baseConfig.extension === "object"
+        ? (baseConfig.extension as Record<string, unknown>)
+        : {};
+
+    let injectedSystem = "";
+
+    if (AGENT_EXTENSION_INJECT_SYSTEM_PROMPT) {
+      injectedSystem = AGENT_EXTENSION_BASE_SYSTEM_PROMPT;
+    }
+
+    if (AGENT_EXTENSION_INJECT_TOOLS) {
+      const manual = await adaptedActHandler(server)("__manual__", {});
+      const catalog = getActPrimaryText(manual);
+      if (catalog) {
+        const trimmed = catalog.slice(0, AGENT_EXTENSION_TOOL_HINT_MAX_CHARS);
+        const toolPrompt = `Runtime tool catalog (via act --manual):\n${trimmed}`;
+        injectedSystem = injectedSystem ? `${injectedSystem}\n\n${toolPrompt}` : toolPrompt;
+      }
+    }
+
+    const mergedConfig: AgentConfig = {
+      ...(baseConfig as AgentConfig),
+      extension: {
+        ...extensionBase,
+        enabled: true,
+        ...(injectedSystem ? { injectSystemPrompt: injectedSystem } : {}),
+      },
+    };
+
+    return delegatedAgent(prompt, mergedConfig);
+  };
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
@@ -80,6 +188,7 @@ export async function getServer() {
                 cwd: projectRoot,
                 reasonHandler: adaptedReasonHandler,
                 actHandler: adaptedActHandler,
+                agentHandler: adaptedAgentHandler,
               });
               server.tool(
                 bashRAS.name,
@@ -127,6 +236,7 @@ export async function getServer() {
               nodeFSMountPoint,
               reasonHandler: adaptedReasonHandler,
               actHandler: adaptedActHandler,
+              agentHandler: adaptedAgentHandler,
             });
             server.tool(
               pythonRAS.name,

@@ -46,13 +46,13 @@ importers:
       '@icons-pack/react-simple-icons':
         specifier: ^13.7.0
         version: 13.8.0(react@19.0.1)
-      '@one/act':
+      '@one-agent/act':
         specifier: workspace:*
         version: link:../../packages/one-act
-      '@one/agent':
+      '@one-agent/agent':
         specifier: workspace:*
         version: link:../../packages/one-agent
-      '@one/reason':
+      '@one-agent/reason':
         specifier: workspace:*
         version: link:../../packages/one-reason
       '@opentelemetry/api':
@@ -333,6 +333,34 @@ importers:
         specifier: ^7.0.11
         version: 7.1.5
 
+  packages/agent-extension:
+    dependencies:
+      '@mcpc-tech/acp-ai-provider':
+        specifier: ^0.3.2
+        version: 0.3.2(hono@4.11.4)
+      ai:
+        specifier: 6.0.44
+        version: 6.0.44(zod@3.25.76)
+      hono:
+        specifier: ^4.11.4
+        version: 4.11.4
+    devDependencies:
+      '@types/node':
+        specifier: ^25.0.3
+        version: 25.0.10
+      oxfmt:
+        specifier: ^0.28.0
+        version: 0.28.0
+      tsdown:
+        specifier: ^0.18.1
+        version: 0.18.4(typescript@5.9.3)
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.16
+        version: 4.0.17(@opentelemetry/api@1.9.0)(@types/node@25.0.10)(@vitest/ui@4.0.17)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0)(yaml@2.8.2)
+
   packages/one-act:
     dependencies:
       '@ai-sdk/anthropic':
@@ -348,8 +376,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@mcpc-tech/acp-ai-provider':
-        specifier: ^0.1.50
-        version: 0.1.50(hono@4.11.4)
+        specifier: ^0.3.2
+        version: 0.3.2(hono@4.11.4)
       '@mcpc-tech/core':
         specifier: ^0.3.43
         version: 0.3.43(hono@4.11.4)(zod@3.25.76)
@@ -411,10 +439,13 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.25.3(hono@4.11.4)(zod@4.3.5)
-      '@one/act':
+      '@one-agent/act':
         specifier: workspace:*
         version: link:../one-act
-      '@one/reason':
+      '@one-agent/agent-extension':
+        specifier: workspace:*
+        version: link:../agent-extension
+      '@one-agent/reason':
         specifier: workspace:*
         version: link:../one-reason
       '@opentelemetry/api':
@@ -500,8 +531,8 @@ importers:
         specifier: ^1.1.0
         version: 1.1.0
       '@mcpc-tech/acp-ai-provider':
-        specifier: ^0.1.50
-        version: 0.1.50
+        specifier: ^0.3.2
+        version: 0.3.2
       '@opentelemetry/api':
         specifier: ^1.9.0
         version: 1.9.0
@@ -538,6 +569,11 @@ importers:
         version: 5.9.3
 
 packages:
+
+  '@agentclientprotocol/sdk@0.14.1':
+    resolution: {integrity: sha512-b6r3PS3Nly+Wyw9U+0nOr47bV8tfS476EgyEMhoKvJCZLbgqoDFN7DJwkxL88RR0aiOqOYV1ZnESHqb+RmdH8w==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@agentclientprotocol/sdk@0.4.9':
     resolution: {integrity: sha512-ExwH828LaTGoTTjxuw49l+fwOLA+Yx0+qkWn1TcHMOsY5mVI9CUfkj7ZDhv2klgZ7mJeT+lxX/Dn/KINv1AkNQ==}
@@ -1490,11 +1526,11 @@ packages:
   '@marijn/find-cluster-break@1.0.2':
     resolution: {integrity: sha512-l0h88YhZFyKdXIFNfSWpyjStDjGHwZ/U7iobcK1cQQD8sejsONdQtTVU+1wVN1PBw40PiiHB1vA5S7VTfQiP9g==}
 
-  '@mcpc-tech/acp-ai-provider@0.1.50':
-    resolution: {integrity: sha512-BRZkTKd2F/XB0gcap9+Xgq6ajOQAKoTd4jrAT7j2Cr3nqSPElwp/B8xBGtSc68tiXDh53KAipyu3IsubUz+Ftw==}
-
   '@mcpc-tech/acp-ai-provider@0.1.58':
     resolution: {integrity: sha512-ONpvqWSJBEdfaJCH/xCN7TDBQn+ufKWlACfOcCpoBUMc2HpunF17JnAtOdy5tJR8Vyh+E7BgvSXxOKkVM/4ZYg==}
+
+  '@mcpc-tech/acp-ai-provider@0.3.2':
+    resolution: {integrity: sha512-y4v+i5kwdKXUoLJhkAbkOWwW78+lVo7FuMoJQPHKVc5EoE1eI3LKLAeULI6hKnLZ0aQl3rK3IqPoEC5YgCsA8Q==}
 
   '@mcpc-tech/core@0.3.43':
     resolution: {integrity: sha512-ksuOWeHR3bVJ7kDVHf2haoxOTmcyf6SqD1W6BkDbcHmeLgwIcgG2b4XmmDtsdxqyKjlYif/KIdBXaCGSWXq/XA==}
@@ -6241,6 +6277,10 @@ packages:
 
 snapshots:
 
+  '@agentclientprotocol/sdk@0.14.1(zod@3.25.76)':
+    dependencies:
+      zod: 3.25.76
+
   '@agentclientprotocol/sdk@0.4.9':
     dependencies:
       zod: 3.25.76
@@ -6977,7 +7017,7 @@ snapshots:
       '@ai-sdk/provider': 3.0.4
       '@jsr/mcpc__mcp-sampling-ai-provider': 0.1.21(hono@4.11.4)(zod@4.3.5)
       '@jsr/mcpc__utils': 0.2.12(hono@4.11.4)(zod@4.3.5)
-      '@mcpc-tech/acp-ai-provider': 0.1.50(hono@4.11.4)
+      '@mcpc-tech/acp-ai-provider': 0.1.58(hono@4.11.4)
       '@mcpc-tech/ripgrep-napi': 0.0.4
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@4.3.5)
       '@opentelemetry/api': 1.9.0
@@ -7105,22 +7145,11 @@ snapshots:
 
   '@marijn/find-cluster-break@1.0.2': {}
 
-  '@mcpc-tech/acp-ai-provider@0.1.50':
+  '@mcpc-tech/acp-ai-provider@0.1.58(hono@4.11.4)':
     dependencies:
       '@agentclientprotocol/sdk': 0.4.9
       '@ai-sdk/provider': 3.0.4
-      '@modelcontextprotocol/sdk': 1.25.3(zod@3.25.76)
-      ai: 6.0.44(zod@3.25.76)
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - hono
-      - supports-color
-
-  '@mcpc-tech/acp-ai-provider@0.1.50(hono@4.11.4)':
-    dependencies:
-      '@agentclientprotocol/sdk': 0.4.9
-      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
       ai: 6.0.44(zod@3.25.76)
       zod: 3.25.76
@@ -7129,11 +7158,24 @@ snapshots:
       - hono
       - supports-color
 
-  '@mcpc-tech/acp-ai-provider@0.1.58(hono@4.11.4)':
+  '@mcpc-tech/acp-ai-provider@0.3.2':
     dependencies:
-      '@agentclientprotocol/sdk': 0.4.9
+      '@agentclientprotocol/sdk': 0.14.1(zod@3.25.76)
       '@ai-sdk/provider': 3.0.4
-      '@ai-sdk/provider-utils': 2.2.8(zod@3.25.76)
+      '@ai-sdk/provider-utils': 4.0.19(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.25.3(zod@3.25.76)
+      ai: 6.0.44(zod@3.25.76)
+      zod: 3.25.76
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - hono
+      - supports-color
+
+  '@mcpc-tech/acp-ai-provider@0.3.2(hono@4.11.4)':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.14.1(zod@3.25.76)
+      '@ai-sdk/provider': 3.0.4
+      '@ai-sdk/provider-utils': 4.0.19(zod@3.25.76)
       '@modelcontextprotocol/sdk': 1.25.3(hono@4.11.4)(zod@3.25.76)
       ai: 6.0.44(zod@3.25.76)
       zod: 3.25.76

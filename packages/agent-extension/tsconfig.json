@@ -5,12 +5,6 @@
     "moduleDetection": "force",
     "module": "preserve",
     "moduleResolution": "bundler",
-    "baseUrl": ".",
-    "paths": {
-      "@one-agent/act": ["../one-act/src/index.ts"],
-      "@one-agent/reason": ["../one-reason/src/index.ts"],
-      "@one-agent/agent-extension": ["../agent-extension/src/index.ts"]
-    },
     "resolveJsonModule": true,
     "types": ["node"],
     "strict": true,

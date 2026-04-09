@@ -1,5 +1,5 @@
 {
-  "name": "@one/agent",
+  "name": "@one-agent/agent",
   "version": "0.0.0",
   "description": "ONE Agent - AI agent with a code execution RAS.",
   "homepage": "https://github.com/author/library#readme",
@@ -62,8 +62,9 @@
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",
     "@modelcontextprotocol/sdk": "^1.25.3",
-    "@one/act": "workspace:*",
-    "@one/reason": "workspace:*",
+    "@one-agent/act": "workspace:*",
+    "@one-agent/agent-extension": "workspace:*",
+    "@one-agent/reason": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
     "@opentelemetry/auto-instrumentations-node": "^0.69.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.211.0",

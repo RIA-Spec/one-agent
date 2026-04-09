@@ -80,8 +80,44 @@ function getActScriptBody() {
   `;
 }
 
-function buildScript(dataDir: string, type: "reason" | "act") {
-  const isReason = type === "reason";
+function getAgentScriptBody() {
+  return `
+  let prompts = [], positionals = [], configRaw = '';
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--prompt') {
+      const value = args[++i];
+      if (value == null) { console.error('--prompt requires a value'); process.exit(1); }
+      prompts.push(value === '-' ? stdin : value);
+    }
+    else if (arg.startsWith('--prompt=')) { prompts.push(arg.slice('--prompt='.length) === '-' ? stdin : arg.slice('--prompt='.length)); }
+    else if (arg === '--config') {
+      const value = args[++i];
+      if (value == null) { console.error('--config requires a value'); process.exit(1); }
+      configRaw = value;
+    }
+    else if (arg.startsWith('--config=')) { configRaw = arg.slice('--config='.length); }
+    else if (!arg.startsWith('-') || arg === '-') { positionals.push(arg); }
+    else { console.error('Unknown argument: ' + arg); process.exit(1); }
+  }
+  if (positionals.length > 2) { console.error('Too many positional arguments'); process.exit(1); }
+  const promptArg = positionals[0] || '';
+  if (promptArg) prompts.push(promptArg === '-' ? stdin : promptArg);
+  if (positionals[1] && !configRaw) configRaw = positionals[1];
+  if (prompts.length === 0) { console.error('prompt is required'); process.exit(1); }
+  let parsedConfig = {};
+  if (configRaw) {
+    try { parsedConfig = JSON.parse(configRaw); }
+    catch (error) { console.error('Invalid config JSON: ' + error.message); process.exit(1); }
+  }
+  const body = { prompt: prompts.join('\\n'), config: parsedConfig };
+  `;
+}
+
+function buildScript(dataDir: string, type: "reason" | "act" | "agent") {
+  const mode = type;
+  const isReason = mode === "reason";
+  const isAct = mode === "act";
   const needsStdinExpr = isReason
     ? `(() => {
   let positionalIndex = 0;
@@ -108,7 +144,8 @@ function buildScript(dataDir: string, type: "reason" | "act") {
   }
   return false;
 })()`
-    : `(() => {
+    : isAct
+      ? `(() => {
   let toolName = '', needsJsonStdin = false, showManual = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -125,9 +162,34 @@ function buildScript(dataDir: string, type: "reason" | "act") {
     }
   }
   return needsJsonStdin;
+})()`
+      : `(() => {
+  let positionalIndex = 0;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--prompt') {
+      if (args[i + 1] === '-') return true;
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--prompt=')) {
+      if (arg.slice('--prompt='.length) === '-') return true;
+      continue;
+    }
+    if (arg === '--config') {
+      i++;
+      continue;
+    }
+    if (arg.startsWith('--config=')) continue;
+    if (!arg.startsWith('-') || arg === '-') {
+      if (positionalIndex === 0 && arg === '-') return true;
+      positionalIndex++;
+    }
+  }
+  return false;
 })()`;
 
-  const parseBody = isReason ? getReasonScriptBody() : getActScriptBody();
+  const parseBody = isReason ? getReasonScriptBody() : isAct ? getActScriptBody() : getAgentScriptBody();
   const responseOutput = isReason
     ? "    process.stdout.write(raw);"
     : `    const payload = JSON.parse(raw);
@@ -166,6 +228,6 @@ if (needsStdin) {
 `;
 }
 
-export function makeScript(dataDir: string, type: "reason" | "act") {
+export function makeScript(dataDir: string, type: "reason" | "act" | "agent") {
   return buildScript(dataDir, type);
 }

@@ -1,1 +1,1 @@
-export { getToolFn } from "@one/act";
+export { getToolFn } from "@one-agent/act";

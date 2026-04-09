@@ -1,2 +1,2 @@
-export { reason } from "@one/reason";
-export type { AIResult } from "@one/reason";
+export { reason } from "@one-agent/reason";
+export type { AIResult } from "@one-agent/reason";

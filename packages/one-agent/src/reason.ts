@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { runReasonCli } from "@one/reason";
+import { runReasonCli } from "@one-agent/reason";
 import { startTracing } from "./tracing.js";
 
 startTracing();

@@ -31,10 +31,13 @@ type BashReasonResult = {
   error?: string;
 };
 
+type BashAgentResult = string | { error?: string };
+
 export interface BashRASConfig {
   cwd: string;
   reasonHandler: (prompt: string, example: unknown) => Promise<BashReasonResult>;
   actHandler: (server: unknown) => (name: string, args: unknown) => Promise<ActResultLike>;
+  agentHandler: (server: unknown) => (prompt: string, config?: unknown) => Promise<BashAgentResult>;
 }
 
 function formatActResultText(result: unknown): string {
@@ -71,11 +74,30 @@ function serializeActResult(result: unknown): string {
   );
 }
 
+function serializeAgentResult(result: BashAgentResult): string {
+  if (typeof result === "string") {
+    return JSON.stringify({ text: result, isError: false }, null, 2);
+  }
+
+  const errorText =
+    result && typeof result === "object" && typeof result.error === "string" ? result.error : "";
+
+  return JSON.stringify(
+    {
+      text: errorText,
+      isError: Boolean(errorText),
+    },
+    null,
+    2,
+  );
+}
+
 /** Process pending request files */
 async function processRequests(
   dataDir: string,
   reasonHandler: BashRASConfig["reasonHandler"],
   actHandler: BashRASConfig["actHandler"],
+  agentHandler: BashRASConfig["agentHandler"],
   server: unknown,
   stepCounter?: { value: number },
 ) {
@@ -162,6 +184,33 @@ async function processRequests(
           });
       }
     }
+
+    if (file.startsWith("one-agent-req-") && file.endsWith(".txt")) {
+      const id = file.match(/one-agent-req-(.+)\.txt$/)?.[1];
+      const respFile = join(dataDir, `one-agent-resp-${id}.txt`);
+      if (existsSync(respFile)) continue;
+
+      try {
+        const req = JSON.parse(readFileSync(reqFile, "utf-8"));
+        try {
+          unlinkSync(reqFile);
+        } catch {}
+
+        const result = await agentHandler(server)(req.prompt, req.config);
+        writeFileSync(respFile, serializeAgentResult(result));
+      } catch (error: unknown) {
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        try {
+          unlinkSync(reqFile);
+        } catch {}
+        if (id) {
+          writeFileSync(
+            join(dataDir, `one-agent-resp-${id}.txt`),
+            JSON.stringify({ text: errorMessage, isError: true }, null, 2),
+          );
+        }
+      }
+    }
   }
 }
 
@@ -174,6 +223,7 @@ export function createBashRAS(config: BashRASConfig) {
   act --manual [tool]
   act <tool> '{"key":"value"}'
   act <tool> -
+  agent [--prompt "text"] [prompt|-] [--config '{"budget":{"maxSteps":20}}'|config]
   act --name "name" --args '{"key":"value"}' [--args -]
 
 File system: ${config.cwd} -> ${config.cwd}
@@ -237,19 +287,24 @@ cat r.json | jq -r 'if .error then .error else .data[] end'
       _extra?: unknown,
       server?: unknown,
     ) => {
-      const { cwd, reasonHandler, actHandler } = config;
+      const { cwd, reasonHandler, actHandler, agentHandler } = config;
       const dataDir = join(cwd, "data");
       if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 
       // Write helper scripts
       const reasonCjs = join(dataDir, "reason.cjs"),
-        actCjs = join(dataDir, "act.cjs");
+        actCjs = join(dataDir, "act.cjs"),
+        agentCjs = join(dataDir, "agent.cjs");
       writeFileSync(reasonCjs, makeScript(dataDir, "reason"));
       writeFileSync(actCjs, makeScript(dataDir, "act"));
+      writeFileSync(agentCjs, makeScript(dataDir, "agent"));
       writeFileSync(join(dataDir, "reason"), `#!/bin/bash\nexec node "${reasonCjs}" "$@"\n`, {
         mode: 0o755,
       });
       writeFileSync(join(dataDir, "act"), `#!/bin/bash\nexec node "${actCjs}" "$@"\n`, {
+        mode: 0o755,
+      });
+      writeFileSync(join(dataDir, "agent"), `#!/bin/bash\nexec node "${agentCjs}" "$@"\n`, {
         mode: 0o755,
       });
 
@@ -265,7 +320,8 @@ cat r.json | jq -r 'if .error then .error else .data[] end'
       // Poll for requests while bash runs
       let active = true;
       const poll = setInterval(() => {
-        if (active) processRequests(dataDir, reasonHandler, actHandler, server, stepCounter);
+        if (active)
+          processRequests(dataDir, reasonHandler, actHandler, agentHandler, server, stepCounter);
       }, 50);
 
       try {
