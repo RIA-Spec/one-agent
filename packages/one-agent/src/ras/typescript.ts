@@ -127,7 +127,7 @@ export function createTypeScriptRAS(config: TypeScriptRASConfig) {
   act(name, args) -> result                 (async, runs on host machine)
   act('__manual__', {}) -> list tools       (async)
   act('__manual__', {'name': 'bash'}) -> tool definition
-  agent(prompt, config?) -> string|{error}  (async delegated worker; returns plain text on success)
+  agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
 
 Usage:
   const r = await reason('Goal: summarize the local evidence. Observation: ... Constraints: return {result}.', { result: '' });

@@ -19,6 +19,46 @@ export interface AgentExtensionToggleConfig {
   injectTools?: AcpSessionConfig["mcpServers"] | false;
 }
 
+export interface AgentTrajectoryUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  total_tokens?: number;
+}
+
+export interface AgentTrajectoryStep {
+  step_id: string;
+  response_id?: string;
+  finish_reason?: string;
+  usage?: AgentTrajectoryUsage;
+  tool_results?: unknown[];
+}
+
+// ATIF reference: https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md
+export interface AgentTrajectory {
+  format: "ATIF";
+  schema_version: string;
+  session_id: string;
+  steps: AgentTrajectoryStep[];
+  final_metrics?: {
+    model?: string;
+    finish_reason?: string;
+    usage?: AgentTrajectoryUsage;
+    budget?: {
+      max_steps?: number;
+      max_minutes?: number;
+      max_output_tokens?: number;
+      max_retries?: number;
+    };
+  };
+}
+
+export interface AgentSuccessResult {
+  data: {
+    text: string;
+    trajectory: AgentTrajectory;
+  };
+}
+
 export interface AgentConfig {
   command?: string;
   args?: string[];
@@ -37,7 +77,7 @@ export interface AgentConfig {
 }
 
 export type AgentErrorResult = { error: string };
-export type AgentResult = string | AgentErrorResult;
+export type AgentResult = AgentSuccessResult | AgentErrorResult;
 
 const DEFAULT_MODEL_ID = "default";
 const DEFAULT_MAX_STEPS = 40;
@@ -171,11 +211,32 @@ function buildSystemPrompt(config: AgentConfig, mergedMcpServers: AcpSessionConf
   return parts.join("\n\n");
 }
 
-async function runAgentOnce(prompt: string, config: AgentConfig): Promise<string> {
+function normalizeUsage(usage: {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}): AgentTrajectoryUsage | undefined {
+  const normalized: AgentTrajectoryUsage = {};
+
+  if (typeof usage.inputTokens === "number") {
+    normalized.input_tokens = usage.inputTokens;
+  }
+  if (typeof usage.outputTokens === "number") {
+    normalized.output_tokens = usage.outputTokens;
+  }
+  if (typeof usage.totalTokens === "number") {
+    normalized.total_tokens = usage.totalTokens;
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+}
+
+async function runAgentOnce(prompt: string, config: AgentConfig): Promise<AgentSuccessResult> {
   const command =
     config.command ?? process.env.ONE_AGENT_EXTENSION_ACP_COMMAND?.trim() ?? DEFAULT_ACP_COMMAND;
 
-  const modelId = config.model?.trim() || process.env.ONE_AGENT_EXTENSION_ACP_MODEL?.trim() || DEFAULT_MODEL_ID;
+  const modelId =
+    config.model?.trim() || process.env.ONE_AGENT_EXTENSION_ACP_MODEL?.trim() || DEFAULT_MODEL_ID;
   const baseMcpServers = normalizeMcpServers(config.session?.mcpServers);
   const injectedMcpServers =
     config.extension?.enabled === true && config.extension.injectTools !== false
@@ -201,6 +262,7 @@ async function runAgentOnce(prompt: string, config: AgentConfig): Promise<string
   const model = acpProvider.languageModel(modelId, config.mode);
 
   const controller = new AbortController();
+  const steps: AgentTrajectoryStep[] = [];
   const timeout =
     typeof maxMinutes === "number" && Number.isFinite(maxMinutes) && maxMinutes > 0
       ? setTimeout(() => controller.abort(), Math.floor(maxMinutes * 60_000))
@@ -214,16 +276,50 @@ async function runAgentOnce(prompt: string, config: AgentConfig): Promise<string
       maxOutputTokens,
       abortSignal: controller.signal,
       stopWhen: stepCountIs(Math.max(1, Math.floor(maxSteps))),
+      onStepFinish: ({ usage, finishReason, response, toolResults }) => {
+        steps.push({
+          step_id: `step_${steps.length + 1}`,
+          response_id: response?.id,
+          finish_reason: finishReason,
+          usage: normalizeUsage(usage),
+          tool_results:
+            Array.isArray(toolResults) && toolResults.length > 0 ? toolResults : undefined,
+        });
+      },
     });
 
     const text = (await result.text).trim();
     const finishReason = await result.finishReason;
+    const totalUsage = normalizeUsage(await result.totalUsage);
 
     if (!text) {
       throw new Error(`agent() produced empty output. finishReason=${finishReason}`);
     }
 
-    return text;
+    const trajectory: AgentTrajectory = {
+      format: "ATIF",
+      schema_version: "atif-0.1",
+      session_id: steps.find((step) => step.response_id)?.response_id ?? crypto.randomUUID(),
+      steps,
+      final_metrics: {
+        model: modelId,
+        finish_reason: finishReason,
+        usage: totalUsage,
+        budget: {
+          max_steps: maxSteps,
+          ...(typeof maxMinutes === "number" ? { max_minutes: maxMinutes } : {}),
+          max_output_tokens: maxOutputTokens,
+          max_retries: config.budget?.maxRetries,
+        },
+      },
+    };
+
+    return {
+      data: {
+        text,
+        trajectory,
+      },
+    };
   } finally {
     if (timeout) clearTimeout(timeout);
     acpProvider.cleanup();

@@ -9,7 +9,7 @@
 
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { createWriteStream, mkdirSync, existsSync } from "node:fs";
+import { mkdirSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { jsonSchema } from "ai";
 import {
@@ -33,17 +33,116 @@ interface BashToolDetails {
   fullOutputPath?: string;
 }
 
+interface BashExecutionOptions {
+  timeout?: number;
+  signal?: AbortSignal;
+}
+
+interface BashExecutionResult {
+  stdout: string;
+  stderr: string;
+  exitCode: number | null;
+}
+
+interface FormattedBashOutput {
+  outputText: string;
+  details?: BashToolDetails;
+}
+
+function terminateProcess(proc: ReturnType<typeof spawn>) {
+  proc.kill("SIGTERM");
+  setTimeout(() => proc.kill("SIGKILL"), 5000);
+}
+
+function combineCommandOutput(stdout: string, stderr: string): string {
+  if (!stdout) {
+    return stderr;
+  }
+  if (!stderr) {
+    return stdout;
+  }
+  return `${stdout}\n${stderr}`;
+}
+
+function ensureDataDir(cwd: string) {
+  const dataDir = join(cwd, "data");
+  if (!existsSync(dataDir)) {
+    mkdirSync(dataDir, { recursive: true });
+  }
+}
+
+function buildTruncationNotice(
+  truncation: TruncationResult,
+  output: string,
+  fullOutputPath: string,
+): string {
+  const startLine = truncation.totalLines - truncation.outputLines + 1;
+  const endLine = truncation.totalLines;
+
+  if (truncation.lastLinePartial) {
+    const lastLineSize = formatSize(Buffer.byteLength(output.split("\n").pop() || "", "utf-8"));
+    return `[Showing last ${formatSize(truncation.outputBytes)} of line ${endLine} (line is ${lastLineSize}). Full output: ${fullOutputPath}]`;
+  }
+
+  if (truncation.truncatedBy === "lines") {
+    return `[Showing lines ${startLine}-${endLine} of ${truncation.totalLines}. Full output: ${fullOutputPath}]`;
+  }
+
+  return `[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Full output: ${fullOutputPath}]`;
+}
+
+function formatCommandOutput(output: string, cwd: string): FormattedBashOutput {
+  const truncation = truncateTail(output);
+  const outputText = truncation.content || "(no output)";
+
+  if (!truncation.truncated) {
+    return { outputText };
+  }
+
+  ensureDataDir(cwd);
+  const fullOutputPath = getTempFilePath(cwd);
+  writeFileSync(fullOutputPath, output);
+
+  return {
+    outputText: `${outputText}\n\n${buildTruncationNotice(truncation, output, fullOutputPath)}`,
+    details: {
+      truncation,
+      fullOutputPath,
+    },
+  };
+}
+
+function toErrorMessage(error: unknown, timeout?: number): string {
+  if (!(error instanceof Error)) {
+    return String(error);
+  }
+
+  if (error.message.startsWith("timeout:")) {
+    return `Command timed out after ${timeout} seconds`;
+  }
+
+  if (error.message === "aborted") {
+    return "Command was aborted";
+  }
+
+  return error.message;
+}
+
+function errorResponse(text: string) {
+  return {
+    content: [{ type: "text" as const, text }],
+    isError: true,
+  };
+}
+
 /**
  * Execute a bash command
  */
 async function executeBash(
   command: string,
   cwd: string,
-  options?: {
-    timeout?: number;
-    signal?: AbortSignal;
-  },
-): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
+  options?: BashExecutionOptions,
+): Promise<BashExecutionResult> {
   return new Promise((resolve, reject) => {
     const proc = spawn("bash", ["-c", command], {
       cwd,
@@ -60,21 +159,18 @@ async function executeBash(
     if (options?.timeout) {
       timeoutHandle = setTimeout(() => {
         timedOut = true;
-        proc.kill("SIGTERM");
-        // Force kill after 5s
-        setTimeout(() => proc.kill("SIGKILL"), 5000);
+        terminateProcess(proc);
       }, options.timeout * 1000);
     }
 
     // Handle abort signal
     const onAbort = () => {
-      proc.kill("SIGTERM");
-      setTimeout(() => proc.kill("SIGKILL"), 5000);
+      terminateProcess(proc);
     };
 
     if (options?.signal) {
       if (options.signal.aborted) {
-        proc.kill("SIGTERM");
+        terminateProcess(proc);
         reject(new Error("aborted"));
         return;
       }
@@ -144,89 +240,27 @@ export function createBashTool(cwd: string) {
       },
       extra?: any,
     ) => {
-      let tempFilePath: string | undefined;
-      let tempFileStream: ReturnType<typeof createWriteStream> | undefined;
-
       try {
         const result = await executeBash(command, cwd, {
           timeout,
           signal: extra?.signal,
         });
 
-        // Combine stdout and stderr
-        let output = "";
-        if (result.stdout) output += result.stdout;
-        if (result.stderr) {
-          if (output) output += "\n";
-          output += result.stderr;
-        }
+        const output = combineCommandOutput(result.stdout, result.stderr);
+        const { outputText, details } = formatCommandOutput(output, cwd);
 
-        // Apply tail truncation first to determine if we need temp file
-        const truncation = truncateTail(output);
-        let outputText = truncation.content || "(no output)";
-
-        // Write to temp file if truncation occurred
-        if (truncation.truncated) {
-          tempFilePath = getTempFilePath(cwd);
-          // Ensure data directory exists
-          const dataDir = join(cwd, "data");
-          if (!existsSync(dataDir)) {
-            mkdirSync(dataDir, { recursive: true });
-          }
-          tempFileStream = createWriteStream(tempFilePath);
-          tempFileStream.write(output);
-          tempFileStream.end();
-        }
-
-        // Build details with truncation info
-        let details: BashToolDetails | undefined;
-
-        if (truncation.truncated) {
-          details = {
-            truncation,
-            fullOutputPath: tempFilePath,
-          };
-
-          // Build actionable notice
-          const startLine = truncation.totalLines - truncation.outputLines + 1;
-          const endLine = truncation.totalLines;
-
-          if (truncation.lastLinePartial) {
-            const lastLineSize = formatSize(
-              Buffer.byteLength(output.split("\n").pop() || "", "utf-8"),
-            );
-            outputText += `\n\n[Showing last ${formatSize(truncation.outputBytes)} of line ${endLine} (line is ${lastLineSize}). Full output: ${tempFilePath}]`;
-          } else if (truncation.truncatedBy === "lines") {
-            outputText += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines}. Full output: ${tempFilePath}]`;
-          } else {
-            outputText += `\n\n[Showing lines ${startLine}-${endLine} of ${truncation.totalLines} (${formatSize(DEFAULT_MAX_BYTES)} limit). Full output: ${tempFilePath}]`;
-          }
-        }
-
-        // Handle non-zero exit codes
         if (result.exitCode !== 0) {
-          throw new Error(`${outputText}\n\nCommand exited with code ${result.exitCode}`.trim());
+          return errorResponse(
+            `${outputText}\n\nCommand exited with code ${result.exitCode}`.trim(),
+          );
         }
 
         return {
           content: [{ type: "text", text: outputText }],
           ...(details && { details }),
         };
-      } catch (error: any) {
-        const errorMsg = error.message.startsWith("timeout:")
-          ? `Command timed out after ${timeout} seconds`
-          : error.message === "aborted"
-            ? "Command was aborted"
-            : error.message;
-
-        return {
-          content: [{ type: "text", text: errorMsg }],
-          isError: true,
-        };
-      } finally {
-        if (tempFileStream) {
-          tempFileStream.end();
-        }
+      } catch (error: unknown) {
+        return errorResponse(toErrorMessage(error, timeout));
       }
     },
   };

@@ -29,8 +29,10 @@ describe("agent extension integration", () => {
       },
     });
 
-    if (typeof result === "string") {
-      expect(result.length).toBeGreaterThan(0);
+    if ("data" in result) {
+      expect(result.data.text.length).toBeGreaterThan(0);
+      expect(result.data.trajectory.format).toBe("ATIF");
+      expect(result.data.trajectory.schema_version.length).toBeGreaterThan(0);
       return;
     }
 
@@ -53,8 +55,9 @@ describe("agent extension integration", () => {
       },
     });
 
-    if (typeof result === "string") {
-      expect(result.length).toBeGreaterThan(0);
+    if ("data" in result) {
+      expect(result.data.text.length).toBeGreaterThan(0);
+      expect(result.data.trajectory.session_id.length).toBeGreaterThan(0);
       return;
     }
 

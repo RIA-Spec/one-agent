@@ -41,6 +41,35 @@ function getToolOutputText(output: any) {
   return JSON.stringify(output, null, 2);
 }
 
+function getRASModeAndSource(part: any): {
+  rasMode: "python" | "bash" | "typescript";
+  codeOrCommand: string;
+} {
+  const command =
+    typeof part?.input?.command === "string" ? part.input.command : "";
+  if (command) {
+    return { rasMode: "bash", codeOrCommand: command };
+  }
+
+  const code = typeof part?.input?.code === "string" ? part.input.code : "";
+  const explicitMode =
+    typeof part?.input?.mode === "string" ? part.input.mode.toLowerCase() : "";
+
+  if (explicitMode === "typescript" || explicitMode === "ts") {
+    return { rasMode: "typescript", codeOrCommand: code };
+  }
+
+  const looksTypeScript =
+    /(?:^|\n)\s*(?:const|let|var)\s+\w+\s*=/.test(code) ||
+    /(?:^|\n)\s*(?:export\s+)?(?:async\s+)?function\s+\w+\s*\(/.test(code) ||
+    /=>|console\.log\(|interface\s+\w+|type\s+\w+\s*=/.test(code);
+
+  return {
+    rasMode: looksTypeScript ? "typescript" : "python",
+    codeOrCommand: code,
+  };
+}
+
 const PurePreviewMessage = ({
   addToolApprovalResponse,
   chatId,
@@ -381,9 +410,7 @@ const PurePreviewMessage = ({
 
             if (type === "tool-one" || type === "tool-bash") {
               const { toolCallId, state } = part;
-              const rasMode = type === "tool-bash" ? "bash" : "python";
-              const codeOrCommand =
-                type === "tool-bash" ? part.input?.command : part.input?.code;
+              const { rasMode, codeOrCommand } = getRASModeAndSource(part);
 
               return (
                 <Tool defaultOpen={true} key={toolCallId}>

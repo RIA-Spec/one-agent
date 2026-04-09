@@ -33,7 +33,7 @@ import {
 import type { ASTStep } from "@/lib/types";
 
 type ExecutionState = "pending" | "streaming" | "available" | "error";
-type RASMode = "python" | "bash";
+type RASMode = "python" | "bash" | "typescript";
 
 interface ToolOneRiffProps {
   riffId?: string;
@@ -189,9 +189,182 @@ function parseCodeToSteps(code: string, mode: RASMode = "python"): ASTStep[] {
       return parsePythonTree(code);
     case "bash":
       return parseBashTree(code);
+    case "typescript":
+      return parseTypeScriptTree(code);
     default:
       return [];
   }
+}
+
+function parseTypeScriptTree(code: string): ASTStep[] {
+  const lines = code.split("\n");
+  const root: ASTStep[] = [];
+  type Frame = { step: ASTStep; depth: number };
+  const stack: Frame[] = [];
+  let depth = 0;
+
+  const target = (): ASTStep[] => {
+    const frame = stack.at(-1);
+    if (!frame) {
+      return root;
+    }
+
+    if (!frame.step.children) {
+      frame.step.children = [];
+    }
+
+    return frame.step.children;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+
+    if (!trimmed || trimmed.startsWith("//")) {
+      depth += (raw.match(/\{/g) || []).length;
+      depth -= (raw.match(/\}/g) || []).length;
+      while (stack.length > 0 && depth < stack[stack.length - 1].depth) {
+        stack.pop();
+      }
+      continue;
+    }
+
+    while (stack.length > 0 && depth < stack[stack.length - 1].depth) {
+      stack.pop();
+    }
+
+    const line = i + 1;
+    const blockStart = /\{\s*$/.test(trimmed);
+
+    if (/^(for|while)\s*\(/.test(trimmed)) {
+      const node: ASTStep = {
+        type: "loop",
+        name: trimmed.replace(/\{$/, "").trim(),
+        args: [],
+        line,
+      };
+      target().push(node);
+      if (blockStart) {
+        stack.push({ step: node, depth: depth + 1 });
+      }
+    } else if (/^(if|else\s+if|else)\b/.test(trimmed)) {
+      const node: ASTStep = {
+        type: "condition",
+        name: trimmed.replace(/\{$/, "").trim(),
+        args: [],
+        line,
+      };
+      target().push(node);
+      if (blockStart) {
+        stack.push({ step: node, depth: depth + 1 });
+      }
+    } else if (/^(try|catch|finally)\b/.test(trimmed)) {
+      const node: ASTStep = {
+        type: "error-handling",
+        name: trimmed.replace(/\{$/, "").trim(),
+        args: [],
+        line,
+      };
+      target().push(node);
+      if (blockStart) {
+        stack.push({ step: node, depth: depth + 1 });
+      }
+    }
+
+    if (/(?:\bawait\s+)?\b(act|reason)\s*\(/.test(trimmed)) {
+      const fnType = trimmed.match(/(?:\bawait\s+)?\b(act|reason)\s*\(/)?.[1] as
+        | "act"
+        | "reason";
+      const { text: callText, endLine } = collectTsCall(lines, i);
+      const argsStr = extractCallArgs(callText);
+
+      if (fnType === "act") {
+        const nameMatch = argsStr?.match(/^[f]?['"]([^'"]{0,80})['"]/);
+        const name = nameMatch ? nameMatch[1] : "tool";
+        const rest = (argsStr || "")
+          .substring(nameMatch ? nameMatch[0].length : 0)
+          .replace(/^\s*,\s*/, "")
+          .trim();
+        const preview = rest
+          .replace(/\s+/g, " ")
+          .replace(/^['"]|['"]$/g, "")
+          .substring(0, 60);
+        target().push({
+          type: "act",
+          name,
+          args: preview ? [preview] : [],
+          line,
+        });
+      } else {
+        const fstr = argsStr?.match(/^f['"](.{0,60}?)['"]/);
+        const str = argsStr?.match(/^['"](.{0,60}?)['"]/);
+        let prompt = "Analyze";
+        if (fstr) {
+          prompt = `f"${fstr[1].replace(/\{[^}]*\}/g, "{...}").trim()}"`;
+        } else if (str) {
+          prompt = str[1].trim();
+        }
+        target().push({ type: "reason", name: prompt, args: [], line });
+      }
+
+      i = endLine;
+    }
+
+    depth += (raw.match(/\{/g) || []).length;
+    depth -= (raw.match(/\}/g) || []).length;
+    while (stack.length > 0 && depth < stack[stack.length - 1].depth) {
+      stack.pop();
+    }
+  }
+
+  return root;
+}
+
+function collectTsCall(
+  lines: string[],
+  idx: number
+): { text: string; endLine: number } {
+  let text = "";
+  let depth = 0;
+  let started = false;
+  let inStr: string | null = null;
+
+  for (let i = idx; i < lines.length; i++) {
+    text += (i === idx ? "" : "\n") + lines[i];
+
+    for (let c = 0; c < lines[i].length; c++) {
+      const ch = lines[i][c];
+      if (inStr) {
+        if (ch === "\\") {
+          c++;
+          continue;
+        }
+        if (ch === inStr) {
+          inStr = null;
+        }
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === "`") {
+        inStr = ch;
+        continue;
+      }
+
+      if (ch === "(") {
+        depth++;
+        started = true;
+      }
+      if (ch === ")") {
+        depth--;
+      }
+    }
+
+    if (started && depth <= 0) {
+      return { text, endLine: i };
+    }
+  }
+
+  return { text, endLine: lines.length - 1 };
 }
 
 // ─── Flatten Utility ────────────────────────────────────────────────────────
@@ -623,11 +796,11 @@ function parseBashTree(code: string): ASTStep[] {
       const cs = cm.index + cm[0].length - cmdType.length;
       const cmdStr = extractBashCmd(t, cs);
       if (cmdType === "act") {
-        const name = bashFlag(cmdStr, "--name") || "tool";
-        const p = bashFlags(cmdStr, "--prompt")
-          .filter((x) => x !== "-")
-          .join(" ")
-          .substring(0, 60);
+        const positional = bashPositionalArgs(cmdStr);
+        const name = bashFlag(cmdStr, "--name") || positional[0] || "tool";
+        const p = formatBashActPreview(
+          bashFlag(cmdStr, "--args") || positional[1] || ""
+        );
         target().push({ type: "act", name, args: p ? [p] : [], line: ln });
       } else {
         const p = bashFlags(cmdStr, "--prompt")
@@ -737,6 +910,92 @@ function bashFlags(cmd: string, flag: string): string[] {
     }
   }
   return results;
+}
+
+function bashPositionalArgs(cmd: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < cmd.length) {
+    while (i < cmd.length && /\s/.test(cmd[i])) {
+      i++;
+    }
+    if (i >= cmd.length) {
+      break;
+    }
+
+    const ch = cmd[i];
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      i++;
+      let value = "";
+      while (i < cmd.length) {
+        if (cmd[i] === "\\" && quote === '"' && i + 1 < cmd.length) {
+          value += cmd[i + 1];
+          i += 2;
+          continue;
+        }
+        if (cmd[i] === quote) {
+          i++;
+          break;
+        }
+        value += cmd[i++];
+      }
+      tokens.push(value);
+      continue;
+    }
+
+    const start = i;
+    while (i < cmd.length && !/\s/.test(cmd[i])) {
+      i++;
+    }
+    tokens.push(cmd.slice(start, i));
+  }
+
+  const positional: string[] = [];
+  for (let idx = 1; idx < tokens.length; idx++) {
+    const token = tokens[idx];
+    if (token.startsWith("--")) {
+      if (idx + 1 < tokens.length && !tokens[idx + 1].startsWith("--")) {
+        idx++;
+      }
+      continue;
+    }
+    positional.push(token);
+  }
+  return positional;
+}
+
+function formatBashActPreview(argSource: string): string {
+  if (!argSource || argSource === "-") {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(argSource) as {
+      command?: unknown;
+      prompt?: unknown;
+      url?: unknown;
+      path?: unknown;
+    };
+
+    if (typeof parsed.command === "string") {
+      return parsed.command.substring(0, 60);
+    }
+    if (typeof parsed.prompt === "string") {
+      return parsed.prompt.substring(0, 60);
+    }
+    if (typeof parsed.url === "string") {
+      return parsed.url.substring(0, 60);
+    }
+    if (typeof parsed.path === "string") {
+      return parsed.path.substring(0, 60);
+    }
+  } catch {
+    // Fall back to raw value when args are not JSON.
+  }
+
+  return argSource.replace(/\s+/g, " ").substring(0, 60);
 }
 
 /**
@@ -1049,10 +1308,15 @@ export function ToolOneRiff({
           nodesDraggable={false}
           nodesConnectable={false}
           nodesFocusable={false}
+          elementsSelectable={false}
           edgesFocusable={false}
           nodeTypes={nodeTypes}
-          panOnDrag={true}
-          panOnScroll={true}
+          panOnDrag={false}
+          panOnScroll={false}
+          preventScrolling={false}
+          zoomOnDoubleClick={false}
+          zoomOnPinch={false}
+          zoomOnScroll={false}
           proOptions={{ hideAttribution: true }}
         >
           <Background className="opacity-20" gap={16} size={0.5} />

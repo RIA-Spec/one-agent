@@ -623,11 +623,11 @@ function parseBashTree(code: string): ASTStep[] {
       const cs = cm.index + cm[0].length - cmdType.length;
       const cmdStr = extractBashCmd(t, cs);
       if (cmdType === "act") {
-        const name = bashFlag(cmdStr, "--name") || "tool";
-        const p = bashFlags(cmdStr, "--prompt")
-          .filter((x) => x !== "-")
-          .join(" ")
-          .substring(0, 60);
+        const positional = bashPositionalArgs(cmdStr);
+        const name = bashFlag(cmdStr, "--name") || positional[0] || "tool";
+        const p = formatBashActPreview(
+          bashFlag(cmdStr, "--args") || positional[1] || ""
+        );
         target().push({ type: "act", name, args: p ? [p] : [], line: ln });
       } else {
         const p = bashFlags(cmdStr, "--prompt")
@@ -737,6 +737,92 @@ function bashFlags(cmd: string, flag: string): string[] {
     }
   }
   return results;
+}
+
+function bashPositionalArgs(cmd: string): string[] {
+  const tokens: string[] = [];
+  let i = 0;
+
+  while (i < cmd.length) {
+    while (i < cmd.length && /\s/.test(cmd[i])) {
+      i++;
+    }
+    if (i >= cmd.length) {
+      break;
+    }
+
+    const ch = cmd[i];
+    if (ch === '"' || ch === "'") {
+      const quote = ch;
+      i++;
+      let value = "";
+      while (i < cmd.length) {
+        if (cmd[i] === "\\" && quote === '"' && i + 1 < cmd.length) {
+          value += cmd[i + 1];
+          i += 2;
+          continue;
+        }
+        if (cmd[i] === quote) {
+          i++;
+          break;
+        }
+        value += cmd[i++];
+      }
+      tokens.push(value);
+      continue;
+    }
+
+    const start = i;
+    while (i < cmd.length && !/\s/.test(cmd[i])) {
+      i++;
+    }
+    tokens.push(cmd.slice(start, i));
+  }
+
+  const positional: string[] = [];
+  for (let idx = 1; idx < tokens.length; idx++) {
+    const token = tokens[idx];
+    if (token.startsWith("--")) {
+      if (idx + 1 < tokens.length && !tokens[idx + 1].startsWith("--")) {
+        idx++;
+      }
+      continue;
+    }
+    positional.push(token);
+  }
+  return positional;
+}
+
+function formatBashActPreview(argSource: string): string {
+  if (!argSource || argSource === "-") {
+    return "";
+  }
+
+  try {
+    const parsed = JSON.parse(argSource) as {
+      command?: unknown;
+      prompt?: unknown;
+      url?: unknown;
+      path?: unknown;
+    };
+
+    if (typeof parsed.command === "string") {
+      return parsed.command.substring(0, 60);
+    }
+    if (typeof parsed.prompt === "string") {
+      return parsed.prompt.substring(0, 60);
+    }
+    if (typeof parsed.url === "string") {
+      return parsed.url.substring(0, 60);
+    }
+    if (typeof parsed.path === "string") {
+      return parsed.path.substring(0, 60);
+    }
+  } catch {
+    // Fall back to raw value when args are not JSON.
+  }
+
+  return argSource.replace(/\s+/g, " ").substring(0, 60);
 }
 
 /**
@@ -1049,10 +1135,15 @@ export function ToolOneRiff({
           nodesDraggable={false}
           nodesConnectable={false}
           nodesFocusable={false}
+          elementsSelectable={false}
           edgesFocusable={false}
           nodeTypes={nodeTypes}
-          panOnDrag={true}
-          panOnScroll={true}
+          panOnDrag={false}
+          panOnScroll={false}
+          preventScrolling={false}
+          zoomOnDoubleClick={false}
+          zoomOnPinch={false}
+          zoomOnScroll={false}
           proOptions={{ hideAttribution: true }}
         >
           <Background className="opacity-20" gap={16} size={0.5} />

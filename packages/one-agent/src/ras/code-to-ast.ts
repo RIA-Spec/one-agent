@@ -674,12 +674,10 @@ function extractBashCommand(line: string, start: number): string {
 }
 
 function parseBashActCommand(cmdStr: string, line: number): ASTStep {
-  const name = extractBashFlag(cmdStr, "--name") || "tool";
-  const prompts = extractAllBashFlags(cmdStr, "--prompt");
-  const preview = prompts
-    .filter((p) => p !== "-")
-    .join(" ")
-    .substring(0, 60);
+  const positional = extractBashPositionalArgs(cmdStr);
+  const name = extractBashFlag(cmdStr, "--name") || positional[0] || "tool";
+  const argSource = extractBashFlag(cmdStr, "--args") || positional[1] || "";
+  const preview = formatBashActPreview(argSource);
   return { type: "act", name, args: preview ? [preview] : [], line };
 }
 
@@ -789,4 +787,34 @@ function extractBashPositionalArgs(cmdStr: string): string[] {
     positional.push(token);
   }
   return positional;
+}
+
+function formatBashActPreview(argSource: string): string {
+  if (!argSource || argSource === "-") return "";
+
+  try {
+    const parsed = JSON.parse(argSource) as {
+      command?: unknown;
+      prompt?: unknown;
+      url?: unknown;
+      path?: unknown;
+    };
+
+    if (typeof parsed.command === "string") {
+      return parsed.command.substring(0, 60);
+    }
+    if (typeof parsed.prompt === "string") {
+      return parsed.prompt.substring(0, 60);
+    }
+    if (typeof parsed.url === "string") {
+      return parsed.url.substring(0, 60);
+    }
+    if (typeof parsed.path === "string") {
+      return parsed.path.substring(0, 60);
+    }
+  } catch {
+    // Fall back to raw positional/flag value when args are not JSON.
+  }
+
+  return argSource.replace(/\s+/g, " ").substring(0, 60);
 }

@@ -54,43 +54,25 @@ const AGENT_EXTENSION_INJECT_SYSTEM_PROMPT = parseBooleanEnv(
 const AGENT_EXTENSION_INJECT_TOOLS = parseBooleanEnv("ONE_AGENT_EXTENSION_INJECT_TOOLS", true);
 const AGENT_EXTENSION_TOOL_HINT_MAX_CHARS = 12_000;
 /**
- * Delegated worker policy injected into `agent(prompt, config)` when extension is enabled.
+ * Delegated worker policy injected into `agent(prompt, config)` when the extension is enabled.
  *
- * agent() interface:
- *   agent(prompt, config?) -> string | { error }
+ * Contract:
+ *   agent(prompt, config?) -> { data: { text, trajectory } } | { error }
  *
- * Suggested config fields:
+ * `trajectory` uses ATIF:
+ * https://github.com/harbor-framework/harbor/blob/main/rfcs/0001-trajectory-format.md
+ *
+ * Common config:
  * - budget: { maxSteps, maxMinutes, maxOutputTokens, maxRetries }
- * - model: optional model hint for ACP provider
+ * - model
  * - on_error: "fail" | "return_error" | "retry_within_budget"
  * - extension: { enabled, injectSystemPrompt, injectTools }
- *
- * Minimal example:
- *   const out = await agent("Inspect failing test and propose patch", {
- *     budget: { maxSteps: 40, maxMinutes: 30 },
- *     on_error: "return_error",
- *   });
- *   if (typeof out === "string") {
- *     // plain-text delegated result
- *   } else {
- *     // explicit error envelope: { error }
- *   }
- *
- * How to use agent() at runtime (caller side):
- * - Enable extension: ONE_AGENT_EXTENSION_ENABLED=1
- * - Optional injection toggles:
- *   - ONE_AGENT_EXTENSION_INJECT_SYSTEM_PROMPT=1
- *   - ONE_AGENT_EXTENSION_INJECT_TOOLS=1
- * - Optional ACP backend config (consumed by @one-agent/agent-extension):
- *   - ONE_AGENT_EXTENSION_ACP_COMMAND=claude-agent-acp
- *   - ONE_AGENT_EXTENSION_ACP_MODEL=default
- *   - ONE_AGENT_EXTENSION_ACP_ARGS=--permission-mode acceptEdits
  */
 const AGENT_EXTENSION_BASE_SYSTEM_PROMPT = `You are a delegated local worker inside the current Reason-able Action Space (RAS).
 Role boundary: act as a bounded delegated executor, not as a top-level planner.
 Contract: do not bypass reason()/act() contracts, sandbox rules, or policy gates.
 Grounding: base claims on observed tool outputs and explicit context only.
-Output rule: return plain text only; keep it concise and auditable.
+Output rule: return concise plain text only; the runtime will wrap it into { data: { text, trajectory } }.
 Failure rule: if blocked by budget/policy/runtime limits, report constraints clearly and stop; do not invent capabilities.`;
 
 const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<RASReasonResult> => {
@@ -200,6 +182,16 @@ export async function getServer() {
                 actHandler: adaptedActHandler,
                 agentHandler: adaptedAgentHandler,
               });
+
+              const hostBashTool = createBashTool(projectRoot);
+              server.tool(
+                "__host_bash__",
+                hostBashTool.description,
+                hostBashTool.parameters,
+                hostBashTool.execute,
+                { internal: true },
+              );
+
               server.tool(
                 bashRAS.name,
                 bashRAS.description,

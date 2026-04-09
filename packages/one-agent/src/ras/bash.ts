@@ -1,28 +1,47 @@
 /**
- * Bash RAS - Unix pipe-based Reason-able Action Space runtime
+ * Bash RAS - just-bash powered Reason-able Action Space runtime.
  *
- * `reason` and `act` commands block until results are ready (like curl).
- * IPC: child writes req file → parent polls & processes → writes resp file → child reads.
+ * Shell execution happens inside just-bash with a real workspace mount.
+ * The injected reason, act, and agent commands stay host-backed.
  */
 
-import { spawn } from "node:child_process";
-import {
-  writeFileSync,
-  mkdirSync,
-  existsSync,
-  readFileSync,
-  unlinkSync,
-  readdirSync,
-} from "node:fs";
-import { join } from "node:path";
 import { jsonSchema } from "ai";
+import {
+  Bash,
+  MountableFs,
+  ReadWriteFs,
+  type Command,
+  type CommandContext,
+  type ExecResult,
+} from "just-bash";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
-import { makeScript } from "./bash-ipc-script.js";
 
 type ActTextContent = { type?: string; text?: unknown };
+type ActAttachment = {
+  url?: unknown;
+  mime?: unknown;
+  type?: unknown;
+  name?: unknown;
+};
+type ActContentLike =
+  | (ActTextContent & {
+      data?: unknown;
+      mimeType?: unknown;
+      uri?: unknown;
+      resource?: unknown;
+    })
+  | {
+      type?: string;
+      uri?: unknown;
+      resource?: unknown;
+      data?: unknown;
+      mimeType?: unknown;
+    };
 type ActResultLike = {
-  content?: ActTextContent[];
+  content?: ActContentLike[];
+  attachments?: ActAttachment[];
+  structuredContent?: unknown;
   isError?: boolean;
 };
 
@@ -31,13 +50,45 @@ type BashReasonResult = {
   error?: string;
 };
 
-type BashAgentResult = string | { error?: string };
+type BashAgentResult = {
+  data?: { text?: string; trajectory?: unknown };
+  error?: string;
+};
+
+type ParsedReasonArgs = { prompt: string; example: unknown };
+type ParsedActArgs =
+  | { kind: "help" }
+  | { kind: "manual"; toolName?: string }
+  | { kind: "call"; toolName: string; toolArgs: unknown };
+type ParsedAgentArgs = { prompt: string; config: unknown };
+
+const HOST_BASH_TOOL_NAME = "__host_bash__";
 
 export interface BashRASConfig {
   cwd: string;
   reasonHandler: (prompt: string, example: unknown) => Promise<BashReasonResult>;
   actHandler: (server: unknown) => (name: string, args: unknown) => Promise<ActResultLike>;
   agentHandler: (server: unknown) => (prompt: string, config?: unknown) => Promise<BashAgentResult>;
+}
+
+function ok(stdout = "", stderr = ""): ExecResult {
+  return { stdout, stderr, exitCode: 0 };
+}
+
+function fail(message: string): ExecResult {
+  return { stdout: "", stderr: `${message}\n`, exitCode: 1 };
+}
+
+function isExecResult(
+  value: ParsedReasonArgs | ParsedActArgs | ParsedAgentArgs | ExecResult,
+): value is ExecResult {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "stdout" in value &&
+    "stderr" in value &&
+    "exitCode" in value
+  );
 }
 
 function formatActResultText(result: unknown): string {
@@ -49,192 +100,387 @@ function formatActResultText(result: unknown): string {
     "content" in result &&
     Array.isArray((result as ActResultLike).content)
   ) {
-    return ((result as ActResultLike).content ?? [])
-      .map((entry) =>
-        entry?.type === "text" ? String(entry.text ?? "") : JSON.stringify(entry, null, 2),
-      )
-      .join("\n");
+    const actResult = result as ActResultLike;
+    const renderedContent = (actResult.content ?? [])
+      .map((entry, index, items) => formatActContentItem(entry, index + 1, items.length))
+      .filter(Boolean);
+    const renderedAttachments = (actResult.attachments ?? [])
+      .map((entry, index, items) => formatActAttachment(entry, index + 1, items.length))
+      .filter(Boolean);
+    const rendered = [...renderedContent, ...renderedAttachments];
+
+    if (rendered.length > 0) {
+      const textOnly = (actResult.content ?? []).every((entry) => entry?.type === "text");
+      return rendered.join(textOnly && renderedAttachments.length === 0 ? "\n" : "\n\n");
+    }
+
+    if (actResult.structuredContent !== undefined) {
+      return JSON.stringify(actResult.structuredContent, null, 2);
+    }
+
+    return "";
   }
   return JSON.stringify(result, null, 2);
 }
 
-function serializeActResult(result: unknown): string {
-  const isError =
-    typeof result === "object" && result !== null && "isError" in result
-      ? (result as ActResultLike).isError === true
-      : false;
+function formatActContentItem(
+  item: ActContentLike | undefined,
+  _index: number,
+  total: number,
+): string {
+  if (!item) return "";
 
-  return JSON.stringify(
-    {
-      text: formatActResultText(result),
-      isError,
-    },
-    null,
-    2,
-  );
-}
-
-function serializeAgentResult(result: BashAgentResult): string {
-  if (typeof result === "string") {
-    return JSON.stringify({ text: result, isError: false }, null, 2);
+  if (item.type === "text") {
+    return String((item as ActTextContent).text ?? "");
   }
 
-  const errorText =
-    result && typeof result === "object" && typeof result.error === "string" ? result.error : "";
+  if (item.type === "resource_link") {
+    return typeof item.uri === "string"
+      ? total === 1
+        ? item.uri
+        : `[resource link ${item.uri}]`
+      : JSON.stringify(item, null, 2);
+  }
 
-  return JSON.stringify(
-    {
-      text: errorText,
-      isError: Boolean(errorText),
-    },
-    null,
-    2,
-  );
+  if (item.type === "resource") {
+    const resource = item.resource;
+    if (resource && typeof resource === "object") {
+      const text = (resource as { text?: unknown }).text;
+      const uri = (resource as { uri?: unknown }).uri;
+      if (typeof text === "string") {
+        if (total === 1 || typeof uri !== "string" || !uri) return text;
+        return `[resource ${uri}]\n${text}`;
+      }
+      if (typeof uri === "string") {
+        return total === 1 ? uri : `[resource ${uri}]`;
+      }
+    }
+    return JSON.stringify(item, null, 2);
+  }
+
+  if (item.type === "image" || item.type === "audio") {
+    const uri = typeof item.uri === "string" ? item.uri : undefined;
+    if (uri) {
+      return total === 1 ? uri : `[${item.type} ${uri}]`;
+    }
+  }
+
+  return JSON.stringify(item, null, 2);
 }
 
-/** Process pending request files */
-async function processRequests(
-  dataDir: string,
-  reasonHandler: BashRASConfig["reasonHandler"],
-  actHandler: BashRASConfig["actHandler"],
-  agentHandler: BashRASConfig["agentHandler"],
-  server: unknown,
-  stepCounter?: { value: number },
-) {
-  for (const file of readdirSync(dataDir)) {
-    const reqFile = join(dataDir, file);
+function formatActAttachment(
+  item: ActAttachment | undefined,
+  index: number,
+  total: number,
+): string {
+  if (!item) return "";
 
-    if (file.startsWith("one-reason-req-") && file.endsWith(".txt")) {
-      const id = file.match(/one-reason-req-(.+)\.txt$/)?.[1];
-      const respFile = join(dataDir, `one-reason-resp-${id}.txt`);
-      if (existsSync(respFile)) continue;
+  if (typeof item.url === "string") {
+    return total === 1 ? item.url : `[attachment ${item.url}]`;
+  }
 
-      const stepIdx = stepCounter ? stepCounter.value++ : -1;
-      if (stepIdx >= 0) emitProgress({ type: "step-start", stepIndex: stepIdx });
+  const label = typeof item.name === "string" ? item.name : `attachment-${index}`;
+  const mime = typeof item.mime === "string" ? ` (${item.mime})` : "";
+  return `[${label}${mime}]`;
+}
 
-      try {
-        const req = JSON.parse(readFileSync(reqFile, "utf-8"));
-        try {
-          unlinkSync(reqFile);
-        } catch {}
-        const log = console.log,
-          err = console.error;
-        console.log = console.error = () => {};
-        const result = await reasonHandler(req.prompt, req.example);
-        console.log = log;
-        console.error = err;
-        const raw = result.error ? { error: result.error } : (result.data ?? result);
-        const data = typeof raw === "string" ? JSON.parse(raw) : raw;
-        writeFileSync(respFile, JSON.stringify(data, null, 2));
-        if (stepIdx >= 0) emitProgress({ type: "step-end", stepIndex: stepIdx, status: "ok" });
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        try {
-          unlinkSync(reqFile);
-        } catch {}
-        writeFileSync(
-          join(dataDir, `one-reason-resp-${id}.txt`),
-          JSON.stringify({ error: errorMessage }, null, 2),
-        );
-        if (stepIdx >= 0)
-          emitProgress({
-            type: "step-end",
-            stepIndex: stepIdx,
-            status: "error",
-            error: errorMessage.substring(0, 100),
-          });
-      }
+function parseJson(text: string, label: string): { value?: unknown; error?: ExecResult } {
+  try {
+    return { value: JSON.parse(text) };
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { error: fail(`Invalid ${label}: ${message}`) };
+  }
+}
+
+function parseReasonArgs(args: string[], stdin: string): ParsedReasonArgs | ExecResult {
+  const prompts: string[] = [];
+  const positionals: string[] = [];
+  let structure = "";
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--prompt") {
+      const value = args[++index];
+      if (value == null) return fail("--prompt requires a value");
+      prompts.push(value === "-" ? stdin : value);
+      continue;
     }
+    if (arg.startsWith("--prompt=")) {
+      const value = arg.slice("--prompt=".length);
+      prompts.push(value === "-" ? stdin : value);
+      continue;
+    }
+    if (arg === "--structure") {
+      const value = args[++index];
+      if (value == null) return fail("--structure requires a value");
+      structure = value;
+      continue;
+    }
+    if (arg.startsWith("--structure=")) {
+      structure = arg.slice("--structure=".length);
+      continue;
+    }
+    if (!arg.startsWith("-") || arg === "-") {
+      positionals.push(arg);
+      continue;
+    }
+    return fail(`Unknown argument: ${arg}`);
+  }
 
-    if (file.startsWith("one-act-req-") && file.endsWith(".txt")) {
-      const id = file.match(/one-act-req-(.+)\.txt$/)?.[1];
-      const respFile = join(dataDir, `one-act-resp-${id}.txt`);
-      if (existsSync(respFile)) continue;
+  if (positionals.length > 2) return fail("Too many positional arguments");
 
-      const stepIdx = stepCounter ? stepCounter.value++ : -1;
-      if (stepIdx >= 0) emitProgress({ type: "step-start", stepIndex: stepIdx });
+  const promptArg = positionals[0] || "";
+  const structureRaw = structure || positionals[1] || "";
+  if (promptArg) prompts.push(promptArg === "-" ? stdin : promptArg);
+  if (!structureRaw) return fail("--structure is required");
+  if (prompts.length === 0) return fail("prompt is required");
+
+  const parsed = parseJson(structureRaw, "structure JSON");
+  if (parsed.error) return parsed.error;
+
+  return {
+    prompt: prompts.join("\n"),
+    example: parsed.value,
+  };
+}
+
+function parseActArgs(args: string[], stdin: string): ParsedActArgs | ExecResult {
+  let toolName = "";
+  let argsText = "";
+  let needsJsonStdin = false;
+  let showManual = false;
+  let showHelp = false;
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--name") {
+      toolName = args[++index] || "";
+      continue;
+    }
+    if (arg === "--args") {
+      const value = args[++index];
+      if (value === "-") needsJsonStdin = true;
+      else argsText = value || "";
+      continue;
+    }
+    if (arg === "--manual") {
+      showManual = true;
+      const next = args[index + 1];
+      if (next && !next.startsWith("-")) {
+        toolName = next;
+        index++;
+      }
+      continue;
+    }
+    if (arg === "--help" || arg === "-h") {
+      showHelp = true;
+      continue;
+    }
+    if (!arg.startsWith("-")) {
+      if (!toolName && !showManual) {
+        toolName = arg;
+      } else if (!argsText && !needsJsonStdin && !showManual) {
+        if (arg === "-") needsJsonStdin = true;
+        else argsText = arg;
+      } else {
+        return fail(`Unknown argument: ${arg}`);
+      }
+      continue;
+    }
+    return fail(`Unknown argument: ${arg}`);
+  }
+
+  if (showHelp) return { kind: "help" };
+  if (showManual) return { kind: "manual", toolName: toolName || undefined };
+  if (!toolName || (!argsText && !needsJsonStdin)) return fail("tool name and JSON args required");
+
+  const parsed = parseJson(needsJsonStdin ? stdin : argsText, "JSON args");
+  if (parsed.error) return parsed.error;
+
+  return { kind: "call", toolName, toolArgs: parsed.value };
+}
+
+function parseAgentArgs(args: string[], stdin: string): ParsedAgentArgs | ExecResult {
+  const prompts: string[] = [];
+  const positionals: string[] = [];
+  let configRaw = "";
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--prompt") {
+      const value = args[++index];
+      if (value == null) return fail("--prompt requires a value");
+      prompts.push(value === "-" ? stdin : value);
+      continue;
+    }
+    if (arg.startsWith("--prompt=")) {
+      const value = arg.slice("--prompt=".length);
+      prompts.push(value === "-" ? stdin : value);
+      continue;
+    }
+    if (arg === "--config") {
+      const value = args[++index];
+      if (value == null) return fail("--config requires a value");
+      configRaw = value;
+      continue;
+    }
+    if (arg.startsWith("--config=")) {
+      configRaw = arg.slice("--config=".length);
+      continue;
+    }
+    if (!arg.startsWith("-") || arg === "-") {
+      positionals.push(arg);
+      continue;
+    }
+    return fail(`Unknown argument: ${arg}`);
+  }
+
+  if (positionals.length > 2) return fail("Too many positional arguments");
+
+  const promptArg = positionals[0] || "";
+  if (promptArg) prompts.push(promptArg === "-" ? stdin : promptArg);
+  if (positionals[1] && !configRaw) configRaw = positionals[1];
+  if (prompts.length === 0) return fail("prompt is required");
+
+  if (!configRaw) {
+    return { prompt: prompts.join("\n"), config: {} };
+  }
+
+  const parsed = parseJson(configRaw, "config JSON");
+  if (parsed.error) return parsed.error;
+
+  return { prompt: prompts.join("\n"), config: parsed.value ?? {} };
+}
+
+function mapActToolName(name: string): string {
+  return name === "bash" ? HOST_BASH_TOOL_NAME : name;
+}
+
+function replaceHostBashAlias(text: string): string {
+  return text.replaceAll(HOST_BASH_TOOL_NAME, "bash");
+}
+
+function buildSandboxFs(cwd: string): MountableFs {
+  return new MountableFs({
+    mounts: [{ mountPoint: cwd, filesystem: new ReadWriteFs({ root: cwd }) }],
+  });
+}
+
+function createReasonCommand(reasonHandler: BashRASConfig["reasonHandler"]): Command {
+  return {
+    name: "reason",
+    trusted: true,
+    async execute(args: string[], ctx: CommandContext) {
+      const parsed = parseReasonArgs(args, ctx.stdin);
+      if (isExecResult(parsed)) return parsed;
 
       try {
-        const req = JSON.parse(readFileSync(reqFile, "utf-8"));
-        try {
-          unlinkSync(reqFile);
-        } catch {}
-        const result = await actHandler(server)(req.toolName, req.toolArgs);
-        writeFileSync(respFile, serializeActResult(result));
-        if (stepIdx >= 0) {
-          emitProgress({
-            type: "step-end",
-            stepIndex: stepIdx,
-            status: result?.isError ? "error" : "ok",
-            error: result?.isError ? formatActResultText(result).slice(0, 100) : undefined,
-          });
+        const result = await reasonHandler(parsed.prompt, parsed.example);
+        if (result.error) {
+          return {
+            stdout: JSON.stringify({ data: result.data, error: result.error }, null, 2),
+            stderr: "",
+            exitCode: 1,
+          };
         }
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        try {
-          unlinkSync(reqFile);
-        } catch {}
-        if (id) writeFileSync(join(dataDir, `one-act-resp-${id}.txt`), `Error: ${errorMessage}`);
-        if (stepIdx >= 0)
-          emitProgress({
-            type: "step-end",
-            stepIndex: stepIdx,
-            status: "error",
-            error: errorMessage.substring(0, 100),
-          });
-      }
-    }
 
-    if (file.startsWith("one-agent-req-") && file.endsWith(".txt")) {
-      const id = file.match(/one-agent-req-(.+)\.txt$/)?.[1];
-      const respFile = join(dataDir, `one-agent-resp-${id}.txt`);
-      if (existsSync(respFile)) continue;
+        const payload = result.data ?? result;
+        const text = typeof payload === "string" ? payload : JSON.stringify(payload, null, 2);
+        return ok(text);
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          stdout: JSON.stringify({ data: undefined, error: message }, null, 2),
+          stderr: "",
+          exitCode: 1,
+        };
+      }
+    },
+  };
+}
+
+function createActCommand(actHandler: BashRASConfig["actHandler"], server: unknown): Command {
+  return {
+    name: "act",
+    trusted: true,
+    async execute(args: string[], ctx: CommandContext) {
+      const parsed = parseActArgs(args, ctx.stdin);
+      if (isExecResult(parsed)) return parsed;
 
       try {
-        const req = JSON.parse(readFileSync(reqFile, "utf-8"));
-        try {
-          unlinkSync(reqFile);
-        } catch {}
-
-        const result = await agentHandler(server)(req.prompt, req.config);
-        writeFileSync(respFile, serializeAgentResult(result));
-      } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        try {
-          unlinkSync(reqFile);
-        } catch {}
-        if (id) {
-          writeFileSync(
-            join(dataDir, `one-agent-resp-${id}.txt`),
-            JSON.stringify({ text: errorMessage, isError: true }, null, 2),
+        let result: ActResultLike;
+        if (parsed.kind === "help") {
+          result = await actHandler(server)("__help__", {});
+        } else if (parsed.kind === "manual") {
+          result = await actHandler(server)(
+            "__manual__",
+            parsed.toolName ? { name: mapActToolName(parsed.toolName) } : {},
           );
+        } else {
+          result = await actHandler(server)(mapActToolName(parsed.toolName), parsed.toolArgs);
         }
+
+        return {
+          stdout: replaceHostBashAlias(formatActResultText(result)),
+          stderr: "",
+          exitCode: result.isError ? 1 : 0,
+        };
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return fail(message);
       }
-    }
-  }
+    },
+  };
+}
+
+function createAgentCommand(agentHandler: BashRASConfig["agentHandler"], server: unknown): Command {
+  return {
+    name: "agent",
+    trusted: true,
+    async execute(args: string[], ctx: CommandContext) {
+      const parsed = parseAgentArgs(args, ctx.stdin);
+      if (isExecResult(parsed)) return parsed;
+
+      try {
+        const result = await agentHandler(server)(parsed.prompt, parsed.config);
+        if (result.error) {
+          return { stdout: result.error, stderr: "", exitCode: 1 };
+        }
+        return ok(result.data?.text ?? "");
+      } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : String(error);
+        return fail(message);
+      }
+    },
+  };
 }
 
 export function createBashRAS(config: BashRASConfig) {
   return {
-    name: "bash",
-    description: `Bash Reason-able Action Space runtime - Execute bash with built-in reason and act commands.
+    name: "one",
+    description: `Bash Reason-able Action Space runtime - Execute commands inside just-bash with built-in reason and act commands.
 
-  reason [--prompt "text"] [prompt|-] [--structure '{"key":""}'|structure]  (returns JSON with data/error)
-  act --manual [tool]
-  act <tool> '{"key":"value"}'
-  act <tool> -
-  agent [--prompt "text"] [prompt|-] [--config '{"budget":{"maxSteps":20}}'|config]
-  act --name "name" --args '{"key":"value"}' [--args -]
+  reason [--prompt "text"] [prompt|-] [--structure '{"key":""}'|structure]  (prints requested JSON on success; {data,error} on failure)
+	act --manual [tool]
+	act <tool> '{"key":"value"}'
+	act <tool> -
+	agent [--prompt "text"] [prompt|-] [--config '{"budget":{"maxSteps":20}}'|config]
+	act --name "name" --args '{"key":"value"}' [--args -]
 
 File system: ${config.cwd} -> ${config.cwd}
 
-Usage:
-  echo '{"url":"https://example.com","format":"text"}' | act webfetch - > a.json && \
-  cat a.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat a.json; exit 1; } && \
-  cat a.json | jq -r '.text[:8000]' | reason --prompt 'Summarize:' - '{"summary":""}' > r.json && \
-  cat r.json | jq -r 'if .error then .error else .data.summary end'
+Execution model:
+	- Direct shell code runs inside just-bash sandbox.
+	- reason/act/agent stay host-backed commands.
+	- act bash routes to the real host bash tool outside the just-bash sandbox.
 
-Execute Bash commands on host shell runtime. Return stdout/stderr.
+Usage:
+  echo '{"url":"https://example.com","format":"text"}' | act webfetch - | \
+  reason --prompt 'Goal: summarize the fetched content. Observation: stdin. Constraints: return {"summary":""}.' - '{"summary":""}' | \
+  jq -r '.summary'
+
+Execute Bash commands in the just-bash sandbox and return stdout/stderr.
 
 ## When to Use
 - Unix pipeline composition and automation
@@ -250,8 +496,8 @@ Execute Bash commands on host shell runtime. Return stdout/stderr.
 **stdin** (optional): String piped to process stdin.
 
 ## File System
-- ONLY ${config.cwd} is accessible
-- Host path: ${config.cwd}
+- ONLY ${config.cwd} is mounted read-write into the sandbox
+- Use act bash when you need the real host shell
 
 ## Examples
 
@@ -262,10 +508,10 @@ echo 'hello world' | tr 'a-z' 'A-Z'
 
 **Reason + act with checks:**
 \`\`\`bash
-act --manual > m.json && \
-cat m.json | jq -e 'if .isError then empty else . end' >/dev/null || { cat m.json; exit 1; } && \
-cat m.json | jq -r '.text[:3000]' | reason --prompt 'Extract likely tool names as array' - '["bash"]' > r.json && \
-cat r.json | jq -r 'if .error then .error else .data[] end'
+set -e && \
+act --manual | \
+reason --prompt 'Goal: extract likely tool names from stdin. Constraints: return a JSON array of tool names.' - '["bash"]' | \
+jq -r '.[]'
 \`\`\`
 
 ## Common Errors
@@ -273,7 +519,8 @@ cat r.json | jq -r 'if .error then .error else .data[] end'
 |-------|-----|
 | (no output) | Add output commands like echo/cat/jq -r |
 | Command failed | Check stderr and exit code; use set -e for fail-fast |
-| Permission denied | Use ${config.cwd} path only |`,
+| No such file | Use paths under ${config.cwd} |
+| command not found | just-bash only exposes built-ins; use act bash for host tools |`,
     parameters: jsonSchema({
       type: "object",
       properties: {
@@ -288,80 +535,41 @@ cat r.json | jq -r 'if .error then .error else .data[] end'
       server?: unknown,
     ) => {
       const { cwd, reasonHandler, actHandler, agentHandler } = config;
-      const dataDir = join(cwd, "data");
-      if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
 
-      // Write helper scripts
-      const reasonCjs = join(dataDir, "reason.cjs"),
-        actCjs = join(dataDir, "act.cjs"),
-        agentCjs = join(dataDir, "agent.cjs");
-      writeFileSync(reasonCjs, makeScript(dataDir, "reason"));
-      writeFileSync(actCjs, makeScript(dataDir, "act"));
-      writeFileSync(agentCjs, makeScript(dataDir, "agent"));
-      writeFileSync(join(dataDir, "reason"), `#!/bin/bash\nexec node "${reasonCjs}" "$@"\n`, {
-        mode: 0o755,
-      });
-      writeFileSync(join(dataDir, "act"), `#!/bin/bash\nexec node "${actCjs}" "$@"\n`, {
-        mode: 0o755,
-      });
-      writeFileSync(join(dataDir, "agent"), `#!/bin/bash\nexec node "${agentCjs}" "$@"\n`, {
-        mode: 0o755,
-      });
-
-      // TS-side AST extraction → emit plan before execution starts
       const steps = codeToAST(command, "bash");
       if (steps.length > 0) {
         emitProgress({ type: "plan", steps });
       }
 
-      // Step counter for tracking progress during execution
-      const stepCounter = { value: 0 };
-
-      // Poll for requests while bash runs
-      let active = true;
-      const poll = setInterval(() => {
-        if (active)
-          processRequests(dataDir, reasonHandler, actHandler, agentHandler, server, stepCounter);
-      }, 50);
-
       try {
-        const result = await new Promise<{
-          stdout: string;
-          stderr: string;
-          exitCode: number | null;
-        }>((resolve, reject) => {
-          const proc = spawn("bash", ["-c", command], {
-            cwd,
-            env: { ...process.env, PATH: `${dataDir}:${process.env.PATH}` },
-          });
-          let stdout = "",
-            stderr = "";
-          proc.stdout.on("data", (d: Buffer) => {
-            stdout += d;
-          });
-          proc.stderr.on("data", (d: Buffer) => {
-            stderr += d;
-          });
-          if (stdin) {
-            proc.stdin.write(stdin);
-            proc.stdin.end();
-          }
-          proc.on("error", reject);
-          proc.on("close", (code) => resolve({ stdout, stderr, exitCode: code }));
+        const shell = new Bash({
+          fs: buildSandboxFs(cwd),
+          cwd,
+          python: true,
+          javascript: true,
+          customCommands: [
+            createReasonCommand(reasonHandler),
+            createActCommand(actHandler, server),
+            createAgentCommand(agentHandler, server),
+          ],
         });
 
-        active = false;
-        clearInterval(poll);
+        const result = await shell.exec(command, {
+          ...(stdin ? { stdin } : {}),
+          rawScript: true,
+        });
+
         const output = [result.stdout, result.stderr].filter(Boolean).join("\n");
         return {
           content: [{ type: "text" as const, text: output || "(no output)" }],
           ...(result.exitCode !== 0 && { isError: true }),
         };
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        active = false;
-        clearInterval(poll);
-        return { content: [{ type: "text" as const, text: errorMessage }], isError: true };
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
       }
     },
   };

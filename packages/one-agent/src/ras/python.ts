@@ -207,7 +207,7 @@ export function createPythonRAS(config: PythonRASConfig) {
   act(name, args) -> result                 (async, use with asyncio.run, runs on host machine)
   act('__manual__', {}) -> list tools       (async)
   act('__manual__', {'name': 'bash'}) -> tool definition
-  agent(prompt, config?) -> string|{error}  (async delegated worker; returns plain text on success)
+  agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
 
 Usage:
   import asyncio

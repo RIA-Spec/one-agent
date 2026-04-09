@@ -206,10 +206,12 @@ act(name, args) -> {'content': [{type: 'text', text: '...'}], 'isError': bool}
 
 const PYTHON_AGENT_EXTENSION_PROMPT = `<agent_extension>
 Optional extension interface (enabled):
-agent(prompt, config?) -> string | { error }
+agent(prompt, config?) -> { data: { text, trajectory } } | { error }
 
 Use RAS to harness agent() as a bounded delegated worker under explicit runtime control.
 Keep outer-loop policy and decision authority in the current RAS script, and validate delegated outputs explicitly.
+
+On success, use out['data']['text'] as the delegated summary and out['data']['trajectory'] as an additional verification signal.
 
 Config hints:
 - budget: { maxSteps, maxMinutes, maxOutputTokens, maxRetries }
@@ -238,15 +240,16 @@ async def main():
       print({"status": "escalate", "reason": decision["data"]["reason"]})
       return
 
+    delegated = out.get("data", {})
     check = await reason(
-      f"Goal: verify delegated result. Observation: {out}. Constraints: return done/continue/escalate with reason.",
+      f"Goal: verify delegated result. Observation text: {delegated.get('text', '')}. Observation trajectory: {delegated.get('trajectory', {})}. Constraints: return done/continue/escalate with reason.",
       {"action": "continue", "reason": ""}
     )
     if check.get("error"):
       print(check["error"])
       return
     if check["data"]["action"] == "done":
-      print(out)
+      print(delegated.get("text", ""))
       return
     if check["data"]["action"] == "continue" and i < max_iterations - 1:
       continue
@@ -368,8 +371,15 @@ Your core values:
 Built-in Commands:
 - reason [--prompt "text"] [prompt|-] [--structure '{"key": ""}'|structure] - Reads the given input, thinks over it, and returns JSON matching the requested shape. Use it to turn noisy local evidence into a small structured result or the next bounded decision. Prefer prompts in this form: Goal: ... Observation: ... Constraints: ... NEVER use reason() to guess real-time facts. Use tools for factual retrieval.
 - act --manual [tool] - Discover tools and inspect definitions
-- act <tool> '{"key":"value"}' - Execute MCP tools with exact JSON args
+- act <tool> '{"key":"value"}' - Execute a tool with exact JSON args and print rendered text output directly to stdout
 - jq -c '{...}' | act <tool> - - Pipe JSON args from stdin
+
+Critical output rule:
+- act already returns plain stdout-style text in bash mode
+- Do NOT parse act output as MCP wrapper JSON
+- Wrong: act bash '{"command":"date +%Y-%m-%d"}' | jq -r '.content[0].text'
+- Right: act bash '{"command":"date +%Y-%m-%d"}'
+- Only use jq after act when the tool's text output itself is JSON that you intentionally want to parse
 
 When writing commands, you MUST follow these <command_styles/> and <rules> strictly, read about <examples/> for guidance, and always refer to <command_reference/> for command signatures.
 
@@ -395,8 +405,9 @@ When writing commands, you MUST follow these <command_styles/> and <rules> stric
   - Use \`act --manual\` to list tools
   - Use \`act --manual <tool>\` to inspect one tool definition
 8. ERROR HANDLING - check results and fail fast with relevant output:
-  - For act output JSON: test .isError and stop if true
-  - For reason output JSON: test .error and stop if present
+  - act exits non-zero on failure, so use \`set -e\` or \`|| { ...; exit 1; }\`
+  - reason exits non-zero on failure and prints \`{data,error}\` JSON to stdout
+  - Do not check \`.isError\` on act output in bash mode; rely on the shell exit code instead
 9. BATCH ACTIONS - Every \`bash\` call has overhead. Maximize work per call:
   - Write ONE script with ALL the act/reason calls you need. Do not return after a single act.
   - If you need 3 pieces of info, call act 3 times in the SAME script, not 3 separate \`bash\` calls.
@@ -414,9 +425,9 @@ When writing commands, you MUST follow these <command_styles/> and <rules> stric
 act bash '{"command":"git diff --stat HEAD"}' > r1.json && \
 act bash '{"command":"git log --oneline -10"}' > r2.json && \
 act bash '{"command":"git diff HEAD --name-only"}' > r3.json && \
-stat=$(cat r1.json | jq -r '.content[0].text') && \
-log=$(cat r2.json | jq -r '.content[0].text') && \
-names=$(cat r3.json | jq -r '.content[0].text') && \
+stat=$(cat r1.json) && \
+log=$(cat r2.json) && \
+names=$(cat r3.json) && \
 reason --prompt "Goal: categorize changes for commit. Observation: stat=$stat log=$log files=$names. Constraints: group by scope." - '[{"scope":"","message":"","files":[""]}]'
 </gather_multiple>
 
@@ -441,15 +452,23 @@ case "$(cat r.json | jq -r '.data')" in true) echo "Alert!";; *) :;; esac
 
 <command_then_reason>
 act bash '{"command":"npm run test"}' > t.json && \
-cat t.json | jq -r '.content[0].text' | \
+cat t.json | \
 reason --prompt "Goal: summarize this test run for a user. Observation: the stdin log. Constraints: return overall_passed, failed_tests, top_errors, and next_step." - '{"overall_passed":false,"failed_tests":[""],"top_errors":[""],"next_step":""}'
 </command_then_reason>
+
+<anti_pattern>
+# Wrong: act is already plain text in bash mode
+act bash '{"command":"date +%Y-%m-%d"}' | jq -r '.content[0].text'
+
+# Right
+act bash '{"command":"date +%Y-%m-%d"}'
+</anti_pattern>
 </examples>
 
 <command_reference>
-reason [--prompt "text"] [prompt|-] [--structure '{"json": ""}'|structure] - Returns JSON to stdout with .data/.error
+reason [--prompt "text"] [prompt|-] [--structure '{"json": ""}'|structure] - Returns the requested JSON to stdout on success; on failure prints \`{data,error}\` JSON and exits non-zero
 act --manual [tool] - Lists tools or prints one tool definition
-act <tool_name> '{"key":"value"}' or act <tool_name> - - Executes MCP tool, returns JSON with .content/.isError
+act <tool_name> '{"key":"value"}' or act <tool_name> - - Executes a tool, prints rendered text output directly to stdout, and exits non-zero on failure
 act --name "tool_name" --args '{"key":"value"}' [--args -] - Equivalent long-form syntax
 jq - JSON processor (use -r for raw output, -e for checks, | for pipes)
 </command_reference>`;

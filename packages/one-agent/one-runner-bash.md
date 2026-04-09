@@ -15,11 +15,13 @@ refs:
 
 # Bash Reason-able Action Space (RAS)
 
-Run a Bash RAS using unix pipes (|) and redirection (>). Deterministic control flow stays in shell while intermediate data is persisted transparently on the file system.
+Run a Bash RAS using unix pipes (|) and redirection (>). Deterministic control flow stays in a just-bash sandbox while intermediate data is persisted on the mounted workspace file system.
 
 ## How to Use
 
 Write bash commands directly. Use `reason` and `act` as commands in your pipelines.
+
+Direct shell commands run inside just-bash. Use `act bash ...` when you explicitly need the real host bash tool.
 
 Prefer `act` in Unix-shaped forms so it behaves like other shell commands you already know:
 
@@ -28,6 +30,18 @@ act bash '{"command":"ls -la"}'
 jq -c '{command: .action}' result.json | act bash -
 act --manual bash
 ```
+
+Critical output rule: `act` already prints plain stdout-style text in bash mode.
+
+```bash
+# Wrong: act is not returning an MCP wrapper here
+act bash '{"command":"date +%Y-%m-%d"}' | jq -r '.content[0].text'
+
+# Right
+act bash '{"command":"date +%Y-%m-%d"}'
+```
+
+Only use `jq` after `act` when the tool's text output is itself JSON that you intentionally want to parse.
 
 Use discovery first when the tool name or schema is unclear:
 
@@ -101,7 +115,7 @@ act --name "tool_name" --args -
 - `-`: Read JSON args from stdin
 - `--name/--args`: Equivalent long form
 
-**Output:** Tool execution result to stdout
+**Output:** Plain text rendered to stdout. In bash mode, use shell exit codes for failure handling instead of parsing wrapper fields like `.isError` or `.content[0].text`.
 
 **Examples:**
 
@@ -171,10 +185,10 @@ cat data.csv | \
 
 ```bash
 # Fetch data → AI extracts errors → Filter → Log
-curl -s https://api.example.com/data | \
+act webfetch '{"url":"https://api.example.com/data","format":"text"}' | \
   reason --prompt "Extract all error messages from this API response:" \
-     --prompt - \
-     --structure '{"errors": [{"code": "", "message": ""}]}' | \
+    --prompt - \
+    --structure '{"errors": [{"code": "", "message": ""}]}' | \
   jq '.errors[] | select(.code | startswith("5"))' | \
   jq -r '.message' | \
   xargs -I {} act bash "{\"command\":\"echo 'Server Error: {}' >> error.log\"}"
@@ -204,7 +218,7 @@ cat test_results.json | \
 ```bash
 # Fetch page content → AI analysis → Extract data
 act webfetch '{"url":"https://news.ycombinator.com","format":"markdown"}' | \
-  jq -r '.text[:12000]' | \
+  head -c 12000 | \
   reason --prompt "Extract top 5 post titles and URLs from this page:" \
      --prompt - \
      --structure '{"posts": [{"title": "", "url": ""}]}' | \
@@ -248,3 +262,4 @@ act websearch '{"query":"TypeScript AbortSignal timeout best practices","type":"
 3. **Persist intermediate data** - Save to files for debugging
 4. **Check return values** - Use `$?` to check command success
 5. **Chain with `&&`** - Stop pipeline on first failure
+6. **Remember the runtime split** - direct shell runs in just-bash; `act bash` runs on the real host bash tool
