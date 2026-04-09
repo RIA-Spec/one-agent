@@ -9,7 +9,7 @@
  */
 
 import { jsonSchema } from "ai";
-import { runPy } from "@mcpc/code-runner-mcp";
+import { runPy } from "@mcpc-tech/code-runner-mcp";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";

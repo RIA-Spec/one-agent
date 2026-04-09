@@ -1,17 +1,16 @@
 import type { NextConfig } from "next";
+import { resolve } from "node:path";
 
 const nextConfig: NextConfig = {
-  // Empty turbopack config to silence warning about webpack config
-  turbopack: {},
+  turbopack: {
+    root: resolve(__dirname, "../.."),
+  },
   // Externalize packages that use native modules or WASM
   serverExternalPackages: [
     "pyodide",
-    "@mcpc-tech/core",
-    "@mcpc/code-runner-mcp",
-    "@modelcontextprotocol/sdk",
+    "@mcpc-tech/code-runner-mcp",
+    "@mcpc-tech/handle-sandbox",
     "@one-agent/agent",
-    "@one-agent/reason",
-    "@one-agent/act",
   ],
   webpack: (config, { isServer }) => {
     if (isServer) {

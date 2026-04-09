@@ -16,6 +16,7 @@ import {
   createRiffTool,
 } from "./interfaces/tools/index.js";
 import { createPythonRAS } from "./ras/python.js";
+import { createTypeScriptRAS } from "./ras/typescript.js";
 import { createBashRAS } from "./ras/bash.js";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { tool, jsonSchema } from "ai";
@@ -155,8 +156,17 @@ const projectRoot = resolve(__dirname, "..");
 const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
-// RAS mode: "bash" | "python"
-const RAS_MODE = (process.env.RAS_MODE || "python").toLowerCase();
+// RAS mode: "bash" | "python" | "typescript"
+const rawRASMode = (process.env.RAS_MODE || "python").toLowerCase();
+const RAS_MODE =
+  rawRASMode === "bash"
+    ? "bash"
+    : rawRASMode === "typescript" ||
+        rawRASMode === "ts" ||
+        rawRASMode === "javascript" ||
+        rawRASMode === "js"
+      ? "typescript"
+      : "python";
 
 // Use Markdown configuration file based on runtime mode.
 const composeFile = resolve(
@@ -226,27 +236,42 @@ export async function getServer() {
               return;
             }
 
-            // Register Python RAS (code interpreter approach) - default mode.
-            if (RAS_MODE !== "python") {
-              console.warn(`⚠ Unknown RAS_MODE: ${RAS_MODE}, defaulting to Python`);
+            // Register code RAS modes (Python/TypeScript).
+            if (RAS_MODE === "typescript") {
+              const tsRAS = createTypeScriptRAS({
+                nodeFSRoot,
+                nodeFSMountPoint,
+                reasonHandler: adaptedReasonHandler,
+                actHandler: adaptedActHandler,
+                agentHandler: adaptedAgentHandler,
+              });
+              server.tool(
+                tsRAS.name,
+                tsRAS.description,
+                tsRAS.parameters,
+                async (args: any, extra: any) => tsRAS.execute(args, extra, server),
+                { internal: false },
+              );
+
+              console.log(`✓ TypeScript RAS enabled`);
+            } else {
+              const pythonRAS = createPythonRAS({
+                nodeFSRoot,
+                nodeFSMountPoint,
+                reasonHandler: adaptedReasonHandler,
+                actHandler: adaptedActHandler,
+                agentHandler: adaptedAgentHandler,
+              });
+              server.tool(
+                pythonRAS.name,
+                pythonRAS.description,
+                pythonRAS.parameters,
+                async (args: any, extra: any) => pythonRAS.execute(args, extra, server),
+                { internal: false },
+              );
+
+              console.log(`✓ Python RAS enabled`);
             }
-
-            const pythonRAS = createPythonRAS({
-              nodeFSRoot,
-              nodeFSMountPoint,
-              reasonHandler: adaptedReasonHandler,
-              actHandler: adaptedActHandler,
-              agentHandler: adaptedAgentHandler,
-            });
-            server.tool(
-              pythonRAS.name,
-              pythonRAS.description,
-              pythonRAS.parameters,
-              async (args: any, extra: any) => pythonRAS.execute(args, extra, server),
-              { internal: false },
-            );
-
-            console.log(`✓ Python RAS enabled`);
 
             // Register low-level tools for Python mode
             const bashTool = createBashTool(nodeFSRoot);

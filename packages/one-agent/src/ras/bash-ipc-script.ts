@@ -189,7 +189,11 @@ function buildScript(dataDir: string, type: "reason" | "act" | "agent") {
   return false;
 })()`;
 
-  const parseBody = isReason ? getReasonScriptBody() : isAct ? getActScriptBody() : getAgentScriptBody();
+  const parseBody = isReason
+    ? getReasonScriptBody()
+    : isAct
+      ? getActScriptBody()
+      : getAgentScriptBody();
   const responseOutput = isReason
     ? "    process.stdout.write(raw);"
     : `    const payload = JSON.parse(raw);

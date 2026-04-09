@@ -14,7 +14,7 @@
 
 import type { ASTStep } from "../progress.js";
 
-export type RASMode = "python" | "bash";
+export type RASMode = "python" | "bash" | "typescript";
 
 /**
  * Extract structured AST tree from code based on runtime mode.
@@ -28,9 +28,129 @@ export function codeToAST(code: string, mode: RASMode): ASTStep[] {
       return parsePythonAST(code);
     case "bash":
       return parseBashAST(code);
+    case "typescript":
+      return parseTypeScriptAST(code);
     default:
       return [];
   }
+}
+
+function parseTypeScriptAST(code: string): ASTStep[] {
+  const lines = code.split("\n");
+  const root: ASTStep[] = [];
+  type Frame = { step: ASTStep; depth: number };
+  const stack: Frame[] = [];
+  let depth = 0;
+
+  const target = (): ASTStep[] =>
+    stack.length > 0 ? (stack[stack.length - 1].step.children ??= []) : root;
+
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i];
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed.startsWith("//")) {
+      depth += (raw.match(/\{/g) || []).length;
+      depth -= (raw.match(/\}/g) || []).length;
+      while (stack.length > 0 && depth < stack[stack.length - 1].depth) stack.pop();
+      continue;
+    }
+
+    while (stack.length > 0 && depth < stack[stack.length - 1].depth) stack.pop();
+
+    const line = i + 1;
+    const blockStart = /\{\s*$/.test(trimmed);
+
+    if (/^(for|while)\s*\(/.test(trimmed)) {
+      const node: ASTStep = {
+        type: "loop",
+        name: trimmed.replace(/\{$/, "").trim(),
+        args: [],
+        line,
+      };
+      target().push(node);
+      if (blockStart) stack.push({ step: node, depth: depth + 1 });
+    } else if (/^(if|else\s+if|else)\b/.test(trimmed)) {
+      const node: ASTStep = {
+        type: "condition",
+        name: trimmed.replace(/\{$/, "").trim(),
+        args: [],
+        line,
+      };
+      target().push(node);
+      if (blockStart) stack.push({ step: node, depth: depth + 1 });
+    } else if (/^(try|catch|finally)\b/.test(trimmed)) {
+      const node: ASTStep = {
+        type: "error-handling",
+        name: trimmed.replace(/\{$/, "").trim(),
+        args: [],
+        line,
+      };
+      target().push(node);
+      if (blockStart) stack.push({ step: node, depth: depth + 1 });
+    }
+
+    if (/(?:\bawait\s+)?\b(act|reason)\s*\(/.test(trimmed)) {
+      const fnType = trimmed.match(/(?:\bawait\s+)?\b(act|reason)\s*\(/)?.[1] as "act" | "reason";
+      const { text: callText, endLine } = collectTsCall(lines, i);
+      const callMatch = callText.match(/(?:\bawait\s+)?\b(?:act|reason)\s*\(/);
+
+      if (callMatch) {
+        const parenStart = callText.indexOf("(", callMatch.index!) + 1;
+        const argsStr = extractBalancedParens(callText, parenStart);
+        if (fnType === "act") {
+          target().push(parseActCall(argsStr || "", line));
+        } else {
+          target().push(parseReasonCall(argsStr || "", line));
+        }
+      }
+
+      i = endLine;
+    }
+
+    depth += (raw.match(/\{/g) || []).length;
+    depth -= (raw.match(/\}/g) || []).length;
+    while (stack.length > 0 && depth < stack[stack.length - 1].depth) stack.pop();
+  }
+
+  return root;
+}
+
+function collectTsCall(lines: string[], idx: number): { text: string; endLine: number } {
+  let text = "";
+  let depth = 0;
+  let started = false;
+  let inStr: string | null = null;
+
+  for (let i = idx; i < lines.length; i++) {
+    text += (i === idx ? "" : "\n") + lines[i];
+
+    for (let c = 0; c < lines[i].length; c++) {
+      const ch = lines[i][c];
+      if (inStr) {
+        if (ch === "\\") {
+          c++;
+          continue;
+        }
+        if (ch === inStr) inStr = null;
+        continue;
+      }
+
+      if (ch === '"' || ch === "'" || ch === "`") {
+        inStr = ch;
+        continue;
+      }
+
+      if (ch === "(") {
+        depth++;
+        started = true;
+      }
+      if (ch === ")") depth--;
+    }
+
+    if (started && depth <= 0) return { text, endLine: i };
+  }
+
+  return { text, endLine: lines.length - 1 };
 }
 
 /**
