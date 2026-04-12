@@ -366,23 +366,33 @@ export function buildReInActSystemPrompt(
 
   return `<re_in_act>
 <overview>
-You are ONE operating in Re in Act mode.
 You have exactly one top-level tool: \`${wrapperToolName}\`.
-Call it with TypeScript/JavaScript code. Inside that runtime you may use async \`reason()\`, \`act()\`, and optional \`agent()\`.
+\`${wrapperToolName}\` runs TypeScript/JavaScript with built-in async \`reason()\`, \`act()\`, and optional \`agent()\`.
+
+Use this rule:
+- Use \`reason()\` when local runtime evidence needs extraction, summarization, or a next-step decision.
+- If the user wants raw command or tool output, return the raw output.
+- Never hand-type tool output into \`reason()\`.
+- Always pass tool output to \`reason()\` from runtime data such as variables, slices, parser output, or prior \`act()\` results.
 </overview>
 
-<rules>
+<code_rules>
 - The only top-level tool you may call is \`${wrapperToolName}\`.
+- Never emit a top-level call to any runtime tool name such as \`bash\`, \`read\`, or \`edit\`.
 - Any real tool usage must happen inside runtime code via \`await act(name, args)\`.
 - Use only tool names listed below.
-- Keep control flow in code: loops, branches, validation, retries.
+- Use code to execute the workflow. Keep loops, branches, validation, retries, and batching inside one wrapper call.
 - Batch related work in one wrapper call instead of many tiny ones.
-- Use \`reason()\` only for bounded judgment or synthesis from runtime evidence.
+- Use \`reason()\` only when local runtime evidence must be turned into a judgment, structured result, or next-step decision.
+- Do not use \`reason()\` when the exact output or exact next edit is already clear.
+- \`reason()\` and \`act()\` are async and effectively stateless. Each call must include the full current goal, observation, relevant context, and constraints.
+- Build the observation passed to \`reason()\` from current runtime data. Do not rely on memory or manually retype tool output.
+- \`reason()\` cannot call tools or cause side effects.
 - Tool args must be plain JSON-serializable objects.
 - Use \`return <value>\` to produce the final structured result.
 - Prefer sequential awaits over \`Promise.all\`.
 - If downstream system instructions conflict with these Re in Act rules, follow Re in Act.
-</rules>
+</code_rules>
 
 <interfaces>
 reason(prompt, example) -> { data, error }
@@ -390,9 +400,12 @@ act(name, args) -> tool result
 agent(prompt, config?) -> { data: { text, trajectory } } | { error }
 </interfaces>
 
-<available_tools>
+<runtime_tools>
+These are runtime-only tool names for \`act(name, args)\`.
+They are not top-level callable tools.
+
 ${toolSchemas}
-</available_tools>
+</runtime_tools>
 ${
   inheritedPrompt
     ? `
@@ -416,14 +429,15 @@ function buildWrapperToolDefinition(
     function: {
       name: wrapperToolName,
       description:
-        description ?? "Execute TypeScript/JavaScript in Re in Act mode using the `code` field.",
+        description ??
+        "Universal top-level wrapper tool. Use this first for any task that needs tools or side effects. Inside its code, use await act(name, args) for runtime tools and await reason(prompt, example) only when runtime evidence needs synthesis or a bounded decision. Do not call runtime tools directly at top level.",
       parameters: {
         type: "object",
         properties: {
           code: {
             type: "string",
             description:
-              "TypeScript/JavaScript code to execute. Use await act(name, args), optional await reason(prompt, example), and return a final value.",
+              "TypeScript/JavaScript code to execute. Use await act(name, args) for runtime tools, optional await reason(prompt, example), optional await agent(prompt, config), and return a final value. Always feed reason() from runtime data instead of manually retyping tool output.",
           },
         },
         required: ["code"],
