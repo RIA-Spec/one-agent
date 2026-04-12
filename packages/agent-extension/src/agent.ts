@@ -1,8 +1,11 @@
 import { createACPProvider } from "@mcpc-tech/acp-ai-provider";
+import { devToolsMiddleware } from "@ai-sdk/devtools";
 import { stepCountIs, streamText } from "ai";
+import { type LanguageModel, wrapLanguageModel } from "ai";
 
 type AcpProviderConfig = Parameters<typeof createACPProvider>[0];
 type AcpSessionConfig = NonNullable<AcpProviderConfig["session"]>;
+type WrappedModelConfig = Parameters<typeof wrapLanguageModel>[0];
 
 export type AgentOnErrorPolicy = "fail" | "return_error" | "retry_within_budget";
 
@@ -84,6 +87,26 @@ const DEFAULT_MAX_STEPS = 40;
 const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 const DEFAULT_MAX_RETRIES = 2;
 const DEFAULT_ACP_COMMAND = "claude-agent-acp";
+
+function isDebugEnabled(): boolean {
+  const value =
+    process.env.ONE_AGENT_EXTENSION_DEBUG?.trim().toLowerCase() ??
+    process.env.ONE_AGENT_DEBUG?.trim().toLowerCase() ??
+    process.env.RIA_PROXY_DEBUG?.trim().toLowerCase() ??
+    process.env.DEBUG?.trim().toLowerCase();
+  return value === "1" || value === "true" || value === "yes" || value === "on";
+}
+
+function wrapWithDevTools(model: LanguageModel): LanguageModel {
+  if (!isDebugEnabled()) {
+    return model;
+  }
+
+  return wrapLanguageModel({
+    model: model as WrappedModelConfig["model"],
+    middleware: devToolsMiddleware() as WrappedModelConfig["middleware"],
+  }) as LanguageModel;
+}
 
 function parseArgsString(raw: string): string[] {
   const value = raw.trim();
@@ -259,7 +282,7 @@ async function runAgentOnce(prompt: string, config: AgentConfig): Promise<AgentS
   const maxOutputTokens = config.budget?.maxOutputTokens ?? DEFAULT_MAX_OUTPUT_TOKENS;
   const maxMinutes = config.budget?.maxMinutes;
   const system = buildSystemPrompt(config, mergedMcpServers);
-  const model = acpProvider.languageModel(modelId, config.mode);
+  const model = wrapWithDevTools(acpProvider.languageModel(modelId, config.mode));
 
   const controller = new AbortController();
   const steps: AgentTrajectoryStep[] = [];

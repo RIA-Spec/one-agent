@@ -91,7 +91,12 @@ function isDebugEnabled(scope: Scope, config: ScopeConfig): boolean {
     return scopedValue;
   }
 
-  return parseBoolean(process.env.DEBUG) ?? false;
+  return (
+    parseBoolean(process.env.ONE_AGENT_DEBUG) ??
+    parseBoolean(process.env.RIA_PROXY_DEBUG) ??
+    parseBoolean(process.env.DEBUG) ??
+    false
+  );
 }
 
 function parseJson<T>(value: string | undefined, fallback: T): T {
