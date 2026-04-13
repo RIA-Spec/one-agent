@@ -1,6 +1,6 @@
 # One Agent
 
-An AI agent with Reason-able Action Space (RAS) support for Python and Bash.
+An AI agent with Reason-able Action Space (RAS) support for Python, TypeScript, and Bash.
 
 ## Re in Act
 
@@ -11,13 +11,13 @@ In this repository, that means:
 - `reason()` is used for bounded local thinking that must return structured data.
 - `act()` is used for external actions and tool execution.
 - reusable workflows are modeled as `riff`s.
-- the agent can operate through either a Python or Bash runtime surface.
+- the agent can operate through Python, TypeScript, or Bash runtime surfaces.
 
 The implementation here focuses on making those ideas executable in a real agent/runtime/web stack, rather than only documenting the spec terms.
 
 ## Reason-able Action Space (RAS)
 
-RAS defines the bounded environment and interfaces for agents to reason in action. Two approaches:
+RAS defines the bounded environment and interfaces for agents to reason in action. This repository currently ships three runtime surfaces.
 
 ### 1. Python RAS (Code Interpreter) - Default
 
@@ -30,21 +30,53 @@ import asyncio
 import os
 
 async def main():
-  log_content = open("build.log").read() if os.path.exists("build.log") else "No log"
-  analysis = await reason(
-    log_content + "\nDid the build succeed?",
-    {"success": False, "reason": ""}
-  )
+    log_content = open("build.log").read() if os.path.exists("build.log") else "No log"
+    analysis = await reason(
+        log_content + "\nDid the build succeed?",
+        {"success": False, "reason": ""}
+    )
 
-    if analysis['data']['success']:
-    await act("bash", {"command": "echo deploy to production"})
+    if analysis["data"]["success"]:
+        await act("bash", {"command": "echo deploy to production"})
     else:
-    print(f"Build failed: {analysis['data']['reason']}")
+        print(f"Build failed: {analysis['data']['reason']}")
 
 asyncio.run(main())
 ```
 
-### 2. Bash RAS (Unix Philosophy)
+### 2. TypeScript RAS (Code Interpreter)
+
+**The Programmatic Approach**: Manage control flows using TypeScript/JavaScript execution with `await reason(...)` and `await act(...)`.
+
+**Configuration**: Uses [one-runner-python.md](one-runner-python.md) for the shared code-runner surface.
+
+```typescript
+const status = await act("bash", { command: "cat build.log" });
+if (status?.isError) {
+  console.log(status);
+  process.exit(1);
+}
+
+const analysis = await reason(
+  "Goal: decide if the build succeeded. Observation: " +
+    String(status.content?.[0]?.text ?? "").slice(0, 4000) +
+    ". Constraints: return success plus a short grounded reason.",
+  { success: false, reason: "" }
+);
+
+if (analysis?.error) {
+  console.log(analysis.error);
+  process.exit(1);
+}
+
+if (analysis.data.success) {
+  await act("bash", { command: "echo deploy to production" });
+} else {
+  console.log(`Build failed: ${analysis.data.reason}`);
+}
+```
+
+### 3. Bash RAS (Unix Philosophy)
 
 **The Unix Philosophy**: Control flow using pipes (|) and redirection (>).
 
@@ -61,6 +93,8 @@ cat api_docs.md | \
 
 Notes:
 
+- direct shell execution runs inside a `just-bash` sandbox.
+- use `act bash ...` when you explicitly need the real host bash tool.
 - `reason` in Bash expects: `reason [prompt|-] [structure]`
 - `act <tool> -` expects JSON from stdin (not plain text)
 
@@ -74,6 +108,12 @@ Control which RAS runtime surface to enable (only one at a time):
 # Enable Python RAS (default)
 export RAS_MODE=python
 
+# Enable TypeScript RAS
+export RAS_MODE=typescript
+
+# Aliases also supported
+export RAS_MODE=ts
+
 # Enable Bash RAS
 export RAS_MODE=bash
 ```
@@ -84,7 +124,7 @@ export RAS_MODE=bash
 # Root directory for file operations
 export NODE_FS_ROOT=/path/to/root
 
-# Mount point path visible in Python/Bash
+# Mount point path visible in Python/TypeScript runtimes
 export NODE_FS_MOUNT_POINT=/path/to/mount
 ```
 
@@ -95,6 +135,10 @@ import { agent } from "./src/agent";
 
 await agent("Calculate fibonacci sequence up to 100");
 ```
+
+## Contributing
+
+Development setup, local scripts, and contributor workflow now live in [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Telemetry & Observability
 
@@ -139,21 +183,6 @@ The telemetry captures:
 3. Click on the service to view traces
 4. Explore spans to see detailed AI operations
 
-## Development
-
-```bash
-pnpm install
-pnpm run build
-pnpm run typecheck
-```
-
 ## License
 
 This repository is licensed under Apache-2.0. See `LICENSE` and `NOTICE` at the repository root.
-
-## Scripts
-
-- `pnpm run repl` - Start the interactive REPL
-- `pnpm run build` - Build the project
-- `pnpm run dev` - Development with watch mode
-- `pnpm test` - Run tests
