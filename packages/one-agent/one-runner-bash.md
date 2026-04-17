@@ -2,15 +2,8 @@
 name: one-runner
 mode: agentic
 deps:
-  mcpServers:
-    playwright:
-      transportType: stdio
-      command: npx
-      args: ["-y", "@playwright/mcp@latest", "--isolated"]
-      env:
-        PLAYWRIGHT_MCP_HEADLESS: "0"
-refs:
-#   - '<tool name="playwright.__ALL__"/>'
+  mcpServers: {}
+refs: []
 ---
 
 # Bash Reason-able Action Space (RAS)

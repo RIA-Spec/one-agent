@@ -1,12 +1,23 @@
 {
   "name": "@one-agent/agent-extension",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Optional delegated agent() extension for ONE.",
+  "homepage": "https://github.com/RIA-Spec/one-agent#readme",
+  "bugs": {
+    "url": "https://github.com/RIA-Spec/one-agent/issues"
+  },
   "license": "Apache-2.0",
   "type": "module",
   "main": "./dist/index.mjs",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.mts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RIA-Spec/one-agent.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist",
     "NOTICE"

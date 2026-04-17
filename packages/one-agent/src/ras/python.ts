@@ -123,6 +123,8 @@ act = _one_act_inline_exec
 const STEP_START_RE = /^\[ONE:STEP_START:(\d+)\]$/;
 const STEP_END_RE = /^\[ONE:STEP_END:(\d+):(ok|error)(?::([^\]]*))?\]$/;
 
+let pythonNodeFsMounted = false;
+
 function extractUsefulFrame(lines: string[]): string | null {
   const execFrame = lines
     .slice()
@@ -300,16 +302,23 @@ ${code}
 `;
 
       try {
-        const stream = await runPy(instrumentedCode, {
+        const runOptions = {
           handlers: {
             reason: reasonHandler,
             act: actHandler(server),
             agent: agentHandler(server),
           },
           packages,
-          nodeFSRoot,
-          nodeFSMountPoint,
-        });
+          ...(pythonNodeFsMounted
+            ? {}
+            : {
+                nodeFSRoot,
+                nodeFSMountPoint,
+              }),
+        };
+
+        const stream = await runPy(instrumentedCode, runOptions);
+        pythonNodeFsMounted = true;
 
         const decoder = new TextDecoder();
         let output = "";

@@ -16,9 +16,7 @@ function makeConfig(overrides: Partial<BashRASConfig> = {}): BashRASConfig {
   };
 }
 
-function getText(
-  result: Awaited<ReturnType<ReturnType<typeof createBashRAS>["execute"]>>,
-): string {
+function getText(result: Awaited<ReturnType<ReturnType<typeof createBashRAS>["execute"]>>): string {
   return result.content[0].text;
 }
 
