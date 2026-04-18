@@ -10,7 +10,6 @@ Within this repository's Re in Act implementation, `@one-agent/act` is the exter
 
 ```json
 {
-  "daemon": true,
   "mcpServers": {
     "chrome-devtools": {
       "transportType": "stdio",
@@ -32,7 +31,7 @@ Within this repository's Re in Act implementation, `@one-agent/act` is the exter
 }
 ```
 
-Supported transport shapes follow `@mcpc-tech/core` `McpServerConfig`. `one-act` adds per-server `daemon: true` and strips it before passing runtime config into `mcpc`.
+Supported transport shapes follow `@mcpc-tech/core` `McpServerConfig`. `one-act` only recognizes per-server `daemon: true`: marked servers stay resident in the daemon, and unmarked servers connect on demand for each call. The daemon strips the flag before passing runtime config into `mcpc`.
 
 Reference:
 

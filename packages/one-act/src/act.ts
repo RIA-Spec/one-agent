@@ -20,9 +20,10 @@ import {
   computeDaemonConfigHash,
   ensureActDaemonClient,
   getActDaemonStatus,
-  isDaemonRuntimeEnabled,
   normalizeMcpServersForRuntime,
   runActDaemonServer,
+  selectEnabledMcpServers,
+  selectDaemonMcpServers,
   startActDaemon,
   stopActDaemon,
   type ActDaemonClient,
@@ -43,27 +44,24 @@ const HELP_QUICKSTART = [
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${ACT_CONFIG_PATH}`,
-  "File config keys: daemon, mcpServers",
+  "File config key: mcpServers",
   "Env override: ONE_ACT_MCP_SERVERS='<json>'",
-  "Daemon override: ONE_ACT_DAEMON=true|false",
 ];
 const HELP_MCP_FORMAT = [
   "Common fields: disabled, disabledReason, toolCallTimeout",
   'stdio: {"transportType":"stdio","command":"npx","args":[...],"env":{"KEY":"VALUE"}}',
   'http: {"transportType":"streamable-http"|"sse","url":"https://...","headers":{"Authorization":"Bearer ..."}}',
-  'one-act extension: {"daemon":true} on each mcpServers.<name>',
+  'one-act extension: {"daemon":true} keeps that server resident in the daemon; other servers stay on demand',
 ];
 const HELP_DAEMON = [
-  "act daemon start     Start background daemon and keep MCP servers alive",
-  "act daemon status    Show daemon status",
-  "act daemon restart   Restart daemon after config changes",
-  "act daemon stop      Stop daemon and release MCP processes",
+  "Per-server `daemon: true` keeps that MCP server resident in the background",
+  "Use `act daemon start|status|restart|stop` to manage only daemon-enabled servers",
 ];
 const HELP_EXAMPLES = [
   "act --manual",
+  "act daemon start",
   "act --manual chrome-devtools_navigate_page",
   'act chrome-devtools_new_page \'{"url":"https://example.com"}\'',
-  "act daemon start",
   "ONE_ACT_MCP_SERVERS=" +
     '\'{"chrome-devtools":{"transportType":"stdio","command":"npx","args":["-y","chrome-devtools-mcp@latest","--autoConnect"]}}\' act --manual',
 ];
@@ -138,6 +136,8 @@ type SerializedCallToolResult = Omit<CallToolResult, "content"> & {
   content: SerializedContentBlock[];
 };
 
+const SERVER_CLOSE_TIMEOUT_MS = 1_500;
+
 function parseMcpServersValue(value: unknown): McpServersConfig | null {
   if (value == null || value === "") return null;
 
@@ -169,19 +169,53 @@ function readConfiguredMcpServers(actConfig: Record<string, unknown>): McpServer
 }
 
 function getMcpServerNames(mcpServers: McpServersConfig): string[] {
-  return Object.entries(mcpServers)
+  return Object.entries(selectEnabledMcpServers(mcpServers))
     .filter(([, config]) => Boolean(config && typeof config === "object"))
     .map(([name]) => name);
 }
 
-function createGetServerFromMcpServers(mcpServers: McpServersConfig): GetServerFn {
+function selectOnDemandMcpServers(mcpServers: McpServersConfig): McpServersConfig {
+  return Object.fromEntries(
+    Object.entries(selectEnabledMcpServers(mcpServers)).filter(
+      ([, config]) => config?.daemon !== true,
+    ),
+  ) as McpServersConfig;
+}
+
+function findToolServerName(toolName: string, mcpServers: McpServersConfig | null): string | null {
+  if (!toolName || !mcpServers) return null;
+
+  for (const serverName of Object.keys(selectEnabledMcpServers(mcpServers))) {
+    if (
+      toolName === serverName ||
+      toolName.startsWith(`${serverName}_`) ||
+      toolName.startsWith(`${serverName}.`)
+    ) {
+      return serverName;
+    }
+  }
+
+  return null;
+}
+
+function isDaemonToolName(toolName: string, daemonMcpServers: McpServersConfig | null): boolean {
+  return Boolean(findToolServerName(toolName, daemonMcpServers));
+}
+
+function createGetServerFromMcpServers(
+  mcpServers: McpServersConfig,
+  options?: { daemonOnly?: boolean },
+): GetServerFn {
   let cachedServer: ComposableMCPServer | null = null;
 
   return async () => {
     if (cachedServer) return cachedServer;
 
-    const runtimeMcpServers = normalizeMcpServersForRuntime(mcpServers);
-    const refs = getMcpServerNames(mcpServers).map(
+    const selectedMcpServers = options?.daemonOnly
+      ? selectDaemonMcpServers(mcpServers)
+      : mcpServers;
+    const runtimeMcpServers = normalizeMcpServersForRuntime(selectedMcpServers);
+    const refs = getMcpServerNames(selectedMcpServers).map(
       (name) => `<tool name="${name}.__ALL__"/>` as ToolRefXml,
     );
     const composeEntry = {
@@ -778,6 +812,66 @@ function formatManualTool(server: ComposableMCPServer, name: string) {
   );
 }
 
+type ManualListItem = {
+  name: string;
+  description: string;
+};
+
+function parseManualListOutput(output: string, forceJson: boolean): ManualListItem[] {
+  if (!output.trim()) return [];
+
+  if (forceJson) {
+    const parsed = parseJson(output, "manual list");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((item) => isRecord(item) && typeof item.name === "string")
+      .map((item) => ({
+        name: String(item.name),
+        description: typeof item.description === "string" ? item.description : "",
+      }));
+  }
+
+  return output
+    .split("\n")
+    .map((line) => line.trimEnd())
+    .filter(Boolean)
+    .map((line) => {
+      const [name, ...descriptionParts] = line.split("\t");
+      return {
+        name: name.trim(),
+        description: descriptionParts.join("\t").trim(),
+      };
+    })
+    .filter((item) => item.name);
+}
+
+function formatMergedManualList(items: ManualListItem[], forceJson: boolean): string {
+  const merged = [...new Map(items.map((item) => [item.name, item])).values()].sort((left, right) =>
+    left.name.localeCompare(right.name),
+  );
+
+  if (forceJson) {
+    return JSON.stringify(merged, null, 2);
+  }
+
+  return merged
+    .map((item) => (item.description ? `${item.name}\t${item.description}` : item.name))
+    .join("\n");
+}
+
+function isUnknownToolText(output: string, toolName: string): boolean {
+  return output.includes(`Tool ${toolName} not found.`);
+}
+
+function isUnknownToolResult(result: CallToolResult, toolName: string): boolean {
+  return Boolean(
+    result.isError &&
+    result.content.some(
+      (item) => item.type === "text" && item.text.includes(`Tool ${toolName} not found.`),
+    ),
+  );
+}
+
 async function runActRequest(options: {
   toolName?: string;
   rawArgs?: string;
@@ -822,16 +916,49 @@ async function runActRequest(options: {
     );
   }
 
-  const server = options.getServer ? await options.getServer() : null;
+  let server: ComposableMCPServer | null = null;
+
+  const ensureServer = async () => {
+    if (!options.getServer) {
+      throw new Error(
+        "No MCP server configuration found. Configure mcpServers in ~/.config/one/act.json (or ONE_ACT_MCP_SERVERS).",
+      );
+    }
+
+    if (!server) {
+      server = await options.getServer();
+    }
+
+    return server;
+  };
+
   try {
     if (showManual) {
-      const output = options.daemonClient
-        ? manualToolName
+      const runtimeServer = options.getServer ? await ensureServer() : null;
+      let output: string;
+
+      if (manualToolName) {
+        const daemonOutput = options.daemonClient
           ? await options.daemonClient.formatManualTool(manualToolName)
-          : await options.daemonClient.formatManualList(forceJson)
-        : manualToolName
-          ? formatManualTool(server as ComposableMCPServer, manualToolName)
-          : formatManualList(server as ComposableMCPServer, forceJson);
+          : null;
+        output =
+          daemonOutput && runtimeServer && isUnknownToolText(daemonOutput, manualToolName)
+            ? formatManualTool(runtimeServer, manualToolName)
+            : (daemonOutput ??
+              formatManualTool(runtimeServer as ComposableMCPServer, manualToolName));
+      } else if (options.daemonClient && runtimeServer) {
+        const daemonItems = parseManualListOutput(
+          await options.daemonClient.formatManualList(true),
+          true,
+        );
+        const runtimeItems = parseManualListOutput(formatManualList(runtimeServer, true), true);
+        output = formatMergedManualList([...daemonItems, ...runtimeItems], forceJson);
+      } else if (runtimeServer) {
+        output = formatManualList(runtimeServer, forceJson);
+      } else {
+        output = await options.daemonClient!.formatManualList(forceJson);
+      }
+
       process.stdout.write(`${output}\n`);
       return;
     }
@@ -839,9 +966,13 @@ async function runActRequest(options: {
     const stdin = needsStdin ? await readStdin() : "";
     const toolArgs = parseJson(needsStdin ? stdin : argsSource, "--args");
 
-    const result: CallToolResult = options.daemonClient
+    const daemonResult = options.daemonClient
       ? await options.daemonClient.callTool(toolName, toolArgs)
-      : await getToolFn(server as ComposableMCPServer)(toolName, toolArgs);
+      : null;
+    const result: CallToolResult =
+      daemonResult && options.getServer && isUnknownToolResult(daemonResult, toolName)
+        ? await getToolFn(await ensureServer())(toolName, toolArgs)
+        : (daemonResult ?? (await getToolFn(await ensureServer())(toolName, toolArgs)));
     const output = formatCliOutput(result, forceJson);
 
     process.stdout.write(`${output}\n`);
@@ -849,9 +980,15 @@ async function runActRequest(options: {
       process.exitCode = 1;
     }
   } finally {
-    if (options.shouldCleanupServer && server) {
+    const currentServer = server as { close: () => Promise<void> } | null;
+    if (options.shouldCleanupServer && currentServer) {
       try {
-        await server.close();
+        await Promise.race([
+          currentServer.close(),
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, SERVER_CLOSE_TIMEOUT_MS);
+          }),
+        ]);
       } catch {
         // Ignore cleanup errors so command result remains primary.
       }
@@ -884,8 +1021,9 @@ function requireConfiguredMcpServers(mcpServers: McpServersConfig | null): McpSe
 }
 
 async function runActDaemonServe(mcpServers: McpServersConfig) {
-  const server = await createGetServerFromMcpServers(mcpServers)();
-  const configHash = computeDaemonConfigHash(mcpServers);
+  const daemonMcpServers = selectDaemonMcpServers(mcpServers);
+  const server = await createGetServerFromMcpServers(daemonMcpServers, { daemonOnly: true })();
+  const configHash = computeDaemonConfigHash(daemonMcpServers);
 
   await runActDaemonServer({
     configHash,
@@ -918,11 +1056,21 @@ async function runDaemonCommand(
   daemonConfigHash: string | undefined,
   daemonSpawnOptions: ActDaemonSpawnOptions | undefined,
 ) {
+  const mcpServers = requireConfiguredMcpServers(configuredMcpServers);
+  const daemonServers = selectDaemonMcpServers(mcpServers);
+
+  if (Object.keys(daemonServers).length === 0) {
+    throw new Error(
+      "No daemon-enabled MCP servers found. Set daemon: true on a server in ~/.config/one/act.json.",
+    );
+  }
+
+  const spawnOptions = daemonSpawnOptions ?? createDaemonSpawnOptions();
+  const configHash = daemonConfigHash ?? computeDaemonConfigHash(daemonServers);
+
   switch (action) {
     case "start": {
-      const mcpServers = requireConfiguredMcpServers(configuredMcpServers);
-      const spawnOptions = daemonSpawnOptions ?? createDaemonSpawnOptions();
-      const status = await startActDaemon(spawnOptions, computeDaemonConfigHash(mcpServers));
+      const status = await startActDaemon(spawnOptions, configHash);
       process.stdout.write(`${formatDaemonStatusOutput(status)}\n`);
       return;
     }
@@ -934,15 +1082,13 @@ async function runDaemonCommand(
       return;
     }
     case "restart": {
-      const mcpServers = requireConfiguredMcpServers(configuredMcpServers);
-      const spawnOptions = daemonSpawnOptions ?? createDaemonSpawnOptions();
       await stopActDaemon();
-      const status = await startActDaemon(spawnOptions, computeDaemonConfigHash(mcpServers));
+      const status = await startActDaemon(spawnOptions, configHash);
       process.stdout.write(`${formatDaemonStatusOutput(status)}\n`);
       return;
     }
     case "status": {
-      const status = await getActDaemonStatus(daemonConfigHash);
+      const status = await getActDaemonStatus(configHash);
       process.stdout.write(`${formatDaemonStatusOutput(status)}\n`);
       if (status.running && !status.healthy) {
         process.exitCode = 1;
@@ -950,11 +1096,11 @@ async function runDaemonCommand(
       return;
     }
     case "serve": {
-      await runActDaemonServe(requireConfiguredMcpServers(configuredMcpServers));
+      await runActDaemonServe(daemonServers);
       return;
     }
     default:
-      throw new Error("Unknown daemon command. Use: start | stop | restart | status");
+      throw new Error("Unknown daemon command. Use: start | status | restart | stop");
   }
 }
 
@@ -964,21 +1110,21 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
     throw new Error("'act auth' was removed. Use 'act config' instead.");
   }
 
-  const actConfig = readActConfig();
-  const configuredMcpServers = readConfiguredMcpServers(actConfig);
-  const daemonEnabled =
-    !options?.getServer &&
-    Boolean(configuredMcpServers) &&
-    isDaemonRuntimeEnabled(actConfig, configuredMcpServers as McpServersConfig);
-  const daemonConfigHash = configuredMcpServers
-    ? computeDaemonConfigHash(configuredMcpServers)
-    : undefined;
-  const daemonSpawnOptions = daemonEnabled ? createDaemonSpawnOptions() : undefined;
+  const configuredMcpServers = readConfiguredMcpServers(readActConfig());
+  const daemonMcpServers = configuredMcpServers
+    ? selectDaemonMcpServers(configuredMcpServers)
+    : null;
+  const onDemandMcpServers = configuredMcpServers
+    ? selectOnDemandMcpServers(configuredMcpServers)
+    : null;
+  const daemonConfigHash = daemonMcpServers ? computeDaemonConfigHash(daemonMcpServers) : undefined;
+  const daemonSpawnOptions = daemonMcpServers ? createDaemonSpawnOptions() : undefined;
   const getServer =
-    daemonEnabled || !configuredMcpServers
-      ? options?.getServer
-      : (options?.getServer ?? createGetServerFromMcpServers(configuredMcpServers));
-  const shouldCleanupServer = !options?.getServer && !daemonEnabled;
+    options?.getServer ??
+    (onDemandMcpServers && Object.keys(onDemandMcpServers).length > 0
+      ? createGetServerFromMcpServers(onDemandMcpServers)
+      : undefined);
+  const shouldCleanupServer = !options?.getServer;
 
   if (args[0] === "daemon" && !args.includes("--help") && !args.includes("-h")) {
     await runDaemonCommand(args[1], configuredMcpServers, daemonConfigHash, daemonSpawnOptions);
@@ -1023,7 +1169,10 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
   });
 
   cli
-    .command("daemon <action>", "Manage background daemon: start | status | restart | stop")
+    .command(
+      "daemon <action>",
+      "Manage daemon-enabled background MCP servers: start | status | restart | stop",
+    )
     .action((action: string) => {
       pending = runDaemonCommand(
         action,
@@ -1046,16 +1195,23 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
         cliOptions: ActCommandOptions,
       ) => {
         pending = (async () => {
+          const manualToolName =
+            typeof cliOptions.manual === "string" && cliOptions.manual.trim()
+              ? cliOptions.manual.trim()
+              : "";
+          const routedToolName = manualToolName || toolName || cliOptions.name || "";
+          const useDaemonOnly = isDaemonToolName(routedToolName, daemonMcpServers);
           const daemonClient =
-            daemonEnabled && daemonSpawnOptions && daemonConfigHash
+            daemonSpawnOptions && daemonConfigHash && (useDaemonOnly || !routedToolName)
               ? await ensureActDaemonClient(daemonSpawnOptions, daemonConfigHash)
               : undefined;
+          const routedGetServer = useDaemonOnly ? undefined : getServer;
 
           await runActRequest({
             toolName,
             rawArgs: toolArgs,
             cliOptions,
-            getServer,
+            getServer: routedGetServer,
             daemonClient,
             shouldCleanupServer,
             outputHelp: () => cli.outputHelp(),
@@ -1072,5 +1228,9 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
 
   if (pending) {
     await pending;
+  }
+
+  if (!options?.getServer) {
+    process.exit(process.exitCode ?? 0);
   }
 }

@@ -25,12 +25,6 @@ const DAEMON_HEALTH_TIMEOUT_MS = 3_000;
 const DAEMON_CONTROL_TIMEOUT_MS = 5_000;
 const DAEMON_INVOKE_TIMEOUT_MS = 300_000;
 
-type DaemonModeConfig =
-  | boolean
-  | {
-      enabled?: boolean;
-    };
-
 type ActDaemonState = {
   version: 1;
   pid: number;
@@ -118,23 +112,6 @@ function sortValue(value: unknown): unknown {
   }
 
   return value;
-}
-
-function parseBooleanish(value: string): boolean | null {
-  const normalized = value.trim().toLowerCase();
-  if (!normalized) return null;
-  if (["1", "true", "yes", "on"].includes(normalized)) return true;
-  if (["0", "false", "no", "off"].includes(normalized)) return false;
-  return null;
-}
-
-function isDaemonConfigEnabled(value: unknown): boolean | null {
-  if (typeof value === "boolean") return value;
-  if (isRecord(value)) {
-    if (value.enabled == null) return true;
-    return Boolean(value.enabled);
-  }
-  return null;
 }
 
 function delay(ms: number) {
@@ -289,34 +266,47 @@ function spawnActDaemonProcess(options: ActDaemonSpawnOptions) {
 
 export function normalizeMcpServersForRuntime(mcpServers: McpServersConfig): PlainMcpServersConfig {
   return Object.fromEntries(
-    Object.entries(mcpServers)
-      .filter(([, config]) => Boolean(config && typeof config === "object"))
-      .map(([name, config]) => {
-        const { daemon: _daemon, ...runtimeConfig } = config;
-        return [name, runtimeConfig as McpServerConfig];
-      }),
+    Object.entries(selectEnabledMcpServers(mcpServers)).map(([name, config]) => {
+      const { daemon: _daemon, ...runtimeConfig } = config;
+      return [name, runtimeConfig as McpServerConfig];
+    }),
   );
 }
 
+export function selectEnabledMcpServers(mcpServers: McpServersConfig): McpServersConfig {
+  return Object.fromEntries(
+    Object.entries(mcpServers).filter(([, config]) =>
+      Boolean(config && typeof config === "object" && config.disabled !== true),
+    ),
+  ) as McpServersConfig;
+}
+
+export function selectDaemonMcpServers(mcpServers: McpServersConfig): McpServersConfig {
+  const explicitDaemonServers = Object.fromEntries(
+    Object.entries(selectEnabledMcpServers(mcpServers)).filter(([, config]) =>
+      Boolean(config && typeof config === "object" && config.daemon === true),
+    ),
+  );
+
+  return Object.keys(explicitDaemonServers).length > 0
+    ? (explicitDaemonServers as McpServersConfig)
+    : selectEnabledMcpServers(mcpServers);
+}
+
 export function computeDaemonConfigHash(mcpServers: McpServersConfig): string {
-  const normalized = normalizeMcpServersForRuntime(mcpServers);
+  const normalized = normalizeMcpServersForRuntime(selectDaemonMcpServers(mcpServers));
   return createHash("sha256")
     .update(JSON.stringify(sortValue(normalized)))
     .digest("hex");
 }
 
 export function isDaemonRuntimeEnabled(
-  actConfig: Record<string, unknown>,
+  _actConfig: Record<string, unknown>,
   mcpServers: McpServersConfig,
 ): boolean {
-  const envOverride = process.env.ONE_ACT_DAEMON;
-  const envDecision = typeof envOverride === "string" ? parseBooleanish(envOverride) : null;
-  if (envDecision !== null) return envDecision;
-
-  const rootDecision = isDaemonConfigEnabled(actConfig.daemon as DaemonModeConfig | undefined);
-  if (rootDecision !== null) return rootDecision;
-
-  return Object.values(mcpServers).some((config) => Boolean(config?.daemon));
+  return Object.values(selectEnabledMcpServers(mcpServers)).some(
+    (config) => config?.daemon === true,
+  );
 }
 
 export async function getActDaemonStatus(configHash?: string): Promise<ActDaemonStatus> {
