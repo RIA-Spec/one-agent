@@ -4,7 +4,7 @@ An AI agent with Reason-able Action Space (RAS) support for Python, TypeScript, 
 
 ## Re in Act
 
-This monorepo implements the Re in Act programming model described in [RIA-Spec/re-in-act](https://github.com/RIA-Spec/re-in-act).
+This monorepo implements the Re in Act programming model described in [Re in Act Spec](https://re-in-act.org).
 
 In this repository, that means:
 
@@ -14,6 +14,16 @@ In this repository, that means:
 - the agent can operate through Python, TypeScript, or Bash runtime surfaces.
 
 The implementation here focuses on making those ideas executable in a real agent/runtime/web stack, rather than only documenting the spec terms.
+
+## Packages
+
+This monorepo is split into a small set of focused packages:
+
+- [packages/one-agent/package.json](/Users/beet/github-repo/one-agent/packages/one-agent/package.json): the main ONE agent package and CLI, including `one repl`, the bundled RAS runtimes, riff commands, and top-level config/auth flows.
+- [packages/one-reason/README.md](/Users/beet/github-repo/one-agent/packages/one-reason/README.md): the structured reasoning package and CLI behind `reason()` and `reason auth`.
+- [packages/one-act/README.md](/Users/beet/github-repo/one-agent/packages/one-act/README.md): the deterministic MCP tool runner behind `act()` and MCP server configuration.
+- [packages/agent-extension/package.json](/Users/beet/github-repo/one-agent/packages/agent-extension/package.json): the optional delegated `agent()` extension for bounded nested agent execution.
+- [packages/ria-proxy/README.md](/Users/beet/github-repo/one-agent/packages/ria-proxy/README.md): the proxy/plugin package for bringing Re in Act semantics to OpenAI-compatible tool runtimes.
 
 ## Reason-able Action Space (RAS)
 
