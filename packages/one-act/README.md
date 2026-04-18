@@ -2,7 +2,13 @@
 
 Deterministic MCP tool runner for ONE.
 
-Within this repository's Re in Act implementation, `@one-agent/act` is the external action layer: it is responsible for deterministic tool execution, while higher-level agent logic decides when to call `act()`.
+Within this repository's Re in Act implementation, `@one-agent/act` is the external action layer for the optional `act()` interface: it is responsible for deterministic tool execution while higher-level agent logic decides when to call `act()` inside the RAS.
+
+Relevant public reference:
+
+- [Working Draft Specification](https://re-in-act.org/specification/draft/index)
+
+Important boundary: the Re in Act spec requires `reason()` and makes `act()` optional. `one-act` is this repository's MCP-backed implementation of that optional action interface.
 
 `one-act` does not have a model auth flow. `one auth` configures the main `one` agent model, and `reason auth` configures the model used by `reason()`. `one-act` only reads MCP/tool server configuration.
 

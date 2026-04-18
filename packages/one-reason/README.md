@@ -2,7 +2,13 @@
 
 Structured reasoning interface and CLI for ONE.
 
-Within this repository's Re in Act implementation, `@one-agent/reason` is the bounded local judgment layer: it turns prompt text plus a required JSON shape into structured output.
+Within this repository's Re in Act implementation, `@one-agent/reason` implements the required `reason()` interface: a bounded local judgment step that turns prompt text plus a required JSON shape into structured output.
+
+Relevant public reference:
+
+- [Working Draft Specification](https://re-in-act.org/specification/draft/index)
+
+In the public spec, `reason()` is the only required interface. `@one-agent/reason` is this repository's reference implementation of that core contract.
 
 ## Model Configuration
 

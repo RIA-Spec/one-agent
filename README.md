@@ -4,14 +4,18 @@ An AI agent with Reason-able Action Space (RAS) support for Python, TypeScript, 
 
 ## Re in Act
 
-This monorepo implements the Re in Act programming model described in [Re in Act Spec](https://re-in-act.org).
+This monorepo is a reference implementation of the Re in Act working draft.
+
+Core reference:
+
+- [Working Draft Specification](https://re-in-act.org/specification/draft/index)
 
 In this repository, that means:
 
-- `reason()` is used for bounded local thinking that must return structured data.
-- `act()` is used for external actions and tool execution.
-- reusable workflows are modeled as `riff`s.
-- the agent can operate through Python, TypeScript, or Bash runtime surfaces.
+- `reason()` is the required core interface and is used for schema-bounded local judgment inside the Reason-able Action Space (RAS).
+- `act()` is an optional interface for external actions and tool execution inside the RAS.
+- reusable workflows are modeled as `riff`s, or Reusable RAS Definitions.
+- the agent can operate through Bash RAS and Code RAS runtime forms, with Python and TypeScript as the main code runtimes in this implementation.
 
 The implementation here focuses on making those ideas executable in a real agent/runtime/web stack, rather than only documenting the spec terms.
 
@@ -20,16 +24,16 @@ The implementation here focuses on making those ideas executable in a real agent
 This monorepo is split into a small set of focused packages:
 
 - [packages/one-agent/package.json](/Users/beet/github-repo/one-agent/packages/one-agent/package.json): the main ONE agent package and CLI, including `one repl`, the bundled RAS runtimes, riff commands, and top-level config/auth flows.
-- [packages/one-reason/README.md](/Users/beet/github-repo/one-agent/packages/one-reason/README.md): the structured reasoning package and CLI behind `reason()` and `reason auth`.
-- [packages/one-act/README.md](/Users/beet/github-repo/one-agent/packages/one-act/README.md): the deterministic MCP tool runner behind `act()` and MCP server configuration.
-- [packages/agent-extension/package.json](/Users/beet/github-repo/one-agent/packages/agent-extension/package.json): the optional delegated `agent()` extension for bounded nested agent execution.
+- [packages/one-reason/README.md](/Users/beet/github-repo/one-agent/packages/one-reason/README.md): the `reason()` implementation and CLI behind the required core interface described in the [Working Draft Specification](https://re-in-act.org/specification/draft/index).
+- [packages/one-act/README.md](/Users/beet/github-repo/one-agent/packages/one-act/README.md): the `act()` implementation and CLI for MCP-backed action execution, aligned with the optional action interface in the [Working Draft Specification](https://re-in-act.org/specification/draft/index).
+- [packages/agent-extension/package.json](/Users/beet/github-repo/one-agent/packages/agent-extension/package.json): the optional delegated `agent()` extension for bounded nested agent execution, aligned with the [Agent Interface Extension](https://re-in-act.org/extensions/agent-interface).
 - [packages/ria-proxy/README.md](/Users/beet/github-repo/one-agent/packages/ria-proxy/README.md): the proxy/plugin package for bringing Re in Act semantics to OpenAI-compatible tool runtimes.
 
 ## Reason-able Action Space (RAS)
 
-RAS defines the bounded environment and interfaces for agents to reason in action. This repository currently ships three runtime surfaces.
+The RAS is the bounded action context and interfaces for reasoning in action. In the spec, it is the space where local feedback, deterministic control flow, and bounded `reason()` / optional `act()` steps stay local instead of bouncing every disturbance back to the outer loop. This repository currently ships three runtime surfaces.
 
-### 1. Python RAS (Code Interpreter) - Default
+### 1. Python RAS (Code RAS) - Default
 
 **The Programmatic Approach**: Manage control flows using code execution (conditions, loops, branches).
 
@@ -54,7 +58,7 @@ async def main():
 asyncio.run(main())
 ```
 
-### 2. TypeScript RAS (Code Interpreter)
+### 2. TypeScript RAS (Code RAS)
 
 **The Programmatic Approach**: Manage control flows using TypeScript/JavaScript execution with `await reason(...)` and `await act(...)`.
 
