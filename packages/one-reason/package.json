@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/reason",
-  "version": "0.0.1",
+  "version": "0.0.1-beta.0",
   "description": "Structured reasoning interface and CLI for ONE.",
   "homepage": "https://github.com/RIA-Spec/one-agent#readme",
   "bugs": {

@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/ria-proxy",
-  "version": "0.0.1",
+  "version": "0.0.1-beta.0",
   "description": "Non-invasive Re in Act plugin for OpenAI-compatible tool runtimes.",
   "homepage": "https://github.com/RIA-Spec/one-agent#readme",
   "bugs": {

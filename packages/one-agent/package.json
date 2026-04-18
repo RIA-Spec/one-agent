@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/agent",
-  "version": "0.0.1",
+  "version": "0.0.1-beta.0",
   "description": "ONE Agent - AI agent with a code execution RAS.",
   "homepage": "https://github.com/RIA-Spec/one-agent#readme",
   "bugs": {

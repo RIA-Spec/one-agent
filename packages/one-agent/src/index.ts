@@ -20,7 +20,7 @@ export {
 
 // Prompts and models
 export { AGENT_SYSTEM_PROMPT } from "./prompts";
-export { resolveOneModel, vercel } from "./model";
+export { openaiCompatible, resolveOneModel, vercel } from "./model";
 export { autoCompactMessages } from "./compaction";
 
 // Re-export commonly used types from dependencies for convenience
