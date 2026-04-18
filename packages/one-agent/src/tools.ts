@@ -225,7 +225,6 @@ export async function getServer() {
                 internal: true,
               });
 
-              console.log(`✓ Bash RAS enabled`);
               return;
             }
 
@@ -245,8 +244,6 @@ export async function getServer() {
                 async (args: any, extra: any) => tsRAS.execute(args, extra, server),
                 { internal: false },
               );
-
-              console.log(`✓ TypeScript RAS enabled`);
             } else {
               const pythonRAS = createPythonRAS({
                 nodeFSRoot,
@@ -262,8 +259,6 @@ export async function getServer() {
                 async (args: any, extra: any) => pythonRAS.execute(args, extra, server),
                 { internal: false },
               );
-
-              console.log(`✓ Python RAS enabled`);
             }
 
             // Register low-level tools for Python mode

@@ -2,7 +2,7 @@
 import { runReasonCli } from "@one-agent/reason";
 import { startTracing } from "./tracing.js";
 
-startTracing();
+await startTracing();
 
 runReasonCli().catch((error) => {
   const message = error instanceof Error ? error.message : String(error);

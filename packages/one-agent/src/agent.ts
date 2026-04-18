@@ -13,7 +13,7 @@ import {
 } from "ai";
 import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
-import { openaiCompatible } from "./model";
+import { resolveOneModel } from "./model";
 import { getTracer } from "./tracing";
 import { AGENT_SYSTEM_PROMPT } from "./prompts";
 import { processStream } from "./utils/stream";
@@ -213,7 +213,7 @@ export async function agentStream(
     onError,
   } = options;
 
-  const resolvedModel = model ?? openaiCompatible(resolveDefaultChatModelId());
+  const resolvedModel = model ?? (await resolveOneModel(resolveDefaultChatModelId()));
 
   const tools = convertToAISDKTools(await getServer(), {
     tool: tool,

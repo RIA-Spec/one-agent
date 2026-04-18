@@ -3,7 +3,7 @@ import { runActCli } from "@one-agent/act";
 import { getServer } from "./tools.js";
 import { startTracing } from "./tracing.js";
 
-startTracing();
+await startTracing();
 
 runActCli({ getServer }).catch((error) => {
   const message = error instanceof Error ? error.message : String(error);

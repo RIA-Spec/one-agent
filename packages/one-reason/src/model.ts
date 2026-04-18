@@ -17,7 +17,7 @@ export type ResolvedInterfaceModel = {
   cleanup?: () => Promise<void> | void;
 };
 
-type Scope = "reason" | "act";
+type Scope = "reason" | "act" | "one";
 type ScopeConfig = Record<string, unknown>;
 type WrappedModelConfig = Parameters<typeof wrapLanguageModel>[0];
 type AcpProviderConfig = Parameters<typeof createACPProvider>[0];

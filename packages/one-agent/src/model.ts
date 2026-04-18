@@ -1,6 +1,6 @@
 import { gateway, type LanguageModel, wrapLanguageModel } from "ai";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { resolveInterfaceModel } from "@one-agent/reason";
 
 type WrappedModelConfig = Parameters<typeof wrapLanguageModel>[0];
 
@@ -22,12 +22,12 @@ function wrapWithDevTools(model: LanguageModel): LanguageModel {
 
 export const vercel = (modelId: string): LanguageModel => wrapWithDevTools(gateway(modelId));
 
-// OpenAI-compatible model provider
-const openaiCompatibleProvider = createOpenAICompatible({
-  name: "openaiCompatible",
-  baseURL: process.env.OPENAI_BASE_URL || "",
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
+export async function resolveOneModel(defaultModelId: string): Promise<LanguageModel> {
+  if (process.env.ONE_PROVIDER?.trim()?.toLowerCase() === "vercel") {
+    const modelId = process.env.ONE_MODEL?.trim() || process.env.MODEL?.trim() || defaultModelId;
+    return vercel(modelId);
+  }
 
-export const openaiCompatible: (modelId: string) => LanguageModel = (modelId: string) =>
-  wrapWithDevTools(openaiCompatibleProvider(modelId));
+  const resolved = await resolveInterfaceModel("one", defaultModelId);
+  return wrapWithDevTools(resolved.model);
+}

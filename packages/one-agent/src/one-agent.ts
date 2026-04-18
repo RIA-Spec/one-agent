@@ -1,15 +1,54 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 import { runActCli } from "@one-agent/act";
+import { getOneConfigPath } from "@one-agent/reason";
 import { runReasonCli } from "@one-agent/reason";
 import { getToolFn } from "./interfaces/act.js";
 import { runReplCli } from "./repl.js";
 import { getServer } from "./tools.js";
 import { shutdownTracing, startTracing } from "./tracing.js";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import process from "node:process";
+import { cancel, intro, isCancel, outro, password, select, text } from "@clack/prompts";
+
+const WASM_STACK_SWITCHING_FLAG = "--experimental-wasm-stack-switching";
+
+function ensureWasmStackSwitchingFlag() {
+  if (!process.argv[1]) {
+    return;
+  }
+
+  if (process.execArgv.includes(WASM_STACK_SWITCHING_FLAG)) {
+    return;
+  }
+
+  const result = spawnSync(
+    process.execPath,
+    [WASM_STACK_SWITCHING_FLAG, process.argv[1], ...process.argv.slice(2)],
+    {
+      stdio: "inherit",
+      env: process.env,
+    },
+  );
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (typeof result.status === "number") {
+    process.exit(result.status);
+  }
+
+  process.exit(1);
+}
 
 type ActResult = {
   content?: Array<{ type?: string; text?: unknown }>;
   isError?: boolean;
 };
+
+ensureWasmStackSwitchingFlag();
 
 function restoreTerminalState() {
   // Best-effort reset for terminal modes that can leak from dependencies.
@@ -44,6 +83,7 @@ function parseJsonObject(raw: string, flagName: string): Record<string, unknown>
 }
 
 function printHelp() {
+  const oneConfigPath = getOneConfigPath("one.json");
   const lines = [
     "one-agent",
     "",
@@ -51,6 +91,7 @@ function printHelp() {
     "  one-agent <command>",
     "",
     "Commands:",
+    "  auth                        Configure one auth",
     "  repl                        Run interactive one-agent REPL",
     "  act [...args]                Run one-act CLI",
     "  reason [...args]             Run one-reason CLI",
@@ -62,11 +103,140 @@ function printHelp() {
     "",
     "Examples:",
     "  one-agent repl",
+    `  config file: ${oneConfigPath}`,
     "  one-agent riff list",
     "  one-agent riff read 10-life-hacks --include-script",
     "  one-agent riff run 10-life-hacks --params '{\"x\":1}'",
   ];
   process.stdout.write(`${lines.join("\n")}\n`);
+}
+
+type ProviderChoice = "openai-compatible" | "openai" | "anthropic";
+
+const ONE_CONFIG_PATH = getOneConfigPath("one.json");
+
+function readOneConfig(): Record<string, unknown> {
+  if (!existsSync(ONE_CONFIG_PATH)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(ONE_CONFIG_PATH, "utf-8"));
+    return typeof parsed === "object" && parsed !== null ? (parsed as Record<string, unknown>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeOneConfig(config: Record<string, unknown>) {
+  mkdirSync(dirname(ONE_CONFIG_PATH), { recursive: true });
+  writeFileSync(ONE_CONFIG_PATH, `${JSON.stringify(config, null, 2)}\n`, "utf-8");
+}
+
+async function runOneAuthCli() {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error("one auth requires an interactive terminal (TTY)");
+  }
+
+  const readRequiredSecret = async (message: string) => {
+    const value = await password({
+      message,
+      validate(input) {
+        return input?.trim() ? undefined : `${message} is required`;
+      },
+    });
+    if (isCancel(value)) return null;
+    return value.trim();
+  };
+
+  const readOptionalText = async (message: string) => {
+    const value = await text({ message });
+    if (isCancel(value)) return null;
+    return value.trim();
+  };
+
+  const readRequiredText = async (message: string) => {
+    const value = await text({
+      message,
+      validate(input) {
+        return input?.trim() ? undefined : `${message} is required`;
+      },
+    });
+    if (isCancel(value)) return null;
+    return value.trim();
+  };
+
+  const provider = await select<ProviderChoice>({
+    message: "Select provider (openai-compatible/openai/anthropic)",
+    initialValue: "openai-compatible",
+    options: [
+      { label: "openai-compatible", value: "openai-compatible" },
+      { label: "openai", value: "openai" },
+      { label: "anthropic", value: "anthropic" },
+    ],
+  });
+
+  if (isCancel(provider)) {
+    cancel("Operation cancelled.");
+    return;
+  }
+
+  intro("Configure one auth");
+
+  const nextConfig = readOneConfig();
+  nextConfig.PROVIDER = provider;
+
+  if (provider === "openai-compatible") {
+    const baseURL = await readRequiredText("OPENAI_BASE_URL");
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    const apiKey = await readRequiredSecret("OPENAI_API_KEY");
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    nextConfig.OPENAI_BASE_URL = baseURL;
+    nextConfig.OPENAI_API_KEY = apiKey;
+  }
+
+  if (provider === "openai") {
+    const baseURL = await readOptionalText("OPENAI_BASE_URL (optional)");
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    const apiKey = await readRequiredSecret("OPENAI_API_KEY");
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    nextConfig.OPENAI_API_KEY = apiKey;
+    if (baseURL) nextConfig.OPENAI_BASE_URL = baseURL;
+  }
+
+  if (provider === "anthropic") {
+    const baseURL = await readOptionalText("ANTHROPIC_BASE_URL (optional)");
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    const apiKey = await readRequiredSecret("ANTHROPIC_API_KEY");
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    nextConfig.ANTHROPIC_API_KEY = apiKey;
+    if (baseURL) nextConfig.ANTHROPIC_BASE_URL = baseURL;
+  }
+
+  const model = await readOptionalText("MODEL (optional)");
+  if (model == null) {
+    cancel("Operation cancelled.");
+    return;
+  }
+  if (model) nextConfig.MODEL = model;
+
+  writeOneConfig(nextConfig);
+  outro(`Saved config to ${ONE_CONFIG_PATH}`);
 }
 
 function parseRiffArgs(args: string[]): {
@@ -167,6 +337,11 @@ export async function runOneAgentCli(argv = process.argv.slice(2)) {
 
   const [command, ...rest] = argv;
 
+  if (command === "auth") {
+    await runOneAuthCli();
+    return;
+  }
+
   if (command === "act") {
     await runActCli({ getServer, argv: rest });
     return;
@@ -192,7 +367,7 @@ export async function runOneAgentCli(argv = process.argv.slice(2)) {
   process.exitCode = 1;
 }
 
-startTracing();
+await startTracing();
 
 const isDirectCliInvocation = Boolean(process.argv[1]);
 

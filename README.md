@@ -136,6 +136,30 @@ import { agent } from "./src/agent";
 await agent("Calculate fibonacci sequence up to 100");
 ```
 
+## CLI Model Configuration
+
+The `one` CLI and the built-in `reason()` function use different config scopes.
+
+- `one auth` configures the main `one` agent model used by `one repl` and other top-level `one` CLI flows.
+- `one reason auth` configures the model used by `reason()` inside the Reason-able Action Space.
+
+By default these write separate config files under `~/.config/one/`:
+
+- `one auth` writes `one.json`
+- `one reason auth` writes `reason.json`
+
+Example:
+
+```bash
+# Configure the main one agent model
+one auth
+
+# Configure the model used by reason()
+one reason auth
+```
+
+This separation is intentional: you can use one model/provider for the main agent loop and a different model/provider for bounded `reason()` calls.
+
 ## Contributing
 
 Development setup, local scripts, and contributor workflow now live in [CONTRIBUTING.md](CONTRIBUTING.md).

@@ -1,7 +1,4 @@
 import chalk from "chalk";
-import { NodeSDK } from "@opentelemetry/sdk-node";
-import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
-import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { trace } from "@opentelemetry/api";
 
 const serviceName = process.env.OTEL_SERVICE_NAME || "one-agent";
@@ -12,27 +9,46 @@ function isDebugEnabled(): boolean {
   return value === "1" || value === "true" || value === "yes";
 }
 
-// Configure the trace exporter for SigNoz
-const traceExporter = new OTLPTraceExporter({
-  url: sigNozEndpoint,
-});
-
-// Create OpenTelemetry SDK with SigNoz configuration
-const sdk = new NodeSDK({
-  serviceName,
-  traceExporter,
-  instrumentations: [
-    getNodeAutoInstrumentations({
-      // Disable some instrumentations if needed
-      "@opentelemetry/instrumentation-fs": {
-        enabled: false,
-      },
-    }),
-  ],
-});
+type TracingSdk = {
+  start(): void | Promise<void>;
+  shutdown(): Promise<void>;
+};
 
 let tracingStarted = false;
+let tracingStartPromise: Promise<void> | null = null;
 let tracingShutdownPromise: Promise<void> | null = null;
+let sdkPromise: Promise<TracingSdk> | null = null;
+
+async function getSdk(): Promise<TracingSdk> {
+  if (!sdkPromise) {
+    sdkPromise = (async () => {
+      const [{ NodeSDK }, { OTLPTraceExporter }, { getNodeAutoInstrumentations }] =
+        await Promise.all([
+          import("@opentelemetry/sdk-node"),
+          import("@opentelemetry/exporter-trace-otlp-http"),
+          import("@opentelemetry/auto-instrumentations-node"),
+        ]);
+
+      const traceExporter = new OTLPTraceExporter({
+        url: sigNozEndpoint,
+      });
+
+      return new NodeSDK({
+        serviceName,
+        traceExporter,
+        instrumentations: [
+          getNodeAutoInstrumentations({
+            "@opentelemetry/instrumentation-fs": {
+              enabled: false,
+            },
+          }),
+        ],
+      }) as TracingSdk;
+    })();
+  }
+
+  return sdkPromise;
+}
 
 function isConnRefusedError(error: unknown): boolean {
   const msg = String((error as { message?: string })?.message ?? error ?? "");
@@ -42,25 +58,41 @@ function isConnRefusedError(error: unknown): boolean {
 }
 
 // Start the SDK
-export function startTracing() {
+export async function startTracing() {
   if (!isDebugEnabled()) {
     return;
   }
 
-  try {
-    sdk.start();
-    tracingStarted = true;
-    console.log(chalk.cyan(`OpenTelemetry tracing started for service: ${serviceName}`));
-    console.log(chalk.cyan(`Exporting traces to SigNoz: ${sigNozEndpoint}`));
-  } catch (error) {
-    console.error(chalk.red("Error starting OpenTelemetry SDK:"), error);
+  if (tracingStarted) {
+    return;
   }
+
+  if (tracingStartPromise) {
+    return tracingStartPromise;
+  }
+
+  tracingStartPromise = (async () => {
+    try {
+      const sdk = await getSdk();
+      await sdk.start();
+      tracingStarted = true;
+      console.log(chalk.cyan(`OpenTelemetry tracing started for service: ${serviceName}`));
+      console.log(chalk.cyan(`Exporting traces to SigNoz: ${sigNozEndpoint}`));
+    } catch (error) {
+      console.error(chalk.red("Error starting OpenTelemetry SDK:"), error);
+    } finally {
+      tracingStartPromise = null;
+    }
+  })();
+
+  return tracingStartPromise;
 }
 
 export async function shutdownTracing() {
   if (!tracingStarted) return;
   if (tracingShutdownPromise) return tracingShutdownPromise;
 
+  const sdk = await getSdk();
   tracingShutdownPromise = sdk
     .shutdown()
     .catch((error) => {

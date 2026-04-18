@@ -4,7 +4,7 @@ import { getServer } from "./tools.js";
 import { startTracing } from "./tracing.js";
 
 // Initialize OpenTelemetry tracing
-startTracing();
+await startTracing();
 
 const server = await getServer();
 const transport = new StdioServerTransport();

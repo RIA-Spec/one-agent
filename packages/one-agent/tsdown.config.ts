@@ -2,6 +2,7 @@ import { defineConfig } from "tsdown";
 
 export default defineConfig({
   exports: true,
+  skipNodeModulesBundle: true,
   entry: [
     "src/index.ts",
     "src/repl.ts",

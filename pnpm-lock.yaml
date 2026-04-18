@@ -427,6 +427,9 @@ importers:
       '@ai-sdk/openai-compatible':
         specifier: 2.0.35
         version: 2.0.35(zod@4.3.6)
+      '@clack/prompts':
+        specifier: ^1.1.0
+        version: 1.2.0
       '@mcpc-tech/code-runner-mcp':
         specifier: ^0.1.16
         version: 0.1.16(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(hono@4.12.12)
