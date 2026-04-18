@@ -5,6 +5,7 @@
   "description": "ONE Agent + Chat SDK Integration Monorepo",
   "license": "Apache-2.0",
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "dev": "pnpm --parallel --filter=@one-agent/agent --filter=ai-chatbot dev",
     "build": "pnpm --filter=@one-agent/agent build && pnpm --filter=ai-chatbot build",
@@ -22,10 +23,13 @@
     "overrides": {
       "ai": "6.0.44",
       "@ai-sdk/provider": "3.0.4"
+    },
+    "patchedDependencies": {
+      "next@16.0.10": "patches/next@16.0.10.patch"
     }
   },
   "engines": {
     "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "pnpm": ">=10.0.0"
   }
 }
