@@ -172,6 +172,7 @@ export async function getServer() {
         [{ name: "one", version: "1.0.0" }, { capabilities: { tools: {} } }],
         [composeFile],
         {
+          silent: true,
           plugins: [markdownLoaderPlugin() as any],
           setup: (server) => {
             // Register Bash RAS (Unix philosophy approach) - early return.

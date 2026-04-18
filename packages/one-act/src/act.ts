@@ -228,6 +228,7 @@ function createGetServerFromMcpServers(
     cachedServer = await mcpc(
       [{ name: "one-act", version: "1.0.0" }, { capabilities: { tools: {} } }],
       [composeEntry],
+      { silent: true },
     );
 
     return cachedServer;

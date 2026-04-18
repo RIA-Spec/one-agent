@@ -61,7 +61,7 @@
     "@ai-sdk/devtools": "^0.0.6",
     "@ai-sdk/openai-compatible": "2.0.35",
     "@mcpc-tech/code-runner-mcp": "^0.1.16",
-    "@mcpc-tech/core": "^0.3.43",
+    "@mcpc-tech/core": "^0.3.45",
     "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
     "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",
     "@modelcontextprotocol/sdk": "^1.25.3",
