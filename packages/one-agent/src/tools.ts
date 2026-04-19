@@ -1,5 +1,5 @@
 import { mcpc } from "@mcpc-tech/core";
-import { markdownLoaderPlugin } from "@mcpc/plugin-markdown-loader";
+import { markdownLoaderPlugin } from "@mcpc-tech/plugin-markdown-loader";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { reason } from "./interfaces/reason";

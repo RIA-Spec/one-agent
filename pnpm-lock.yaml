@@ -436,12 +436,12 @@ importers:
       '@mcpc-tech/core':
         specifier: ^0.3.45
         version: 0.3.45(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)
-      '@mcpc/mcp-sampling-ai-provider':
-        specifier: jsr:^0.1.21
-        version: '@jsr/mcpc__mcp-sampling-ai-provider@0.1.23(zod@4.3.6)'
-      '@mcpc/plugin-markdown-loader':
-        specifier: jsr:^0.0.10
-        version: '@jsr/mcpc__plugin-markdown-loader@0.0.10(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)'
+      '@mcpc-tech/mcp-sampling-ai-provider':
+        specifier: ^0.1.23
+        version: 0.1.23(zod@4.3.6)
+      '@mcpc-tech/plugin-markdown-loader':
+        specifier: ^0.0.14
+        version: 0.0.14(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)
       '@modelcontextprotocol/sdk':
         specifier: ^1.25.3
         version: 1.29.0(zod@4.3.6)
@@ -490,6 +490,9 @@ importers:
       just-bash:
         specifier: ^2.14.0
         version: 2.14.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
       zod:
         specifier: ^4.3.5
         version: 4.3.6
@@ -515,9 +518,6 @@ importers:
       tsx:
         specifier: ^4.21.0
         version: 4.21.0
-      typescript:
-        specifier: ^5.9.3
-        version: 5.9.3
       vitest:
         specifier: ^4.0.16
         version: 4.1.3(@opentelemetry/api@1.9.1)(@types/node@25.5.2)(@vitest/ui@4.0.17)(vite@8.0.8(@types/node@25.5.2)(esbuild@0.27.7)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.3))
@@ -1650,57 +1650,6 @@ packages:
   '@js-sdsl/ordered-map@4.4.2':
     resolution: {integrity: sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw==}
 
-  '@jsr/mcpc__core@0.3.43':
-    resolution: {integrity: sha512-sQXlRR1CZ5qW+lyYntP/1FnoLpX0t98AH4XwLGlnYvZJ7mn4Lh9/Nq483bo0ZzbTSE3pETewwAIQ7xWxBDkKsA==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__core/0.3.43.tgz}
-
-  '@jsr/mcpc__mcp-sampling-ai-provider@0.1.23':
-    resolution: {integrity: sha512-WF1I5cshR6ehewDdUiOGMfxxWYh52BCeGGkim5bCg6Bbc+XhcRJUe4s6hyn/Y24m88pRnp7jcdVBUr5A7HsgYA==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__mcp-sampling-ai-provider/0.1.23.tgz}
-
-  '@jsr/mcpc__plugin-markdown-loader@0.0.10':
-    resolution: {integrity: sha512-TrVSPzf9vevW4gHJUymqiG5vTUHQvne9dsw3BVvrTaoSx0xvyBpRVw7LUDqrnVoqr9i8Sz/KFtqj2f4k+GInHA==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__plugin-markdown-loader/0.0.10.tgz}
-
-  '@jsr/mcpc__utils@0.2.14':
-    resolution: {integrity: sha512-xhzxDFEevgwXW7+qGEv7/tJ5mFCuEhr9T5aslGDctcxlHE8y/gM9R0psw82kBeUzkJM8eMtnwvMhBd1vWP3JUg==, tarball: https://npm.jsr.io/~/11/@jsr/mcpc__utils/0.2.14.tgz}
-
-  '@jsr/std__bytes@1.0.6':
-    resolution: {integrity: sha512-St6yKggjFGhxS52IFLJWvkchRFbAKg2Xh8UxA4S1EGz7GJ2Ui+ssDDldj/w2c8vCxvl6qgR0HaYbKeFJNqujmA==, tarball: https://npm.jsr.io/~/11/@jsr/std__bytes/1.0.6.tgz}
-
-  '@jsr/std__cli@1.0.28':
-    resolution: {integrity: sha512-PCLSj0MeBw3nAm0qiYACCqz0qWLEmWNbKUbcf7MX9PYZyDbhKiv7FI34vuHFrNGJ8QZeQ5mSiHuSkG210o4L6g==, tarball: https://npm.jsr.io/~/11/@jsr/std__cli/1.0.28.tgz}
-
-  '@jsr/std__encoding@1.0.10':
-    resolution: {integrity: sha512-WK2njnDTyKefroRNk2Ooq7GStp6Y0ccAvr4To+Z/zecRAGe7+OSvH9DbiaHpAKwEi2KQbmpWMOYsdNt+TsdmSw==, tarball: https://npm.jsr.io/~/11/@jsr/std__encoding/1.0.10.tgz}
-
-  '@jsr/std__fmt@1.0.9':
-    resolution: {integrity: sha512-YFJJMozmORj2K91c5J9opWeh0VUwrd+Mwb7Pr0FkVCAKVLu2UhT4LyvJqWiyUT+eF+MdfqQ9F7RtQj4bXn9Smw==, tarball: https://npm.jsr.io/~/11/@jsr/std__fmt/1.0.9.tgz}
-
-  '@jsr/std__fs@1.0.23':
-    resolution: {integrity: sha512-e8jspB3M44E5YhWiLCTqibBBTwVmxQaHN06WvFa/elAKm5E/LfAe8Hj5XGNC8P7a0MIPASlNJsnF1bgO/g+aqg==, tarball: https://npm.jsr.io/~/11/@jsr/std__fs/1.0.23.tgz}
-
-  '@jsr/std__html@1.0.5':
-    resolution: {integrity: sha512-8ypLaw6ORY7jisEvsXOS/D631/pMCX78mV7fyromfzJXxqb35OUNCBC2E4Ca0goKQJW8I2XhEgoFu0ZXaIiGvA==, tarball: https://npm.jsr.io/~/11/@jsr/std__html/1.0.5.tgz}
-
-  '@jsr/std__http@1.0.25':
-    resolution: {integrity: sha512-15aSX8BvkIEDK1hJh0HNji0ejdp/dwypY1NlH53xUkfj9G8bkIfAwEDDDDs7Pm0vUU0UJpmNTonYLccwvdgeqw==, tarball: https://npm.jsr.io/~/11/@jsr/std__http/1.0.25.tgz}
-
-  '@jsr/std__internal@1.0.12':
-    resolution: {integrity: sha512-6xReMW9p+paJgqoFRpOE2nogJFvzPfaLHLIlyADYjKMUcwDyjKZxryIbgcU+gxiTygn8yCjld1HoI0ET4/iZeA==, tarball: https://npm.jsr.io/~/11/@jsr/std__internal/1.0.12.tgz}
-
-  '@jsr/std__media-types@1.1.0':
-    resolution: {integrity: sha512-dHvaxHL7ENWnltgL653uo3KnKFse3ZbopZop2gqsT7yrscx7irZEClu5Cba7gMPPRk4Lg1FbriNcaBViM2RSBw==, tarball: https://npm.jsr.io/~/11/@jsr/std__media-types/1.1.0.tgz}
-
-  '@jsr/std__net@1.0.6':
-    resolution: {integrity: sha512-mh27Fw4UMCjGSIMoOhjia5cS5fNP9M9DZYhGB7EYSZNnzf/eguFiarii/W4oDwYMmnxCMouUzhc6Y7jFuwTzcg==, tarball: https://npm.jsr.io/~/11/@jsr/std__net/1.0.6.tgz}
-
-  '@jsr/std__path@1.1.4':
-    resolution: {integrity: sha512-SK4u9H6NVTfolhPdlvdYXfNFefy1W04AEHWJydryYbk+xqzNiVmr5o7TLJLJFqwHXuwMRhwrn+mcYeUfS0YFaA==, tarball: https://npm.jsr.io/~/11/@jsr/std__path/1.1.4.tgz}
-
-  '@jsr/std__streams@1.0.17':
-    resolution: {integrity: sha512-LnPlWk20mDIV5/nqoUomAB8umOimfGEyWRApxLgekXFuqKGDsGpUAi58amieVU2XAGNclmUOtQOcQ/qOl3PNFg==, tarball: https://npm.jsr.io/~/11/@jsr/std__streams/1.0.17.tgz}
-
-  '@jsr/std__yaml@1.0.12':
-    resolution: {integrity: sha512-pz/BisWZWH16JvLJBwrNwUwfIsRnf9qniMrmI6Z3vIAcVRVFcA5+i4o6z6QqsMKqFzjlB66WZE+jSyujT/RvRg==, tarball: https://npm.jsr.io/~/11/@jsr/std__yaml/1.0.12.tgz}
-
   '@lezer/common@1.5.2':
     resolution: {integrity: sha512-sxQE460fPZyU3sdc8lafxiPwJHBzZRy/udNFynGQky1SePYBdhkBl1kOagA9uT3pxR8K09bOrmTUqA9wb/PjSQ==}
 
@@ -1761,6 +1710,12 @@ packages:
 
   '@mcpc-tech/handle-sandbox@0.0.11':
     resolution: {integrity: sha512-WNRK25xwWy6NvpCyLb4b5X3FgT37dbauXvpXDbNa1qtuhmtRIax10VA1FidJ+kFFjhUuthamyuxzD4CmTjr8iQ==}
+
+  '@mcpc-tech/mcp-sampling-ai-provider@0.1.23':
+    resolution: {integrity: sha512-i+vtW31SxZ0pYl55lpswthm13XmqXYVJBYjHLyu1fMAnW9LlP2ymtZQ8ilpTncm4Ucydobdgl/EWRV0+DSbx3w==}
+
+  '@mcpc-tech/plugin-markdown-loader@0.0.14':
+    resolution: {integrity: sha512-t4eCNNHe9cuRNgeajrX0ckvltH0RgoffjSqtuyguR7quy7N2PHpeOBj+uu9sJOH594TI24Vsy5o3fNvr2BT1tA==}
 
   '@mcpc-tech/ripgrep-napi-android-arm-eabi@0.0.4':
     resolution: {integrity: sha512-Y52S9IdbqMYvet7hDGk/DRdKFM7ED6tSQmBtrWVzdeqVWPMayZvrKdlcceBykdKjbmgnlqtulzEtHBF2iXmXwA==}
@@ -8004,113 +7959,6 @@ snapshots:
 
   '@js-sdsl/ordered-map@4.4.2': {}
 
-  '@jsr/mcpc__core@0.3.43(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.4
-      '@jsr/mcpc__mcp-sampling-ai-provider': 0.1.23(zod@4.3.6)
-      '@jsr/mcpc__utils': 0.2.14(zod@4.3.6)
-      '@mcpc-tech/acp-ai-provider': 0.1.58
-      '@mcpc-tech/ripgrep-napi': 0.0.4(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
-      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/exporter-trace-otlp-http': 0.56.0(@opentelemetry/api@1.9.1)
-      '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/sdk-trace-node': 1.30.1(@opentelemetry/api@1.9.1)
-      '@opentelemetry/semantic-conventions': 1.40.0
-      '@segment/ajv-human-errors': 2.16.0(ajv@8.18.0)
-      ai: 6.0.44(zod@4.3.6)
-      ajv: 8.18.0
-      ajv-errors: 3.0.0(ajv@8.18.0)
-      ajv-formats: 3.0.1(ajv@8.18.0)
-      cheerio: 1.2.0
-      json-schema-traverse: 1.0.0
-      jsonrepair: 3.13.3
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - supports-color
-      - zod
-
-  '@jsr/mcpc__mcp-sampling-ai-provider@0.1.23(zod@4.3.6)':
-    dependencies:
-      '@ai-sdk/provider': 3.0.4
-      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
-      ai: 6.0.44(zod@4.3.6)
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - supports-color
-      - zod
-
-  '@jsr/mcpc__plugin-markdown-loader@0.0.10(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)':
-    dependencies:
-      '@jsr/mcpc__core': 0.3.43(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)
-      '@jsr/std__yaml': 1.0.12
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - '@emnapi/core'
-      - '@emnapi/runtime'
-      - supports-color
-      - zod
-
-  '@jsr/mcpc__utils@0.2.14(zod@4.3.6)':
-    dependencies:
-      '@jsr/std__http': 1.0.25
-      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
-      cheerio: 1.2.0
-      jsonrepair: 3.13.3
-    transitivePeerDependencies:
-      - '@cfworker/json-schema'
-      - supports-color
-      - zod
-
-  '@jsr/std__bytes@1.0.6': {}
-
-  '@jsr/std__cli@1.0.28':
-    dependencies:
-      '@jsr/std__fmt': 1.0.9
-      '@jsr/std__internal': 1.0.12
-
-  '@jsr/std__encoding@1.0.10': {}
-
-  '@jsr/std__fmt@1.0.9': {}
-
-  '@jsr/std__fs@1.0.23':
-    dependencies:
-      '@jsr/std__internal': 1.0.12
-      '@jsr/std__path': 1.1.4
-
-  '@jsr/std__html@1.0.5': {}
-
-  '@jsr/std__http@1.0.25':
-    dependencies:
-      '@jsr/std__cli': 1.0.28
-      '@jsr/std__encoding': 1.0.10
-      '@jsr/std__fmt': 1.0.9
-      '@jsr/std__fs': 1.0.23
-      '@jsr/std__html': 1.0.5
-      '@jsr/std__media-types': 1.1.0
-      '@jsr/std__net': 1.0.6
-      '@jsr/std__path': 1.1.4
-      '@jsr/std__streams': 1.0.17
-
-  '@jsr/std__internal@1.0.12': {}
-
-  '@jsr/std__media-types@1.1.0': {}
-
-  '@jsr/std__net@1.0.6': {}
-
-  '@jsr/std__path@1.1.4':
-    dependencies:
-      '@jsr/std__internal': 1.0.12
-
-  '@jsr/std__streams@1.0.17':
-    dependencies:
-      '@jsr/std__bytes': 1.0.6
-
-  '@jsr/std__yaml@1.0.12': {}
-
   '@lezer/common@1.5.2': {}
 
   '@lezer/highlight@1.2.3':
@@ -8273,6 +8121,43 @@ snapshots:
   '@mcpc-tech/handle-sandbox@0.0.11':
     dependencies:
       deno: 2.7.11
+
+  '@mcpc-tech/mcp-sampling-ai-provider@0.1.23(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      ai: 6.0.44(zod@4.3.6)
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
+      - zod
+
+  '@mcpc-tech/plugin-markdown-loader@0.0.14(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)(zod@4.3.6)':
+    dependencies:
+      '@ai-sdk/provider': 3.0.4
+      '@mcpc-tech/acp-ai-provider': 0.1.58
+      '@mcpc-tech/ripgrep-napi': 0.0.4(@emnapi/core@1.9.2)(@emnapi/runtime@1.9.2)
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      '@opentelemetry/api': 1.9.1
+      '@opentelemetry/exporter-trace-otlp-http': 0.56.0(@opentelemetry/api@1.9.1)
+      '@opentelemetry/resources': 1.30.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/sdk-trace-node': 1.30.1(@opentelemetry/api@1.9.1)
+      '@opentelemetry/semantic-conventions': 1.40.0
+      '@segment/ajv-human-errors': 2.16.0(ajv@8.18.0)
+      ai: 6.0.44(zod@4.3.6)
+      ajv: 8.18.0
+      ajv-errors: 3.0.0(ajv@8.18.0)
+      ajv-formats: 3.0.1(ajv@8.18.0)
+      cheerio: 1.2.0
+      json-schema-traverse: 1.0.0
+      jsonrepair: 3.13.3
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - '@emnapi/core'
+      - '@emnapi/runtime'
+      - supports-color
+      - zod
 
   '@mcpc-tech/ripgrep-napi-android-arm-eabi@0.0.4':
     optional: true

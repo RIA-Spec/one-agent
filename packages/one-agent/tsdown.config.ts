@@ -5,6 +5,8 @@ export default defineConfig({
   skipNodeModulesBundle: true,
   entry: [
     "src/index.ts",
+    "src/model.ts",
+    "src/tools.ts",
     "src/repl.ts",
     "src/stdio.ts",
     "src/reason.ts",

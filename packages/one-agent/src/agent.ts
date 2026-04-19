@@ -11,7 +11,6 @@ import {
   type ModelMessage,
   type StreamTextResult,
 } from "ai";
-import { getServer } from "./tools";
 import { convertToAISDKTools } from "@mcpc-tech/core";
 import { resolveOneModel } from "./model";
 import { getTracer } from "./tracing";
@@ -40,6 +39,11 @@ const DEFAULT_STEP_GUARD_RESERVE_TOKENS = 2_048;
 const DEFAULT_MAX_OUTPUT_TOKENS = 4_096;
 const TOOL_RESULT_TOKENS_PER_CHAR = 0.5;
 const DEFAULT_CHAT_MODEL_ID = "gemini-3.1-pro";
+
+async function loadServer() {
+  const { getServer } = await import("./tools.js");
+  return getServer();
+}
 
 function resolveDefaultChatModelId(): string {
   // Keep aligned with web runtime precedence for one-agent chat model selection.
@@ -215,7 +219,7 @@ export async function agentStream(
 
   const resolvedModel = model ?? (await resolveOneModel(resolveDefaultChatModelId()));
 
-  const tools = convertToAISDKTools(await getServer(), {
+  const tools = convertToAISDKTools(await loadServer(), {
     tool: tool,
     jsonSchema: jsonSchema,
   });

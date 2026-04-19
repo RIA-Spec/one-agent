@@ -32,6 +32,15 @@ import { type PostRequestBody, postRequestBodySchema } from "./schema";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+async function importOneAgentRuntimeOnly(): Promise<typeof import("@one-agent/agent")> {
+  const dynamicImport = new Function(
+    "specifier",
+    "return import(specifier)",
+  ) as (specifier: string) => Promise<typeof import("@one-agent/agent")>;
+
+  return dynamicImport("@one-agent/agent");
+}
+
 function getStreamContext() {
   try {
     return createResumableStreamContext({ waitUntil: after });
@@ -140,7 +149,7 @@ export async function POST(request: Request) {
           setProgressCallback,
           autoCompactMessages,
           AGENT_SYSTEM_PROMPT,
-        } = await import("@one-agent/agent");
+        } = await importOneAgentRuntimeOnly();
 
         const model = openaiCompatible(resolvedChatModel);
 

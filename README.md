@@ -2,6 +2,8 @@
 
 An AI agent with Reason-able Action Space (RAS) support for Python, TypeScript, and Bash.
 
+This project is under active development and may introduce breaking changes.
+
 ## Re in Act
 
 This monorepo is a reference implementation of the Re in Act working draft.
@@ -178,48 +180,14 @@ This separation is intentional: you can use one model/provider for the main agen
 
 Development setup, local scripts, and contributor workflow now live in [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Telemetry & Observability
+## Credits
 
-This project includes OpenTelemetry integration for monitoring AI SDK operations in SigNoz.
+Parts of the tool implementation in this repository were informed by public ideas and patterns from these agent projects:
 
-### Setup SigNoz
+- [anomalyco/opencode](https://github.com/anomalyco/opencode)
+- [badlogic/pi-mono](https://github.com/badlogic/pi-mono)
 
-The project is configured to send traces to SigNoz at `http://localhost:4318/v1/traces`.
 
-If you have SigNoz running locally, traces will be automatically sent. Access SigNoz UI at:
-
-- **http://localhost:8080/**
-
-### Configuration
-
-Create a `.env` file based on `.env.example`:
-
-```bash
-cp .env.example .env
-```
-
-Configure the following environment variables:
-
-- `OTEL_SERVICE_NAME` - Service name in SigNoz (default: "one-agent")
-- `OTEL_EXPORTER_OTLP_ENDPOINT` - SigNoz endpoint (default: "http://localhost:4318/v1/traces")
-
-### What's Tracked
-
-The telemetry captures:
-
-- AI model calls (provider/model metadata)
-- Tool executions
-- Token usage and latency
-- Prompts and responses
-- Error traces
-- Custom metadata (agent type, model provider)
-
-### Viewing Traces
-
-1. Open SigNoz at http://localhost:8080/
-2. Navigate to "Services" to see `one-agent`
-3. Click on the service to view traces
-4. Explore spans to see detailed AI operations
 
 ## License
 

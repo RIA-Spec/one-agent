@@ -31,10 +31,12 @@
   "exports": {
     ".": "./dist/index.mjs",
     "./act": "./dist/act.mjs",
+    "./model": "./dist/model.mjs",
     "./one-agent": "./dist/one-agent.mjs",
     "./reason": "./dist/reason.mjs",
     "./repl": "./dist/repl.mjs",
     "./stdio": "./dist/stdio.mjs",
+    "./tools": "./dist/tools.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
@@ -63,8 +65,8 @@
     "@ai-sdk/openai-compatible": "2.0.35",
     "@mcpc-tech/code-runner-mcp": "^0.1.16",
     "@mcpc-tech/core": "^0.3.45",
-    "@mcpc/mcp-sampling-ai-provider": "jsr:^0.1.21",
-    "@mcpc/plugin-markdown-loader": "jsr:^0.0.10",
+    "@mcpc-tech/mcp-sampling-ai-provider": "^0.1.23",
+    "@mcpc-tech/plugin-markdown-loader": "^0.0.14",
     "@modelcontextprotocol/sdk": "^1.25.3",
     "@one-agent/act": "workspace:*",
     "@one-agent/agent-extension": "workspace:*",
@@ -81,6 +83,7 @@
     "diff": "^8.0.3",
     "gray-matter": "^4.0.3",
     "just-bash": "^2.14.0",
+    "typescript": "^5.9.3",
     "zod": "^4.3.5"
   },
   "devDependencies": {
@@ -91,7 +94,6 @@
     "oxfmt": "^0.28.0",
     "tsdown": "^0.18.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3",
     "vitest": "^4.0.16"
   }
 }

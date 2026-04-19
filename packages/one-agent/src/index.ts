@@ -1,8 +1,6 @@
 // Core agent functions
 export { agent, agentStream, type AgentStreamOptions } from "./agent";
 
-// Tools and server
-export { getServer, getOneTools } from "./tools";
 export { reason } from "./interfaces/reason";
 export { getToolFn } from "./interfaces/act";
 
