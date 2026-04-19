@@ -7,10 +7,10 @@
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "dev": "pnpm --parallel --filter=@one-agent/agent --filter=ai-chatbot dev",
-    "build": "pnpm --filter=@one-agent/agent build && pnpm --filter=ai-chatbot build",
+    "dev": "pnpm --parallel --filter=@one-agent/agent --filter=one-web dev",
+    "build": "pnpm --filter=@one-agent/agent build && pnpm --filter=one-web build",
     "build:agent": "pnpm --filter=@one-agent/agent build",
-    "build:web": "pnpm --filter=ai-chatbot build",
+    "build:web": "pnpm --filter=one-web build",
     "fmt": "pnpm --filter=@one-agent/agent exec oxfmt src && pnpm --filter=@one-agent/act exec oxfmt src && pnpm --filter=@one-agent/reason exec oxfmt src && pnpm --filter=@one-agent/agent-extension exec oxfmt src && pnpm --filter=@one-agent/ria-proxy exec oxfmt src",
     "fmt:check": "pnpm --filter=@one-agent/agent exec oxfmt --check src && pnpm --filter=@one-agent/act exec oxfmt --check src && pnpm --filter=@one-agent/reason exec oxfmt --check src && pnpm --filter=@one-agent/agent-extension exec oxfmt --check src && pnpm --filter=@one-agent/ria-proxy exec oxfmt --check src",
     "repl": "pnpm --filter=@one-agent/agent repl",
