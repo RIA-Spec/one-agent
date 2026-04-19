@@ -1,12 +1,11 @@
 import type { AiyoPlugin } from "@mcpc-tech/aiyo";
+import { launchClaudeCode, launchOpenCode, type RunningProxyServer } from "@mcpc-tech/aiyo-cli";
 import {
-  launchClaudeCode,
-  launchOpenCode,
-  resolveLaunchConfig,
-  type LaunchConfig,
-  type LaunchOverrides,
-  type RunningProxyServer,
-} from "@mcpc-tech/aiyo-cli";
+  resolveRiaProxyLaunchConfig,
+  type RiaProxyLaunchConfig,
+  type RiaProxyLaunchOverrides,
+  type RiaProxyProvider,
+} from "./config.js";
 import { createReInActPlugin, type ReInActPluginConfig } from "./re-in-act-plugin.js";
 import { startRiaProxyServerInternal } from "./proxy-server.js";
 
@@ -19,7 +18,7 @@ export interface RiaProxyPluginOptions extends Omit<ReInActPluginConfig, "toolNa
 
 export interface RiaProxyServerOptions extends RiaProxyPluginOptions {}
 
-export interface LaunchWithRiaProxyOptions extends LaunchOverrides, RiaProxyPluginOptions {
+export interface LaunchWithRiaProxyOptions extends RiaProxyLaunchOverrides, RiaProxyPluginOptions {
   extraArgs?: string[];
 }
 
@@ -41,7 +40,7 @@ export function createRiaProxyPlugins(options: RiaProxyPluginOptions = {}): Aiyo
 }
 
 export async function startRiaProxyServer(
-  config: LaunchConfig,
+  config: RiaProxyLaunchConfig,
   options: RiaProxyServerOptions = {},
 ): Promise<RunningProxyServer> {
   return startRiaProxyServerInternal(config, {
@@ -54,7 +53,7 @@ export async function launchWithRiaProxy(
   options: LaunchWithRiaProxyOptions = {},
 ): Promise<void> {
   const normalized = normalizeIntegration(integration);
-  const config = resolveLaunchConfig(options);
+  const config = resolveRiaProxyLaunchConfig(options);
   const server = await startRiaProxyServer(config, options);
   const extraArgs = options.extraArgs ?? [];
 
@@ -79,3 +78,5 @@ export async function launchWithRiaProxy(
     await server.close();
   }
 }
+
+export type { RiaProxyLaunchConfig, RiaProxyProvider };

@@ -57,7 +57,7 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Pass complete tool arguments to act()
   - Don't assume previous calls are remembered
 4. TOOL DISCOVERY - You DO NOT know a tool's exact name or args by default, so inspect first:
-  - YOU MUST fetch the tool list and exact definitions before execution follow the <discover_tools/> example exactly.
+  - YOU MUST fetch the tool list with \`await act('__manual__', {})\`, then inspect exact definitions with \`await act('__manual__', {'name': '<tool>'})\` before execution. Follow the <discover_tools/> example exactly.
 5. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
   - Check act results: if result.get('isError'): return print(result)
   - Check reason results: if r.get('error'): return print(r['error'])
@@ -139,7 +139,7 @@ asyncio.run(main())
 import asyncio
 async def main():
     r1 = await reason(
-      'Goal: generate three distinct search queries about AGI timelines. Constraints: keep them short and non-overlapping.',
+      'Goal: generate three distinct search queries about AGI timelines. Observation: topic=AGI timelines. Constraints: keep them short and non-overlapping.',
       ['q1', 'q2']
     )
     if r1.get('error'): return print(r1['error'])
@@ -149,7 +149,7 @@ async def main():
         if not res.get('isError'): data.append(res['content'][0]['text'][:800])
     if not data: return print("No data")
     r2 = await reason(
-      f'Synthesize the key milestones from this local evidence: {data}. Return one short grounded summary.',
+      f'Goal: synthesize the key milestones from this local evidence. Observation: {data}. Constraints: return one short grounded summary.',
       {'summary': ''}
     )
     print(r2.get('error') or r2['data'].get('summary', ''))
@@ -176,7 +176,7 @@ async def main():
     if not data: return print("Fetch failed")
     
     r2 = await reason(
-      f'Synthesize core findings from this local evidence: {data}. Return one short grounded summary.',
+      f'Goal: synthesize core findings from this local evidence. Observation: {data}. Constraints: return one short grounded summary.',
       {'summary': ''}
     )
     print(r2.get('error') or r2['data'].get('summary', ''))
@@ -304,7 +304,7 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Pass complete tool arguments to act()
   - Don't assume previous calls are remembered
 4. TOOL DISCOVERY - You DO NOT know a tool's exact name or args by default, so inspect first:
-  - YOU MUST fetch the tool list and exact definitions before execution follow the <discover_tools/> example exactly.
+  - YOU MUST fetch the tool list with \`await act('__manual__', {})\`, then inspect exact definitions with \`await act('__manual__', { name: '<tool>' })\` before execution. Follow the <discover_tools/> example exactly.
 5. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
   - Check act results: if (result?.isError) return console.log(result)
   - Check reason results: if (r?.error) return console.log(r.error)
@@ -312,9 +312,11 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Write ONE script with ALL the act() calls you need. Do not return after a single act().
   - If you need 3 pieces of info, call act() 3 times in the SAME script, not 3 separate \`one\` calls.
   - Place reason() only at decision nodes inside the batch.
+  - ANTI-PATTERN: calling \`one\` with a single act(), reading the result, then calling \`one\` again with the next act(). Instead, put both act() calls in one script.
 7. RIFF REUSE - Optional for repeated work:
   - For recurring, stable tasks, you MAY use the \`riff\` tool to save and reuse workflows.
   - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect riff.md/docs), \`upsert\` (save), \`run\` (execute).
+  - Prefer normal tool usage when the task is one-off, exploratory, or changing quickly.
 </code_rules>
 
 <examples>
@@ -370,6 +372,8 @@ Your core values:
 
 Built-in Commands:
 - reason [--prompt "text"] [prompt|-] [--structure '{"key": ""}'|structure] - Reads the given input, thinks over it, and returns JSON matching the requested shape. Use it to turn noisy local evidence into a small structured result or the next bounded decision. Prefer prompts in this form: Goal: ... Observation: ... Constraints: ... NEVER use reason() to guess real-time facts. Use tools for factual retrieval.
+- On success, reason prints the requested JSON directly to stdout.
+- On failure, reason prints \`{data,error}\` JSON to stdout and exits non-zero.
 - act --manual [tool] - Discover tools and inspect definitions
 - act <tool> '{"key":"value"}' - Execute a tool with exact JSON args and print rendered text output directly to stdout
 - jq -c '{...}' | act <tool> - - Pipe JSON args from stdin
@@ -406,6 +410,7 @@ When writing commands, you MUST follow these <command_styles/> and <rules> stric
   - Use \`act --manual <tool>\` to inspect one tool definition
 8. ERROR HANDLING - check results and fail fast with relevant output:
   - act exits non-zero on failure, so use \`set -e\` or \`|| { ...; exit 1; }\`
+  - reason prints the requested JSON directly to stdout on success
   - reason exits non-zero on failure and prints \`{data,error}\` JSON to stdout
   - Do not check \`.isError\` on act output in bash mode; rely on the shell exit code instead
 9. BATCH ACTIONS - Every \`bash\` call has overhead. Maximize work per call:
@@ -439,15 +444,13 @@ cat tools.json | jq -r '.[]' | while read -r t; do act --manual "$t"; done
 
 <analyzing_data>
 echo '["text1","text2","text3"]' | \
-reason --prompt "Analyze sentiment and return list with text and sentiment:" - '[{"text":"","sentiment":""}]' > r.json && \
-cat r.json | jq -e 'if .error then empty else . end' >/dev/null || { cat r.json | jq -r '.error'; exit 1; } && \
-cat r.json | jq -r '.data[] | "\(.text): \(.sentiment)"'
+reason --prompt "Goal: analyze sentiment. Observation: stdin text array. Constraints: return a list with text and sentiment only." - '[{"text":"","sentiment":""}]' > r.json || { cat r.json; exit 1; } && \
+cat r.json | jq -r '.[] | "\(.text): \(.sentiment)"'
 </analyzing_data>
 
 <make_decision>
-reason --prompt "Alert if errors > threshold? err=15, max=10" --structure 'true' > r.json && \
-cat r.json | jq -e 'if .error then empty else . end' >/dev/null || { cat r.json | jq -r '.error'; exit 1; } && \
-case "$(cat r.json | jq -r '.data')" in true) echo "Alert!";; *) :;; esac
+reason --prompt "Goal: decide whether to alert. Observation: errors=15 threshold=10. Constraints: return only true or false." --structure 'true' > r.json || { cat r.json; exit 1; } && \
+case "$(cat r.json | jq -r '.')" in true) echo "Alert!";; *) :;; esac
 </make_decision>
 
 <command_then_reason>

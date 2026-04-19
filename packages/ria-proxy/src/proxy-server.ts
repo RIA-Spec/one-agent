@@ -2,15 +2,14 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as WebReadableStream } from "node:stream/web";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { devToolsMiddleware } from "@ai-sdk/devtools";
+import { createOpenAI } from "@ai-sdk/openai";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createAiyo, type AiyoPlugin } from "@mcpc-tech/aiyo";
-import {
-  startProxyServer as startAiyoCliProxyServer,
-  type LaunchConfig,
-  type RunningProxyServer,
-} from "@mcpc-tech/aiyo-cli";
+import { type RunningProxyServer } from "@mcpc-tech/aiyo-cli";
 import { type LanguageModel, wrapLanguageModel } from "ai";
+import type { RiaProxyLaunchConfig } from "./config.js";
 import { logger } from "./logger.js";
 
 type WrappedModelConfig = Parameters<typeof wrapLanguageModel>[0];
@@ -148,7 +147,7 @@ function getPluginNames(plugins: AiyoPlugin[]): string[] {
 }
 
 export function createRiaProxyAdapter(
-  config: LaunchConfig,
+  config: RiaProxyLaunchConfig,
   options: ProxyServerOptions = {},
 ): ProxyAdapter {
   const plugins = getPlugins(options);
@@ -156,31 +155,73 @@ export function createRiaProxyAdapter(
     logger.info(details, `core: ${msg}`);
   };
 
-  const openaiCompatible = createOpenAICompatible({
-    name: "openaiCompatible",
-    baseURL: config.upstreamBaseURL,
-    apiKey: config.upstreamApiKey,
-  });
+  const runtimeFactory = ({ modelId }: { modelId?: string }) => {
+    const resolvedModelId = modelId || config.model;
+
+    if (config.provider === "anthropic") {
+      if (!config.anthropicApiKey) {
+        throw new Error("anthropic provider selected but ANTHROPIC_API_KEY is not set");
+      }
+
+      const anthropicProvider = createAnthropic({
+        name: "anthropic",
+        apiKey: config.anthropicApiKey,
+        ...(config.anthropicBaseURL ? { baseURL: config.anthropicBaseURL } : {}),
+      });
+
+      return {
+        model: wrapWithInspector(anthropicProvider(resolvedModelId)),
+        modelName: resolvedModelId,
+      };
+    }
+
+    if (config.provider === "openai") {
+      if (!config.upstreamApiKey) {
+        throw new Error("openai provider selected but OPENAI_API_KEY is not set");
+      }
+
+      const openaiProvider = createOpenAI({
+        apiKey: config.upstreamApiKey,
+        ...(config.upstreamBaseURL ? { baseURL: config.upstreamBaseURL } : {}),
+      });
+
+      return {
+        model: wrapWithInspector(openaiProvider(resolvedModelId)),
+        modelName: resolvedModelId,
+      };
+    }
+
+    if (!config.upstreamApiKey) {
+      throw new Error("openai-compatible provider selected but OPENAI_API_KEY is not set");
+    }
+    if (!config.upstreamBaseURL) {
+      throw new Error("openai-compatible provider selected but OPENAI_BASE_URL is not set");
+    }
+
+    const openaiCompatible = createOpenAICompatible({
+      name: "openai-compatible",
+      baseURL: config.upstreamBaseURL,
+      apiKey: config.upstreamApiKey,
+    });
+
+    return {
+      model: wrapWithInspector(openaiCompatible(resolvedModelId)),
+      modelName: resolvedModelId,
+    };
+  };
 
   return createAiyo({
     defaultModel: config.model,
-    runtimeFactory: ({ modelId }) => ({
-      model: wrapWithInspector(openaiCompatible(modelId || config.model)),
-      modelName: modelId || config.model,
-    }),
+    runtimeFactory,
     plugins,
     log: coreLog,
   });
 }
 
 export async function startRiaProxyServerInternal(
-  config: LaunchConfig,
+  config: RiaProxyLaunchConfig,
   options: ProxyServerOptions = {},
 ): Promise<RunningProxyServer> {
-  if (config.provider !== "openai") {
-    return startAiyoCliProxyServer(config, options);
-  }
-
   const adapter = createRiaProxyAdapter(config, options);
   const pluginNames = getPluginNames(getPlugins(options));
 

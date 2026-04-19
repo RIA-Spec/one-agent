@@ -10,7 +10,9 @@ export {
   launchWithRiaProxy,
   startRiaProxyServer,
   type LaunchWithRiaProxyOptions,
+  type RiaProxyLaunchConfig,
   type RiaProxyPluginOptions,
+  type RiaProxyProvider,
   type RiaProxyServerOptions,
   type SupportedIntegration,
 } from "./launcher.js";
