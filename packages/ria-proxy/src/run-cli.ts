@@ -5,12 +5,7 @@ import { fileURLToPath } from "node:url";
 import cac, { type Command } from "cac";
 import { cancel, intro, isCancel, outro, password, select, text } from "@clack/prompts";
 import { getOneConfigPath } from "@one-agent/reason";
-import {
-  resolveRiaProxyLaunchConfig,
-  type RiaProxyLaunchConfig,
-  type RiaProxyLaunchOverrides,
-  type RiaProxyProvider,
-} from "./config.js";
+import { resolveRiaProxyLaunchConfig, type RiaProxyProvider } from "./config.js";
 import { launchWithRiaProxy, startRiaProxyServer, type SupportedIntegration } from "./launcher.js";
 import packageJson from "../package.json";
 
