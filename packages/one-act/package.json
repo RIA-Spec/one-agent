@@ -1,7 +1,19 @@
 {
   "name": "@one-agent/act",
-  "version": "0.0.1-beta.0",
+  "version": "0.0.1-beta.1",
   "description": "Tool invocation interface and CLI for ONE.",
+  "keywords": [
+    "act",
+    "mcp",
+    "model-context-protocol",
+    "re-in-act",
+    "ras",
+    "reason-able-action-space",
+    "tool-use",
+    "ai-agent",
+    "llm",
+    "cli"
+  ],
   "homepage": "https://github.com/RIA-Spec/one-agent#readme",
   "bugs": {
     "url": "https://github.com/RIA-Spec/one-agent/issues"
@@ -20,7 +32,8 @@
   },
   "files": [
     "dist",
-    "NOTICE"
+    "NOTICE",
+    "README.md"
   ],
   "type": "module",
   "main": "./dist/index.mjs",

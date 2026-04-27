@@ -1,7 +1,20 @@
 {
   "name": "@one-agent/agent-extension",
-  "version": "0.0.1-beta.0",
+  "version": "0.0.1-beta.1",
   "description": "Optional delegated agent() extension for ONE.",
+  "keywords": [
+    "agent",
+    "re-in-act",
+    "ras",
+    "reason-able-action-space",
+    "nested-agent",
+    "delegation",
+    "acp",
+    "ai-agent",
+    "llm",
+    "atif",
+    "trajectory"
+  ],
   "homepage": "https://github.com/RIA-Spec/one-agent#readme",
   "bugs": {
     "url": "https://github.com/RIA-Spec/one-agent/issues"
@@ -20,7 +33,8 @@
   },
   "files": [
     "dist",
-    "NOTICE"
+    "NOTICE",
+    "README.md"
   ],
   "exports": {
     ".": "./dist/index.mjs",

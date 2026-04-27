@@ -1,7 +1,21 @@
 {
   "name": "@one-agent/ria-proxy",
-  "version": "0.0.1-beta.0",
+  "version": "0.0.1-beta.1",
   "description": "Non-invasive Re in Act proxy for openai-compatible, OpenAI, and Anthropic runtimes.",
+  "keywords": [
+    "re-in-act",
+    "ria-proxy",
+    "proxy",
+    "openai",
+    "anthropic",
+    "openai-compatible",
+    "mcp",
+    "model-context-protocol",
+    "ai-agent",
+    "llm",
+    "plugin",
+    "ptc"
+  ],
   "homepage": "https://github.com/RIA-Spec/one-agent#readme",
   "bugs": {
     "url": "https://github.com/RIA-Spec/one-agent/issues"
