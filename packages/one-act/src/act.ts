@@ -70,7 +70,7 @@ export type { McpServersConfig, OneActMcpServerConfig } from "./daemon.js";
 export type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 
 /**
- * Options for the high-level {@link act} function.
+ * Options shared by {@link act} and {@link createActSession}.
  */
 export type ActOptions = {
   /**
@@ -78,6 +78,33 @@ export type ActOptions = {
    * and the `ONE_ACT_MCP_SERVERS` / `MCP_SERVERS` environment variables.
    */
   mcpServers?: McpServersConfig;
+};
+
+/**
+ * A session that holds an open connection to one or more MCP servers so that
+ * multiple tool calls can share the same server process.
+ *
+ * Obtain a session with {@link createActSession} and always call
+ * `session.close()` when finished (or use a `try/finally` block).
+ *
+ * @example
+ * ```ts
+ * import { createActSession } from "@one-agent/act";
+ *
+ * const session = await createActSession();
+ * try {
+ *   await session.act("playwright_navigate", { url: "https://example.com" });
+ *   await session.act("playwright_screenshot", {});
+ * } finally {
+ *   await session.close();
+ * }
+ * ```
+ */
+export type ActSession = {
+  /** Call a tool within this session. */
+  act(toolName: string, args: unknown): Promise<CallToolResult>;
+  /** Close all server connections opened by this session. */
+  close(): Promise<void>;
 };
 
 /**
@@ -132,7 +159,49 @@ export async function act(
     );
   }
 
+  const daemonMcpServers = selectDaemonMcpServers(mcpServers);
   const onDemandServers = selectOnDemandMcpServers(mcpServers);
+  const useDaemon = isDaemonToolName(toolName, daemonMcpServers);
+
+  // If the tool belongs to a daemon-enabled server, try to connect to a
+  // running daemon first. Programmatic callers cannot spawn a daemon (the
+  // daemon needs the CLI script path), so fall through to on-demand if the
+  // daemon is not already running.
+  if (useDaemon) {
+    const daemonConfigHash = computeDaemonConfigHash(daemonMcpServers);
+    const daemonStatus = await getActDaemonStatus(daemonConfigHash);
+    if (daemonStatus.running && daemonStatus.healthy) {
+      // ensureActDaemonClient won't spawn when the daemon is already healthy
+      const daemonClient = await ensureActDaemonClient(
+        { execPath: process.execPath, execArgv: [], scriptPath: "" },
+        daemonConfigHash,
+      );
+      return daemonClient.callTool(toolName, args);
+    }
+    // Daemon not running — fall through to on-demand using the daemon servers.
+    const getServer = createGetServerFromMcpServers(daemonMcpServers);
+    const server = await getServer();
+    try {
+      return await getToolFn(server)(toolName, args);
+    } finally {
+      try {
+        await Promise.race([
+          server.close(),
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, SERVER_CLOSE_TIMEOUT_MS);
+          }),
+        ]);
+      } catch {
+        // Ignore cleanup errors so tool result remains primary.
+      }
+    }
+  }
+
+  // On-demand server: start, call, close.
+  if (!onDemandServers || Object.keys(onDemandServers).length === 0) {
+    throw new Error(`Tool "${toolName}" not found in any configured MCP server.`);
+  }
+
   const getServer = createGetServerFromMcpServers(onDemandServers);
   const server = await getServer();
   try {
@@ -149,6 +218,89 @@ export async function act(
       // Ignore cleanup errors so tool result remains primary.
     }
   }
+}
+
+/**
+ * Create a persistent session for making multiple MCP tool calls without
+ * restarting the server process on every call.
+ *
+ * Use this when you need to call several tools sequentially — for example a
+ * sequence of Playwright steps where the browser must remain open between
+ * calls. The underlying MCP server(s) are started lazily on the first
+ * {@link ActSession.act} call and remain connected until you call
+ * {@link ActSession.close}.
+ *
+ * **Always close the session** when you are done, preferably in a
+ * `try/finally` block, to release the server process.
+ *
+ * Configuration resolution is identical to {@link act}:
+ *   1. `options.mcpServers` — inline config passed to this call
+ *   2. `ONE_ACT_MCP_SERVERS` env var (JSON string)
+ *   3. `MCP_SERVERS` env var (JSON string)
+ *   4. `~/.config/one/act.json` → `mcpServers` field
+ *
+ * @example
+ * ```ts
+ * import { createActSession } from "@one-agent/act";
+ *
+ * const session = await createActSession({
+ *   mcpServers: {
+ *     playwright: {
+ *       transportType: "stdio",
+ *       command: "npx",
+ *       args: ["-y", "@playwright/mcp@latest", "--isolated"],
+ *     },
+ *   },
+ * });
+ *
+ * try {
+ *   await session.act("playwright_navigate", { url: "https://example.com" });
+ *   const shot = await session.act("playwright_screenshot", {});
+ *   console.log(shot.content);
+ * } finally {
+ *   await session.close();
+ * }
+ * ```
+ */
+export async function createActSession(options?: ActOptions): Promise<ActSession> {
+  const mcpServers = options?.mcpServers ?? readConfiguredMcpServers(readActConfig());
+  if (!mcpServers || Object.keys(mcpServers).length === 0) {
+    throw new Error(
+      "No MCP server configuration found. Provide options.mcpServers, set ONE_ACT_MCP_SERVERS, or configure mcpServers in ~/.config/one/act.json.",
+    );
+  }
+
+  // Build a single server from ALL configured MCP servers (both daemon-flagged
+  // and on-demand). Within a session the caller owns the lifetime, so there is
+  // no reason to delegate to the background daemon; we start everything here
+  // and keep it alive until close() is called.
+  const getServer = createGetServerFromMcpServers(mcpServers);
+  let server: ComposableMCPServer | null = null;
+
+  return {
+    async act(toolName: string, args: unknown): Promise<CallToolResult> {
+      if (!server) {
+        server = await getServer();
+      }
+      return getToolFn(server)(toolName, args);
+    },
+
+    async close(): Promise<void> {
+      if (!server) return;
+      const current = server;
+      server = null;
+      try {
+        await Promise.race([
+          current.close(),
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, SERVER_CLOSE_TIMEOUT_MS);
+          }),
+        ]);
+      } catch {
+        // Ignore cleanup errors — primary result has already been returned.
+      }
+    },
+  };
 }
 
 export function getToolFn(server: ComposableMCPServer) {
