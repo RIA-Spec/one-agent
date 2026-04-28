@@ -31,12 +31,12 @@ function hasSubmittedResult(steps: StreamStep[] | undefined): boolean {
   );
 }
 
-export async function reason(prompt: string, example: unknown): Promise<AIResult> {
+export async function reason<T = any>(prompt: string, example: T): Promise<AIResult<T>> {
   const { jsonSchema, stepCountIs, streamText, tool } = ai;
   const { validate, outputSchema } = compileAiResultValidator(example);
   const dataSchema = exampleToJsonSchema(example);
 
-  let structuredOutput: AIResult | null = null;
+  let structuredOutput: AIResult<T> | null = null;
   let lastValidationError = "";
 
   const submitTool = tool({
@@ -49,7 +49,7 @@ export async function reason(prompt: string, example: unknown): Promise<AIResult
       required: ["data"],
     }),
     execute: (result: unknown) => {
-      const output = result as AIResult;
+      const output = result as AIResult<T>;
       if (validate(result)) {
         structuredOutput = { ...output, error: null };
         return "submitted";

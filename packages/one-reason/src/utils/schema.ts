@@ -1,7 +1,7 @@
 import Ajv from "ajv";
 
-export type AIResult = {
-  data: any;
+export type AIResult<T = any> = {
+  data: T | null;
   error?: string | null;
 };
 

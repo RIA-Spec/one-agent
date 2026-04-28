@@ -66,6 +66,91 @@ const HELP_EXAMPLES = [
     '\'{"chrome-devtools":{"transportType":"stdio","command":"npx","args":["-y","chrome-devtools-mcp@latest","--autoConnect"]}}\' act --manual',
 ];
 
+export type { McpServersConfig, OneActMcpServerConfig } from "./daemon.js";
+export type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
+/**
+ * Options for the high-level {@link act} function.
+ */
+export type ActOptions = {
+  /**
+   * Inline MCP servers config. When provided, overrides the config file
+   * and the `ONE_ACT_MCP_SERVERS` / `MCP_SERVERS` environment variables.
+   */
+  mcpServers?: McpServersConfig;
+};
+
+/**
+ * Call a single MCP tool by name with the given arguments.
+ *
+ * This is the high-level programmatic entry point for `@one-agent/act`.
+ * It handles reading the MCP server configuration, building the server,
+ * invoking the tool, and cleaning up — in a single call.
+ *
+ * Configuration resolution order (first match wins):
+ *   1. `options.mcpServers` — inline config passed to this call
+ *   2. `ONE_ACT_MCP_SERVERS` env var (JSON string)
+ *   3. `MCP_SERVERS` env var (JSON string)
+ *   4. `~/.config/one/act.json` → `mcpServers` field
+ *
+ * @example
+ * ```ts
+ * import { act } from "@one-agent/act";
+ *
+ * const result = await act("playwright_navigate", { url: "https://example.com" });
+ * console.log(result.content);
+ * ```
+ *
+ * @example With inline config:
+ * ```ts
+ * import { act } from "@one-agent/act";
+ *
+ * const result = await act(
+ *   "playwright_navigate",
+ *   { url: "https://example.com" },
+ *   {
+ *     mcpServers: {
+ *       playwright: {
+ *         transportType: "stdio",
+ *         command: "npx",
+ *         args: ["-y", "@playwright/mcp@latest", "--isolated"],
+ *       },
+ *     },
+ *   },
+ * );
+ * ```
+ */
+export async function act(
+  toolName: string,
+  args: unknown,
+  options?: ActOptions,
+): Promise<CallToolResult> {
+  const mcpServers = options?.mcpServers ?? readConfiguredMcpServers(readActConfig());
+  if (!mcpServers || Object.keys(mcpServers).length === 0) {
+    throw new Error(
+      "No MCP server configuration found. Provide options.mcpServers, set ONE_ACT_MCP_SERVERS, or configure mcpServers in ~/.config/one/act.json.",
+    );
+  }
+
+  const onDemandServers = selectOnDemandMcpServers(mcpServers);
+  const getServer = createGetServerFromMcpServers(onDemandServers);
+  const server = await getServer();
+  try {
+    return await getToolFn(server)(toolName, args);
+  } finally {
+    try {
+      await Promise.race([
+        server.close(),
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, SERVER_CLOSE_TIMEOUT_MS);
+        }),
+      ]);
+    } catch {
+      // Ignore cleanup errors so tool result remains primary.
+    }
+  }
+}
+
 export function getToolFn(server: ComposableMCPServer) {
   const act = async (name: string, args: unknown): Promise<CallToolResult> => {
     if (name === MANUAL_TOOL_NAME) {
