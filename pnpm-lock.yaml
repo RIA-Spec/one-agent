@@ -595,8 +595,8 @@ importers:
         specifier: ^1.1.0
         version: 1.2.0
       '@mcpc-tech/aiyo':
-        specifier: ^0.0.1-beta.3
-        version: 0.0.1-beta.3(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)
+        specifier: ^0.0.1-beta.5
+        version: 0.0.1-beta.5(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)
       '@mcpc-tech/aiyo-cli':
         specifier: ^0.0.1-beta.4
         version: 0.0.1-beta.4(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)(zod@4.3.6)
@@ -1685,16 +1685,16 @@ packages:
   '@mcpc-tech/aiyo-ptc@0.0.1-beta.4':
     resolution: {integrity: sha512-mi988oqVSS+CHyC5bew/yJiLLC1+ewWRq7lxcUB62Cw6ka/MKrDzTRI8uToGDXuGth3I6rQYcHXtLfX1UGj6IA==}
 
-  '@mcpc-tech/aiyo@0.0.1-beta.3':
-    resolution: {integrity: sha512-q4lF2ZbwFkmtvP1yfAxbRHOyvxMFI4E4OHOFqmsS4FTxamMSWnU3ie8rcyOFcgoz0gJW2vL8AfXuDh69BWxjpQ==}
+  '@mcpc-tech/aiyo@0.0.1-beta.4':
+    resolution: {integrity: sha512-hCW6mut1wVO9Yma95CblopQ1aFy6rToVRft3faWcHEHmvDZ7x8+GBENvImD5KvUvDRyXPDvj0iyHCaMFL3MyTw==}
     peerDependencies:
       '@agentclientprotocol/sdk': '*'
     peerDependenciesMeta:
       '@agentclientprotocol/sdk':
         optional: true
 
-  '@mcpc-tech/aiyo@0.0.1-beta.4':
-    resolution: {integrity: sha512-hCW6mut1wVO9Yma95CblopQ1aFy6rToVRft3faWcHEHmvDZ7x8+GBENvImD5KvUvDRyXPDvj0iyHCaMFL3MyTw==}
+  '@mcpc-tech/aiyo@0.0.1-beta.5':
+    resolution: {integrity: sha512-5CiHX6M5gSXZwyNljbz21Yj233JDKKlsD4/syy5RagC6R72rsYXoykB4FytvC9kt3wYCSmoWOF1pRYglirlufA==}
     peerDependencies:
       '@agentclientprotocol/sdk': '*'
     peerDependenciesMeta:
@@ -8042,7 +8042,7 @@ snapshots:
       - '@agentclientprotocol/sdk'
       - ws
 
-  '@mcpc-tech/aiyo@0.0.1-beta.3(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)':
+  '@mcpc-tech/aiyo@0.0.1-beta.4(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)':
     dependencies:
       ai: 6.0.44(zod@3.25.76)
       openai: 6.34.0(ws@8.20.0)(zod@3.25.76)
@@ -8052,7 +8052,7 @@ snapshots:
     transitivePeerDependencies:
       - ws
 
-  '@mcpc-tech/aiyo@0.0.1-beta.4(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)':
+  '@mcpc-tech/aiyo@0.0.1-beta.5(@agentclientprotocol/sdk@0.14.1(zod@4.3.6))(ws@8.20.0)':
     dependencies:
       ai: 6.0.44(zod@3.25.76)
       openai: 6.34.0(ws@8.20.0)(zod@3.25.76)
