@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/ria-proxy",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1-beta.2",
   "description": "Non-invasive Re in Act proxy for openai-compatible, OpenAI, and Anthropic runtimes.",
   "keywords": [
     "re-in-act",
@@ -59,7 +59,7 @@
     "@ai-sdk/devtools": "^0.0.6",
     "@ai-sdk/openai": "2.0.44",
     "@ai-sdk/openai-compatible": "2.0.35",
-    "@mcpc-tech/aiyo": "^0.0.1-beta.3",
+    "@mcpc-tech/aiyo": "^0.0.1-beta.5",
     "@mcpc-tech/aiyo-cli": "^0.0.1-beta.4",
     "@mcpc-tech/handle-sandbox": "^0.0.11",
     "@one-agent/agent-extension": "workspace:*",

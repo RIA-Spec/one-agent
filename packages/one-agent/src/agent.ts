@@ -18,20 +18,16 @@ import { AGENT_SYSTEM_PROMPT } from "./prompts";
 import { processStream } from "./utils/stream";
 import {
   autoCompactMessages,
+  applyPersistentCompaction,
   getCompactionDiagnostics,
   recordCompactionUsageObservation,
+  type PersistentCompactionState,
 } from "./compaction";
 
 interface AgentTelemetryOptions {
   isEnabled?: boolean;
   functionId?: string;
   metadata?: Record<string, unknown>;
-}
-
-interface PersistentCompactionState {
-  baseMessages: ModelMessage[];
-  sourceMessageCount: number;
-  compactedAtStep: number;
 }
 
 const DEFAULT_MODEL_CONTEXT_WINDOW = 65_536;
@@ -114,22 +110,6 @@ function withPersistentCompactionState(
     ...baseContext,
     persistentCompaction,
   };
-}
-
-function applyPersistentCompaction(
-  messages: ModelMessage[],
-  persistentCompaction: PersistentCompactionState | undefined,
-): ModelMessage[] {
-  if (!persistentCompaction) {
-    return messages;
-  }
-
-  const suffixStart = Math.min(
-    Math.max(persistentCompaction.sourceMessageCount, 0),
-    messages.length,
-  );
-
-  return [...persistentCompaction.baseMessages, ...messages.slice(suffixStart)];
 }
 
 function isDebugEnabled(): boolean {

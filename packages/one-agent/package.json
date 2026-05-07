@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/agent",
-  "version": "0.0.1-beta.1",
+  "version": "0.0.1-beta.2",
   "description": "ONE Agent - AI agent with a code execution RAS.",
   "keywords": [
     "ai-agent",
