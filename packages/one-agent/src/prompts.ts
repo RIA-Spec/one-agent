@@ -58,15 +58,19 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Don't assume previous calls are remembered
 4. TOOL DISCOVERY - You DO NOT know a tool's exact name or args by default, so inspect first:
   - YOU MUST fetch the tool list with \`await act('__manual__', {})\`, then inspect exact definitions with \`await act('__manual__', {'name': '<tool>'})\` before execution. Follow the <discover_tools/> example exactly.
-5. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
+5. FILE OPERATIONS - Use dedicated tools for file work:
+  - Use \`read\`, \`write\`, \`edit\` for single-file operations. These are precise and avoid shell escaping issues.
+  - Use \`bash\` only for bulk operations: find, grep across many files, running scripts, git commands.
+  - ANTI-PATTERN: using \`bash\` with cat/cat >/sed to read or write single files.
+6. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
   - Check act results: if result.get('isError'): return print(result)
   - Check reason results: if r.get('error'): return print(r['error'])
-6. BATCH ACTIONS - Every \`one\` call has overhead. Maximize work per call:
+7. BATCH ACTIONS - Every \`one\` call has overhead. Maximize work per call:
   - Write ONE script with ALL the act() calls you need. Do not return after a single act().
   - If you need 3 pieces of info, call act() 3 times in the SAME script, not 3 separate \`one\` calls.
   - Place reason() only at decision nodes inside the batch.
   - ANTI-PATTERN: calling \`one\` with a single act(), reading the result, then calling \`one\` again with the next act(). Instead, put both act() calls in one script.
-7. RIFF REUSE - Optional for repeated work:
+8. RIFF REUSE - Optional for repeated work:
   - For recurring, stable tasks, you MAY use the \`riff\` tool to save and reuse workflows.
   - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect riff.md/docs), \`upsert\` (save), \`run\` (execute).
   - Prefer normal tool usage when the task is one-off, exploratory, or changing quickly.
@@ -305,15 +309,19 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - Don't assume previous calls are remembered
 4. TOOL DISCOVERY - You DO NOT know a tool's exact name or args by default, so inspect first:
   - YOU MUST fetch the tool list with \`await act('__manual__', {})\`, then inspect exact definitions with \`await act('__manual__', { name: '<tool>' })\` before execution. Follow the <discover_tools/> example exactly.
-5. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
+5. FILE OPERATIONS - Use dedicated tools for file work:
+  - Use \`read\`, \`write\`, \`edit\` for single-file operations. These are precise and avoid shell escaping issues.
+  - Use \`bash\` only for bulk operations: find, grep across many files, running scripts, git commands.
+  - ANTI-PATTERN: using \`bash\` with cat/cat >/sed to read or write single files.
+6. ERROR HANDLING - Always check for errors gracefully while keeping code minimal:
   - Check act results: if (result?.isError) return console.log(result)
   - Check reason results: if (r?.error) return console.log(r.error)
-6. BATCH ACTIONS - Every \`one\` call has overhead. Maximize work per call:
+7. BATCH ACTIONS - Every \`one\` call has overhead. Maximize work per call:
   - Write ONE script with ALL the act() calls you need. Do not return after a single act().
   - If you need 3 pieces of info, call act() 3 times in the SAME script, not 3 separate \`one\` calls.
   - Place reason() only at decision nodes inside the batch.
   - ANTI-PATTERN: calling \`one\` with a single act(), reading the result, then calling \`one\` again with the next act(). Instead, put both act() calls in one script.
-7. RIFF REUSE - Optional for repeated work:
+8. RIFF REUSE - Optional for repeated work:
   - For recurring, stable tasks, you MAY use the \`riff\` tool to save and reuse workflows.
   - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect riff.md/docs), \`upsert\` (save), \`run\` (execute).
   - Prefer normal tool usage when the task is one-off, exploratory, or changing quickly.
