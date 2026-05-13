@@ -277,10 +277,7 @@ export function applyPersistentCompaction(
   // Advance the split point to a safe boundary so we never separate an
   // assistant tool-call message from its tool-result message.  Without this
   // guard, ai@6.x throws MissingToolResultsError when converting the prompt.
-  const rawSuffix = Math.min(
-    Math.max(persistentCompaction.sourceMessageCount, 0),
-    messages.length,
-  );
+  const rawSuffix = Math.min(Math.max(persistentCompaction.sourceMessageCount, 0), messages.length);
   const safeSuffix = findNextSafeStartIndex(messages, rawSuffix);
 
   return [...persistentCompaction.baseMessages, ...messages.slice(safeSuffix)];
