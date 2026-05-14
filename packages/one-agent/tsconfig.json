@@ -8,6 +8,7 @@
     "baseUrl": ".",
     "paths": {
       "@one-agent/act": ["../one-act/src/index.ts"],
+      "@one-agent/html": ["../one-html/src/index.ts"],
       "@one-agent/reason": ["../one-reason/src/index.ts"],
       "@one-agent/agent-extension": ["../agent-extension/src/index.ts"]
     },

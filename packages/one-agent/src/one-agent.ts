@@ -4,7 +4,7 @@ import { runActCli } from "@one-agent/act";
 import { getOneConfigPath } from "@one-agent/reason";
 import { runReasonCli } from "@one-agent/reason";
 import { getToolFn } from "./interfaces/act.js";
-import { runReplCli } from "./repl.js";
+import { runReplHtmlCli } from "./repl-html.js";
 import { getServer } from "./tools.js";
 import { shutdownTracing, startTracing } from "./tracing.js";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -348,7 +348,7 @@ export async function runOneAgentCli(argv = process.argv.slice(2)) {
   }
 
   if (command === "repl") {
-    await runReplCli();
+    await runReplHtmlCli();
     return;
   }
 
