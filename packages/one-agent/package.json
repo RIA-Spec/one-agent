@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/agent",
-  "version": "0.0.1-beta.2",
+  "version": "0.0.1-beta.3",
   "description": "ONE Agent - AI agent with a code execution RAS.",
   "keywords": [
     "agent",
@@ -52,6 +52,7 @@
     "./one-agent": "./dist/one-agent.mjs",
     "./reason": "./dist/reason.mjs",
     "./repl": "./dist/repl.mjs",
+    "./repl-html": "./dist/repl-html.mjs",
     "./stdio": "./dist/stdio.mjs",
     "./tools": "./dist/tools.mjs",
     "./package.json": "./package.json"
