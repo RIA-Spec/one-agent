@@ -76,8 +76,6 @@ export async function startTracing() {
       const sdk = await getSdk();
       await sdk.start();
       tracingStarted = true;
-      console.log(chalk.cyan(`OpenTelemetry tracing started for service: ${serviceName}`));
-      console.log(chalk.cyan(`Exporting traces to SigNoz: ${sigNozEndpoint}`));
     } catch (error) {
       console.error(chalk.red("Error starting OpenTelemetry SDK:"), error);
     } finally {
