@@ -1,0 +1,59 @@
+{
+  "name": "@one-agent/html",
+  "version": "0.0.1-beta.1",
+  "description": "Streaming HTML → ANSI terminal renderer for ONE agent output.",
+  "keywords": [
+    "html",
+    "ansi",
+    "terminal",
+    "streaming",
+    "renderer",
+    "ai-agent",
+    "cli"
+  ],
+  "homepage": "https://github.com/RIA-Spec/one-agent#readme",
+  "bugs": {
+    "url": "https://github.com/RIA-Spec/one-agent/issues"
+  },
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.mjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/RIA-Spec/one-agent.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "NOTICE",
+    "README.md"
+  ],
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsdown",
+    "dev": "tsdown --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "chalk": "^5.6.2",
+    "htmlparser2": "^9.1.0",
+    "shiki": "^3.23.0",
+    "string-width": "^7.2.0",
+    "wrap-ansi": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.3",
+    "oxfmt": "^0.28.0",
+    "tsdown": "^0.18.1",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  }
+}
