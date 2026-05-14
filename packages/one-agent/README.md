@@ -26,9 +26,9 @@ if ("error" in result) {
 }
 
 // Streaming
-const stream = agentStream("Summarise the last 10 git commits.");
-for await (const chunk of stream) {
-  process.stdout.write(chunk);
+const stream = await agentStream({ messages: [{ role: "user", content: "Summarise the last 10 git commits." }] });
+for await (const chunk of stream.fullStream) {
+  if (chunk.type === "text-delta") process.stdout.write(chunk.textDelta);
 }
 ```
 
@@ -164,10 +164,11 @@ Environment variables always override file config.
 
 | Package                                                                                  | Role                                             |
 | ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| [`@one-agent/reason`](https://www.npmjs.com/package/@one-agent/reason)                   | `reason()` — required bounded judgment interface |
-| [`@one-agent/act`](https://www.npmjs.com/package/@one-agent/act)                         | `act()` — optional MCP tool execution interface  |
-| [`@one-agent/agent-extension`](https://www.npmjs.com/package/@one-agent/agent-extension) | `agent()` — optional nested agent delegation     |
-| [`@one-agent/ria-proxy`](https://www.npmjs.com/package/@one-agent/ria-proxy)             | Re in Act plugin for OpenAI-compatible runtimes  |
+| [`@one-agent/reason`](https://www.npmjs.com/package/@one-agent/reason)                   | `reason()` — required bounded judgment interface          |
+| [`@one-agent/act`](https://www.npmjs.com/package/@one-agent/act)                         | `act()` — optional MCP tool execution interface           |
+| [`@one-agent/agent-extension`](https://www.npmjs.com/package/@one-agent/agent-extension) | `agent()` — optional nested agent delegation              |
+| [`@one-agent/html`](https://www.npmjs.com/package/@one-agent/html)                       | streaming HTML → ANSI renderer used by the HTML REPL      |
+| [`@one-agent/ria-proxy`](https://www.npmjs.com/package/@one-agent/ria-proxy)             | Re in Act plugin for OpenAI-compatible runtimes           |
 
 ## Specification
 
