@@ -50,14 +50,14 @@ echo "What files changed last week?" | one stdio
 
 Binary aliases installed alongside `one-agent`:
 
-| Binary      | Maps to                |
-|-------------|------------------------|
-| `one-agent` | main CLI entry point   |
-| `one-reason`| `reason` CLI           |
-| `one-act`   | `act` CLI              |
-| `one-stdio` | stdio interface        |
-| `reason`    | `reason` CLI (short)   |
-| `act`       | `act` CLI (short)      |
+| Binary       | Maps to              |
+| ------------ | -------------------- |
+| `one-agent`  | main CLI entry point |
+| `one-reason` | `reason` CLI         |
+| `one-act`    | `act` CLI            |
+| `one-stdio`  | stdio interface      |
+| `reason`     | `reason` CLI (short) |
+| `act`        | `act` CLI (short)    |
 
 ## Reason-able Action Space (RAS)
 
@@ -90,7 +90,7 @@ asyncio.run(main())
 const status = await act("bash", { command: "cat build.log" });
 const analysis = await reason(
   "Goal: decide if the build succeeded. Observation: " + status.content?.[0]?.text,
-  { success: false, reason: "" }
+  { success: false, reason: "" },
 );
 if (analysis.data.success) {
   await act("bash", { command: "echo deploy" });
@@ -115,15 +115,15 @@ export RAS_MODE=bash
 
 ## Environment variables
 
-| Variable | Default | Description |
-|---|---|---|
-| `RAS_MODE` | `python` | RAS runtime surface (`python`, `typescript`/`ts`, `bash`) |
-| `ONE_CHAT_MODEL` | — | Override the main agent model ID |
-| `ONE_AGENT_MODEL` | — | Fallback model ID (lower priority than `ONE_CHAT_MODEL`) |
-| `MODEL` | — | Lowest-priority model ID fallback |
-| `NODE_FS_ROOT` | — | Root directory for file operations |
-| `NODE_FS_MOUNT_POINT` | — | Mount point visible inside Python/TypeScript runtimes |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | — | Enable OpenTelemetry trace export |
+| Variable                      | Default  | Description                                               |
+| ----------------------------- | -------- | --------------------------------------------------------- |
+| `RAS_MODE`                    | `python` | RAS runtime surface (`python`, `typescript`/`ts`, `bash`) |
+| `ONE_CHAT_MODEL`              | —        | Override the main agent model ID                          |
+| `ONE_AGENT_MODEL`             | —        | Fallback model ID (lower priority than `ONE_CHAT_MODEL`)  |
+| `MODEL`                       | —        | Lowest-priority model ID fallback                         |
+| `NODE_FS_ROOT`                | —        | Root directory for file operations                        |
+| `NODE_FS_MOUNT_POINT`         | —        | Mount point visible inside Python/TypeScript runtimes     |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | —        | Enable OpenTelemetry trace export                         |
 
 ## API
 
@@ -162,12 +162,12 @@ Environment variables always override file config.
 
 ## Related packages
 
-| Package | Role |
-|---|---|
-| [`@one-agent/reason`](https://www.npmjs.com/package/@one-agent/reason) | `reason()` — required bounded judgment interface |
-| [`@one-agent/act`](https://www.npmjs.com/package/@one-agent/act) | `act()` — optional MCP tool execution interface |
-| [`@one-agent/agent-extension`](https://www.npmjs.com/package/@one-agent/agent-extension) | `agent()` — optional nested agent delegation |
-| [`@one-agent/ria-proxy`](https://www.npmjs.com/package/@one-agent/ria-proxy) | Re in Act plugin for OpenAI-compatible runtimes |
+| Package                                                                                  | Role                                             |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
+| [`@one-agent/reason`](https://www.npmjs.com/package/@one-agent/reason)                   | `reason()` — required bounded judgment interface |
+| [`@one-agent/act`](https://www.npmjs.com/package/@one-agent/act)                         | `act()` — optional MCP tool execution interface  |
+| [`@one-agent/agent-extension`](https://www.npmjs.com/package/@one-agent/agent-extension) | `agent()` — optional nested agent delegation     |
+| [`@one-agent/ria-proxy`](https://www.npmjs.com/package/@one-agent/ria-proxy)             | Re in Act plugin for OpenAI-compatible runtimes  |
 
 ## Specification
 

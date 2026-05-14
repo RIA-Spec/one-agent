@@ -22,7 +22,12 @@ describe("resolveOneModel", () => {
     mkdirSync(join(tempConfigDir, "one"), { recursive: true });
     writeFileSync(
       join(tempConfigDir, "one", "one.json"),
-      JSON.stringify({ PROVIDER: "openai-compatible", OPENAI_API_KEY: "k", OPENAI_BASE_URL: "https://example.com/v1", MODEL: "demo-model" }),
+      JSON.stringify({
+        PROVIDER: "openai-compatible",
+        OPENAI_API_KEY: "k",
+        OPENAI_BASE_URL: "https://example.com/v1",
+        MODEL: "demo-model",
+      }),
     );
 
     const { resolveOneModel } = await import("../src/model.js");
