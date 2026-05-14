@@ -171,7 +171,10 @@ export function createReadTool(cwd: string) {
 
         // Apply truncation for full file reads
         const truncation = truncateHead(fullContent);
-        let outputText = truncation.content;
+        // Add line numbers (cat -n format: "lineNum\tcontent") so the model
+        // can precisely identify lines when constructing oldText for Edit.
+        const numberedLines = truncation.content.split("\n").map((line, i) => `${i + 1}\t${line}`);
+        let outputText = numberedLines.join("\n");
 
         let details: ReadToolDetails | undefined;
 

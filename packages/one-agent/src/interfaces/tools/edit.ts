@@ -37,7 +37,47 @@ function normalizeWhitespace(text: string): string {
 }
 
 /**
- * Find text in content with fuzzy whitespace matching
+ * Build a map from normalized-string index → original-string index.
+ * normalizeWhitespace only trims trailing whitespace per line and the
+ * whole-string edges, so in-line spaces/tabs are preserved 1-to-1.
+ * We walk both strings in lockstep; the only characters that appear in
+ * `content` but not in `normalized` are:
+ *   - trailing spaces/tabs before a '\n' (trimEnd)
+ *   - the leading whitespace stripped by the outer .trim()
+ */
+function buildNormToOrigMap(content: string, normalized: string): Int32Array {
+  // map[normIdx] = origIdx for every character in normalized
+  const map = new Int32Array(normalized.length + 1);
+  let o = 0; // cursor in content
+  let n = 0; // cursor in normalized
+
+  // Skip leading characters removed by .trim()
+  while (o < content.length && n < normalized.length && content[o] !== normalized[n]) {
+    o++;
+  }
+
+  while (n < normalized.length && o < content.length) {
+    map[n] = o;
+    const nc = normalized[n]!;
+    const oc = content[o]!;
+    if (nc === oc) {
+      n++;
+      o++;
+    } else {
+      // content has an extra char not in normalized (trailing whitespace before \n)
+      o++;
+    }
+  }
+  map[n] = o; // one-past-end sentinel
+  return map;
+}
+
+/**
+ * Find text in content with fuzzy whitespace matching.
+ *
+ * The previous implementation tried to re-derive the original position by
+ * walking content and skipping ALL spaces/tabs, which drifted whenever a
+ * line had in-line whitespace. We now build a precise index map instead.
  */
 function findWithFuzzyMatch(
   content: string,
@@ -58,51 +98,14 @@ function findWithFuzzyMatch(
     return null;
   }
 
-  // Find the actual position in original content
-  let originalPos = 0;
-  let normalizedPos = 0;
-
-  while (normalizedPos < fuzzyIndex && originalPos < content.length) {
-    const char = content[originalPos];
-    const normalizedChar = normalizedContent[normalizedPos];
-
-    if (char === " " || char === "\t" || char === "\r") {
-      // Skip whitespace in original
-      originalPos++;
-    } else if (char === "\n") {
-      originalPos++;
-      if (normalizedChar === "\n") {
-        normalizedPos++;
-      }
-    } else {
-      originalPos++;
-      normalizedPos++;
-    }
-  }
-
-  // Extract the matched text from original content
-  let matchEnd = originalPos;
-  let matchedNormalizedLength = 0;
-
-  while (matchedNormalizedLength < normalizedSearch.length && matchEnd < content.length) {
-    const char = content[matchEnd];
-
-    if (char === " " || char === "\t" || char === "\r") {
-      matchEnd++;
-    } else if (char === "\n") {
-      matchEnd++;
-      if (normalizedSearch[matchedNormalizedLength] === "\n") {
-        matchedNormalizedLength++;
-      }
-    } else {
-      matchEnd++;
-      matchedNormalizedLength++;
-    }
-  }
+  // Map normalized positions back to original positions via the index map
+  const map = buildNormToOrigMap(content, normalizedContent);
+  const origStart = map[fuzzyIndex]!;
+  const origEnd = map[fuzzyIndex + normalizedSearch.length]!;
 
   return {
-    index: originalPos,
-    matchedText: content.substring(originalPos, matchEnd),
+    index: origStart,
+    matchedText: content.substring(origStart, origEnd),
   };
 }
 
@@ -194,7 +197,10 @@ function findFirstChangedLine(oldContent: string, newContent: string): number | 
 export function createEditTool(cwd: string) {
   return {
     description:
-      "Edit a file by replacing exact text. The oldText must match exactly (including whitespace). Fuzzy matching handles minor whitespace differences. Use this for precise, surgical edits.",
+      "Edit a file by replacing exact text. You MUST use the Read tool at least once before editing. " +
+      "The Read tool outputs lines in 'lineNum\\tcontent' format — do NOT include the line-number prefix in oldText or newText; use only the actual file content after the tab. " +
+      "oldText must uniquely identify the target (include 2-4 surrounding lines if needed). " +
+      "Fuzzy matching handles minor trailing-whitespace differences.",
     parameters: jsonSchema({
       type: "object",
       properties: {
@@ -204,11 +210,12 @@ export function createEditTool(cwd: string) {
         },
         oldText: {
           type: "string",
-          description: "Exact text to find and replace (must match exactly, including whitespace)",
+          description:
+            "Exact text to find and replace. Copy from Read output but strip the leading 'lineNum\\t' prefix from every line. Must be unique in the file.",
         },
         newText: {
           type: "string",
-          description: "Text to replace oldText with",
+          description: "Text to replace oldText with (no line-number prefixes).",
         },
       },
       required: ["path", "oldText", "newText"],
