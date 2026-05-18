@@ -1349,9 +1349,12 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
   }
 
   const configuredMcpServers = readConfiguredMcpServers(readActConfig());
-  const daemonMcpServers = configuredMcpServers
+  const _allDaemonServers = configuredMcpServers
     ? selectDaemonMcpServers(configuredMcpServers)
     : null;
+  // selectDaemonMcpServers returns {} when no server has daemon:true — treat that as "no daemon"
+  const daemonMcpServers =
+    _allDaemonServers && Object.keys(_allDaemonServers).length > 0 ? _allDaemonServers : null;
   const onDemandMcpServers = configuredMcpServers
     ? selectOnDemandMcpServers(configuredMcpServers)
     : null;
@@ -1440,7 +1443,7 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
           const routedToolName = manualToolName || toolName || cliOptions.name || "";
           const useDaemonOnly = isDaemonToolName(routedToolName, daemonMcpServers);
           const daemonClient =
-            daemonSpawnOptions && daemonConfigHash && (useDaemonOnly || !routedToolName)
+            daemonSpawnOptions && daemonConfigHash && useDaemonOnly
               ? await ensureActDaemonClient(daemonSpawnOptions, daemonConfigHash)
               : undefined;
           const routedGetServer = useDaemonOnly ? undefined : getServer;

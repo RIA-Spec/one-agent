@@ -282,15 +282,11 @@ export function selectEnabledMcpServers(mcpServers: McpServersConfig): McpServer
 }
 
 export function selectDaemonMcpServers(mcpServers: McpServersConfig): McpServersConfig {
-  const explicitDaemonServers = Object.fromEntries(
+  return Object.fromEntries(
     Object.entries(selectEnabledMcpServers(mcpServers)).filter(([, config]) =>
       Boolean(config && typeof config === "object" && config.daemon === true),
     ),
-  );
-
-  return Object.keys(explicitDaemonServers).length > 0
-    ? (explicitDaemonServers as McpServersConfig)
-    : selectEnabledMcpServers(mcpServers);
+  ) as McpServersConfig;
 }
 
 export function computeDaemonConfigHash(mcpServers: McpServersConfig): string {
