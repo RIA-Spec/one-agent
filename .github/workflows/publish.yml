@@ -8,7 +8,6 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: publish-${{ github.ref }}
@@ -41,6 +40,6 @@ jobs:
         run: pnpm --filter './packages/*' --filter '!@one-agent/ria-proxy' build
 
       - name: Publish packages
-        run: pnpm --filter './packages/*' --filter '!@one-agent/ria-proxy' publish --access public --no-git-checks --provenance
+        run: pnpm --filter './packages/*' --filter '!@one-agent/ria-proxy' publish --access public --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
