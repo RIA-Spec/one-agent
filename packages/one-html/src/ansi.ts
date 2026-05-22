@@ -114,11 +114,16 @@ export function styleHr(cols = 60): string {
 
 /** Style a <pre><code> block. */
 export function styleCodeBlock(text: string, lang?: string): string {
-  const header = lang ? chalk.gray(`  ${lang}`) : "";
   const highlighted = highlightCode(text, lang);
+  const rawLines = text.split("\n");
+  const width = Math.max(...rawLines.map((l) => l.length), lang ? lang.length + 2 : 0);
+  const bar = "─".repeat(width + 2);
+  const top = chalk.gray("┌" + bar + "┐");
+  const bottom = chalk.gray("└" + bar + "┘");
   const body = highlighted
     .split("\n")
     .map((line) => chalk.gray("│ ") + line)
     .join("\n");
-  return header ? header + "\n" + body : body;
+  const header = lang ? chalk.gray("│ ") + chalk.gray(lang) + "\n" : "";
+  return top + "\n" + header + body + "\n" + bottom;
 }

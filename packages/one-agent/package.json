@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/agent",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "description": "ONE Agent - AI agent with a code execution RAS.",
   "keywords": [
     "agent",
@@ -39,7 +39,9 @@
   "files": [
     "dist",
     "NOTICE",
-    "README.md"
+    "README.md",
+    "one-runner-python.md",
+    "one-runner-bash.md"
   ],
   "type": "module",
   "main": "./dist/index.mjs",
@@ -81,7 +83,7 @@
     "@ai-sdk/devtools": "^0.0.6",
     "@ai-sdk/openai-compatible": "2.0.35",
     "@clack/prompts": "^1.1.0",
-    "@mcpc-tech/code-runner-mcp": "^0.1.16",
+    "@mcpc-tech/code-runner-mcp": "^0.1.21",
     "@mcpc-tech/core": "^0.3.45",
     "@mcpc-tech/mcp-sampling-ai-provider": "^0.1.23",
     "@mcpc-tech/plugin-markdown-loader": "^0.0.14",

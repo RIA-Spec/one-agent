@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, vi } from "vitest";
 import { getServer } from "../src/tools.js";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
@@ -30,6 +30,7 @@ describe("one tool", () => {
   let server: Awaited<ReturnType<typeof getServer>>;
 
   beforeAll(async () => {
+    vi.stubEnv("RAS_MODE", "python");
     server = await getServer();
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
 
@@ -44,6 +45,7 @@ describe("one tool", () => {
   });
 
   afterAll(async () => {
+    vi.unstubAllEnvs();
     await client.close();
   });
 

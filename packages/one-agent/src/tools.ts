@@ -138,30 +138,29 @@ const projectRoot = resolve(__dirname, "..");
 const nodeFSRoot = process.env.NODE_FS_ROOT || projectRoot;
 const nodeFSMountPoint = process.env.NODE_FS_MOUNT_POINT || projectRoot;
 
-// RAS mode: "bash" | "python" | "typescript"
-const rawRASMode = (process.env.RAS_MODE || "python").toLowerCase();
-const RAS_MODE =
-  rawRASMode === "bash"
-    ? "bash"
-    : rawRASMode === "typescript" ||
-        rawRASMode === "ts" ||
-        rawRASMode === "javascript" ||
-        rawRASMode === "js"
-      ? "typescript"
-      : "python";
-
-// Use Markdown configuration file based on runtime mode.
-const composeFile = resolve(
-  __dirname,
-  "..",
-  RAS_MODE === "bash" ? "one-runner-bash.md" : "one-runner-python.md",
-);
-
 const DEV_MODE = true;
 
 let server: Awaited<ReturnType<typeof mcpc>> | null = null;
 
 export async function getServer() {
+  // Read RAS_MODE lazily so callers (e.g. tests) can override process.env before calling.
+  const rawRASMode = (process.env.RAS_MODE || "python").toLowerCase();
+  const RAS_MODE =
+    rawRASMode === "bash"
+      ? "bash"
+      : rawRASMode === "typescript" ||
+          rawRASMode === "ts" ||
+          rawRASMode === "javascript" ||
+          rawRASMode === "js"
+        ? "typescript"
+        : "python";
+
+  // Use Markdown configuration file based on runtime mode.
+  const composeFile = resolve(
+    __dirname,
+    "..",
+    RAS_MODE === "bash" ? "one-runner-bash.md" : "one-runner-python.md",
+  );
   if (!server || DEV_MODE) {
     // Temporarily switch cwd to one-agent package root so npx-based MCP server
     // resolution remains stable when launched from a different workspace package.

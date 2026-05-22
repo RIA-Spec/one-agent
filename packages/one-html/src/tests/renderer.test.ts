@@ -38,47 +38,47 @@ describe("block elements", () => {
     expect(renderPlain("<p>Hello world</p>")).toBe("Hello world");
   });
 
-// ── bare text (no wrapping tags) ──────────────────────────────────────────────
+  // ── bare text (no wrapping tags) ──────────────────────────────────────────────
 
-describe("bare text nodes", () => {
-  it("renders top-level text with no tags", () => {
-    expect(renderPlain("Hello world")).toBe("Hello world");
-  });
+  describe("bare text nodes", () => {
+    it("renders top-level text with no tags", () => {
+      expect(renderPlain("Hello world")).toBe("Hello world");
+    });
 
-  it("renders multiple bare text nodes separated by tags", () => {
-    // Text before and after a tag
-    const plain = renderPlain("Before<br>After");
-    expect(plain).toContain("Before");
-    expect(plain).toContain("After");
-  });
+    it("renders multiple bare text nodes separated by tags", () => {
+      // Text before and after a tag
+      const plain = renderPlain("Before<br>After");
+      expect(plain).toContain("Before");
+      expect(plain).toContain("After");
+    });
 
-  it("normalises whitespace in bare text", () => {
-    expect(renderPlain("  lots   of   spaces  ")).toBe("lots of spaces");
-  });
+    it("normalises whitespace in bare text", () => {
+      expect(renderPlain("  lots   of   spaces  ")).toBe("lots of spaces");
+    });
 
-  it("bare text streamed in chunks still flushes on end()", () => {
-    const flushed: string[] = [];
-    const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
-    r.write("Hel");
-    r.write("lo");
-    // top-level text nodes are flushed immediately as they arrive
-    // (no block to buffer them into)
-    r.end();
-    const all = flushed.map(stripAnsi).join("");
-    expect(all).toContain("Hello");
-  });
+    it("bare text streamed in chunks still flushes on end()", () => {
+      const flushed: string[] = [];
+      const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
+      r.write("Hel");
+      r.write("lo");
+      // top-level text nodes are flushed immediately as they arrive
+      // (no block to buffer them into)
+      r.end();
+      const all = flushed.map(stripAnsi).join("");
+      expect(all).toContain("Hello");
+    });
 
-  it("bare text mixed with block tags flushes in order", () => {
-    const flushed: string[] = [];
-    const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
-    r.write("Intro text");
-    r.write("<p>Block content</p>");
-    r.end();
-    const all = flushed.map(stripAnsi).join("\n");
-    expect(all).toContain("Intro text");
-    expect(all).toContain("Block content");
+    it("bare text mixed with block tags flushes in order", () => {
+      const flushed: string[] = [];
+      const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
+      r.write("Intro text");
+      r.write("<p>Block content</p>");
+      r.end();
+      const all = flushed.map(stripAnsi).join("\n");
+      expect(all).toContain("Intro text");
+      expect(all).toContain("Block content");
+    });
   });
-});
 
   it("renders multiple <p> as separate flushes", () => {
     const lines = render("<p>First</p><p>Second</p>");
@@ -133,9 +133,7 @@ describe("inline styles", () => {
   });
 
   it("<code> text is preserved", () => {
-    expect(renderPlain("<p><code>console.log()</code></p>")).toContain(
-      "console.log()"
-    );
+    expect(renderPlain("<p><code>console.log()</code></p>")).toContain("console.log()");
   });
 
   it("<a href> appends href hint", () => {
@@ -174,8 +172,7 @@ describe("lists", () => {
   });
 
   it("renders nested <ul>", () => {
-    const html =
-      "<ul><li>Parent<ul><li>Child</li></ul></li></ul>";
+    const html = "<ul><li>Parent<ul><li>Child</li></ul></li></ul>";
     const plain = renderPlain(html);
     expect(plain).toContain("Child");
     // Child should be indented more than parent
@@ -202,9 +199,7 @@ describe("blockquote", () => {
 
 describe("pre / code block", () => {
   it("renders <pre><code> as a fenced block", () => {
-    const plain = renderPlain(
-      "<pre><code>const x = 1;\nconsole.log(x);</code></pre>"
-    );
+    const plain = renderPlain("<pre><code>const x = 1;\nconsole.log(x);</code></pre>");
     expect(plain).toContain("const x = 1;");
     expect(plain).toContain("console.log(x);");
     // Should have border characters
@@ -212,9 +207,7 @@ describe("pre / code block", () => {
   });
 
   it("extracts language from class", () => {
-    const raw = render(
-      `<pre><code class="language-typescript">type X = string;</code></pre>`
-    )[0]!;
+    const raw = render(`<pre><code class="language-typescript">type X = string;</code></pre>`)[0]!;
     expect(stripAnsi(raw)).toContain("typescript");
     expect(stripAnsi(raw)).toContain("type X = string;");
   });
@@ -477,8 +470,7 @@ describe("streaming — partial chunks (parser robustness)", () => {
   });
 
   it("multiple blocks streamed incrementally", () => {
-    const html =
-      "<h1>Title</h1><p>Para one</p><ul><li>Item A</li><li>Item B</li></ul>";
+    const html = "<h1>Title</h1><p>Para one</p><ul><li>Item A</li><li>Item B</li></ul>";
     const chunks = [];
     for (let i = 0; i < html.length; i += 5) chunks.push(html.slice(i, i + 5));
 
@@ -518,14 +510,14 @@ describe("flush() collection mode", () => {
 // ── intentional failures — demonstrates reason's diagnostic value ─────────────
 
 describe("INTENTIONAL FAILURES — reason demo", () => {
-  it("wrong expected text (actual: 'Hello', expected: 'Goodbye')", () => {
+  it.fails("wrong expected text (actual: 'Hello', expected: 'Goodbye')", () => {
     const flushed: string[] = [];
     const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
     r.write("<p>Hello</p>");
     expect(stripAnsi(flushed[0]!)).toBe("Goodbye");
   });
 
-  it("wrong flush count (actual: 2 flushes, expected: 5)", () => {
+  it.fails("wrong flush count (actual: 2 flushes, expected: 5)", () => {
     const flushed: string[] = [];
     const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
     r.write("<p>A</p><p>B</p>");
@@ -533,7 +525,7 @@ describe("INTENTIONAL FAILURES — reason demo", () => {
     expect(flushed).toHaveLength(5);
   });
 
-  it("wrong partial growth (asserts partial does NOT contain streamed text)", () => {
+  it.fails("wrong partial growth (asserts partial does NOT contain streamed text)", () => {
     const partials: string[] = [];
     const r = new StreamingHtmlRenderer({
       onPartial: (p) => partials.push(stripAnsi(p)),

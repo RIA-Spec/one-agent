@@ -30,7 +30,7 @@
     "@codemirror/theme-one-dark": "^6.1.2",
     "@codemirror/view": "^6.35.3",
     "@icons-pack/react-simple-icons": "^13.7.0",
-    "@mcpc-tech/code-runner-mcp": "^0.1.16",
+    "@mcpc-tech/code-runner-mcp": "^0.1.21",
     "@mcpc-tech/handle-sandbox": "^0.0.11",
     "@one-agent/agent": "workspace:*",
     "@opentelemetry/api": "^1.9.0",
