@@ -60,6 +60,13 @@ export type OneActMcpServerConfig = McpServerConfig & {
   daemon?: boolean;
   /** Set to "oauth" to enable OAuth 2.1 PKCE authentication for this server. */
   auth?: "oauth";
+  /**
+   * Pre-registered OAuth client ID. When provided, Dynamic Client Registration
+   * is skipped and this client_id is used directly. Required for servers like
+   * GitHub that do not support DCR. Built-in values exist for known servers
+   * (e.g. api.githubcopilot.com), so this is only needed for custom servers.
+   */
+  clientId?: string;
 };
 
 export type McpServersConfig = Record<string, OneActMcpServerConfig>;
@@ -269,7 +276,7 @@ function spawnActDaemonProcess(options: ActDaemonSpawnOptions) {
 export function normalizeMcpServersForRuntime(mcpServers: McpServersConfig): PlainMcpServersConfig {
   return Object.fromEntries(
     Object.entries(selectEnabledMcpServers(mcpServers)).map(([name, config]) => {
-      const { daemon: _daemon, auth: _auth, ...runtimeConfig } = config;
+      const { daemon: _daemon, auth: _auth, clientId: _clientId, ...runtimeConfig } = config;
       return [name, runtimeConfig as McpServerConfig];
     }),
   );

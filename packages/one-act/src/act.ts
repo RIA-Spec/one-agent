@@ -1439,7 +1439,7 @@ async function runOAuthCommand(
       }
 
       process.stderr.write(`Logging in to "${serverName}"...\n`);
-      await runOAuthLogin(serverName, serverRecord.url);
+      await runOAuthLogin(serverName, serverRecord.url, serverConfig?.clientId);
       process.stderr.write(`Successfully logged in to "${serverName}".\n`);
       return;
     }

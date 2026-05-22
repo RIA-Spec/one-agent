@@ -22,6 +22,24 @@ import { getOneConfigPath } from "./config-path.js";
 const OAUTH_STATE_PATH = getOneConfigPath("oauth-state.json");
 
 // ---------------------------------------------------------------------------
+// Built-in client IDs for known servers (keyed by hostname).
+// These servers do not support Dynamic Client Registration, so one-act ships
+// a pre-registered client_id for each of them.
+// ---------------------------------------------------------------------------
+
+const KNOWN_CLIENT_IDS: Record<string, string> = {
+  "api.githubcopilot.com": "Ov23li0hx3Ph6WI4G1nt",
+};
+
+export function getKnownClientId(serverUrl: string): string | undefined {
+  try {
+    return KNOWN_CLIENT_IDS[new URL(serverUrl).hostname];
+  } catch {
+    return undefined;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // State file types
 // ---------------------------------------------------------------------------
 
@@ -81,11 +99,13 @@ function deleteServerState(serverName: string) {
 class ActOAuthProvider implements OAuthClientProvider {
   readonly #serverName: string;
   readonly #redirectUrl: string;
+  readonly #clientId: string | undefined;
   #browserOpened = false;
 
-  constructor(serverName: string, redirectUrl: string) {
+  constructor(serverName: string, redirectUrl: string, clientId?: string) {
     this.#serverName = serverName;
     this.#redirectUrl = redirectUrl;
+    this.#clientId = clientId;
   }
 
   get redirectUrl(): string {
@@ -107,7 +127,11 @@ class ActOAuthProvider implements OAuthClientProvider {
   }
 
   clientInformation(): OAuthClientInformationMixed | undefined {
-    return readServerState(this.#serverName)?.clientInfo ?? undefined;
+    const saved = readServerState(this.#serverName)?.clientInfo;
+    if (saved) return saved;
+    // Pre-configured client_id: returned directly so DCR is skipped entirely.
+    if (this.#clientId) return { client_id: this.#clientId };
+    return undefined;
   }
 
   saveClientInformation(clientInfo: OAuthClientInformationMixed): void {
@@ -350,10 +374,16 @@ function waitForCodeFromStdin(prompt: string, signal?: AbortSignal): Promise<str
  * Run a full interactive OAuth 2.1 PKCE login flow for the given server.
  * Persists tokens to disk when complete.
  */
-export async function runOAuthLogin(serverName: string, serverUrl: string): Promise<void> {
+export async function runOAuthLogin(
+  serverName: string,
+  serverUrl: string,
+  clientId?: string,
+): Promise<void> {
   const callbackServer = await runOAuthCallbackServer();
   const redirectUrl = `http://127.0.0.1:${callbackServer.port}/callback`;
-  const provider = new ActOAuthProvider(serverName, redirectUrl);
+  // Resolve: explicit clientId arg → built-in known client → DCR
+  const effectiveClientId = clientId ?? getKnownClientId(serverUrl);
+  const provider = new ActOAuthProvider(serverName, redirectUrl, effectiveClientId);
 
   let code: string;
   try {
@@ -386,6 +416,13 @@ export async function runOAuthLogin(serverName: string, serverUrl: string): Prom
   if (finalResult !== "AUTHORIZED") {
     throw new Error("OAuth authorization did not complete successfully");
   }
+
+  // When DCR was skipped (pre-configured clientId), saveClientInformation is never
+  // called by the SDK. Persist clientInfo manually so token refresh works later.
+  if (effectiveClientId && !readServerState(serverName)?.clientInfo) {
+    const state = readServerState(serverName) ?? {};
+    writeServerState(serverName, { ...state, clientInfo: { client_id: effectiveClientId } });
+  }
 }
 
 /**
@@ -407,7 +444,10 @@ export async function ensureOAuthToken(
   if (Date.now() < state.expiresAt - 60_000) return state.tokens.access_token;
 
   // Expired — try to refresh
-  if (!state.tokens.refresh_token || !state.clientInfo) return null;
+  const clientInfo = state.clientInfo ??
+    // Fallback: built-in client_id for servers that don't support DCR
+    (getKnownClientId(serverUrl) ? { client_id: getKnownClientId(serverUrl)! } : undefined);
+  if (!state.tokens.refresh_token || !clientInfo) return null;
 
   try {
     const { authorizationServerUrl, authorizationServerMetadata } =
@@ -415,7 +455,7 @@ export async function ensureOAuthToken(
 
     const newTokens = await refreshAuthorization(authorizationServerUrl, {
       metadata: authorizationServerMetadata,
-      clientInformation: state.clientInfo,
+      clientInformation: clientInfo,
       refreshToken: state.tokens.refresh_token,
     });
 
