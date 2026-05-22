@@ -16,6 +16,7 @@ import {
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
+import { clearOAuthState, ensureOAuthToken, listOAuthStates, runOAuthLogin } from "./oauth.js";
 import {
   computeDaemonConfigHash,
   ensureActDaemonClient,
@@ -52,6 +53,7 @@ const HELP_MCP_FORMAT = [
   'stdio: {"transportType":"stdio","command":"npx","args":[...],"env":{"KEY":"VALUE"}}',
   'http: {"transportType":"streamable-http"|"sse","url":"https://...","headers":{"Authorization":"Bearer ..."}}',
   'one-act extension: {"daemon":true} keeps that server resident in the daemon; other servers stay on demand',
+  'oauth: add {"auth":"oauth"} to a streamable-http/sse server to use OAuth 2.1 PKCE; run: act oauth login <server>',
 ];
 const HELP_DAEMON = [
   "Per-server `daemon: true` keeps that MCP server resident in the background",
@@ -64,6 +66,10 @@ const HELP_EXAMPLES = [
   'act chrome-devtools_new_page \'{"url":"https://example.com"}\'',
   "ONE_ACT_MCP_SERVERS=" +
     '\'{"chrome-devtools":{"transportType":"stdio","command":"npx","args":["-y","chrome-devtools-mcp@latest","--autoConnect"]}}\' act --manual',
+  "act oauth login github",
+  "act oauth status",
+  "ONE_ACT_MCP_SERVERS=" +
+    '\'{"github":{"transportType":"streamable-http","url":"https://api.githubcopilot.com/mcp/","auth":"oauth"}}\' act --manual',
 ];
 
 export type { McpServersConfig, OneActMcpServerConfig } from "./daemon.js";
@@ -152,7 +158,9 @@ export async function act(
   args: unknown,
   options?: ActOptions,
 ): Promise<CallToolResult> {
-  const mcpServers = options?.mcpServers ?? readConfiguredMcpServers(readActConfig());
+  const mcpServers = await injectOAuthHeaders(
+    options?.mcpServers ?? readConfiguredMcpServers(readActConfig()),
+  );
   if (!mcpServers || Object.keys(mcpServers).length === 0) {
     throw new Error(
       "No MCP server configuration found. Provide options.mcpServers, set ONE_ACT_MCP_SERVERS, or configure mcpServers in ~/.config/one/act.json.",
@@ -263,7 +271,9 @@ export async function act(
  * ```
  */
 export async function createActSession(options?: ActOptions): Promise<ActSession> {
-  const mcpServers = options?.mcpServers ?? readConfiguredMcpServers(readActConfig());
+  const mcpServers = await injectOAuthHeaders(
+    options?.mcpServers ?? readConfiguredMcpServers(readActConfig()),
+  );
   if (!mcpServers || Object.keys(mcpServers).length === 0) {
     throw new Error(
       "No MCP server configuration found. Provide options.mcpServers, set ONE_ACT_MCP_SERVERS, or configure mcpServers in ~/.config/one/act.json.",
@@ -614,16 +624,18 @@ async function runActConfigCli() {
     }
   }
 
-  const daemonMode = await confirm({
-    message: "keep this MCP server running in one-act daemon?",
-    initialValue: transportType === "stdio",
-  });
-  if (isCancel(daemonMode)) {
-    cancel("Operation cancelled.");
-    return;
-  }
-  if (daemonMode) {
-    serverConfig.daemon = true;
+  if (transportType === "stdio") {
+    const daemonMode = await confirm({
+      message: "keep this MCP server running in one-act daemon?",
+      initialValue: true,
+    });
+    if (isCancel(daemonMode)) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    if (daemonMode) {
+      serverConfig.daemon = true;
+    }
   }
 
   if (transportType === "streamable-http" || transportType === "sse") {
@@ -643,6 +655,30 @@ async function runActConfigCli() {
     }
     if (headersRaw) {
       serverConfig.headers = parseEnvInput(headersRaw);
+    }
+
+    const useOAuth = await confirm({
+      message: "enable OAuth 2.1 PKCE auth? (run `act oauth login <name>` after setup)",
+      initialValue: false,
+    });
+    if (isCancel(useOAuth)) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    if (useOAuth) {
+      serverConfig.auth = "oauth";
+    } else {
+      const daemonMode = await confirm({
+        message: "keep this MCP server running in one-act daemon?",
+        initialValue: false,
+      });
+      if (isCancel(daemonMode)) {
+        cancel("Operation cancelled.");
+        return;
+      }
+      if (daemonMode) {
+        serverConfig.daemon = true;
+      }
     }
   }
 
@@ -1342,13 +1378,120 @@ async function runDaemonCommand(
   }
 }
 
+/**
+ * For every on-demand server that has `auth: "oauth"`, fetch (or refresh) its
+ * access token and inject it as an `Authorization: Bearer` header.  Daemon
+ * servers are intentionally skipped — they are long-lived processes that
+ * cannot reliably track token expiry.
+ */
+async function injectOAuthHeaders(
+  mcpServers: McpServersConfig | null,
+  warn?: (msg: string) => void,
+): Promise<McpServersConfig | null> {
+  if (!mcpServers) return null;
+
+  const result: McpServersConfig = {};
+
+  for (const [name, config] of Object.entries(mcpServers)) {
+    const configRecord = config as unknown as Record<string, unknown>;
+
+    if (
+      config?.auth === "oauth" &&
+      config.daemon !== true &&
+      typeof configRecord.url === "string"
+    ) {
+      const token = await ensureOAuthToken(name, configRecord.url);
+      if (token) {
+        result[name] = {
+          ...config,
+          headers: {
+            ...((configRecord.headers as Record<string, string> | undefined) ?? {}),
+            Authorization: `Bearer ${token}`,
+          },
+        } as McpServersConfig[string];
+        continue;
+      }
+
+      warn?.(`Warning: no valid OAuth token for server "${name}". Run: act oauth login ${name}\n`);
+    }
+
+    result[name] = config;
+  }
+
+  return result;
+}
+
+async function runOAuthCommand(
+  subcommand: string | undefined,
+  serverName: string | undefined,
+  mcpServers: McpServersConfig | null,
+): Promise<void> {
+  switch (subcommand) {
+    case "login": {
+      if (!serverName) throw new Error("Usage: act oauth login <server-name>");
+
+      const serverConfig = mcpServers?.[serverName];
+      const serverRecord = serverConfig as Record<string, unknown> | undefined;
+      if (!serverRecord || typeof serverRecord.url !== "string") {
+        throw new Error(`Server "${serverName}" not found or has no URL in the current config`);
+      }
+
+      process.stderr.write(`Logging in to "${serverName}"...\n`);
+      await runOAuthLogin(serverName, serverRecord.url, serverConfig?.clientId);
+      process.stderr.write(`Successfully logged in to "${serverName}".\n`);
+      return;
+    }
+
+    case "logout": {
+      if (!serverName) throw new Error("Usage: act oauth logout <server-name>");
+      clearOAuthState(serverName);
+      process.stderr.write(`Logged out of "${serverName}".\n`);
+      return;
+    }
+
+    case "status": {
+      const states = listOAuthStates();
+      if (Object.keys(states).length === 0) {
+        process.stdout.write("No OAuth sessions stored.\n");
+        return;
+      }
+      for (const [name, info] of Object.entries(states)) {
+        const tokenStatus = !info.hasToken
+          ? "no token"
+          : info.expiresAt && Date.now() > info.expiresAt
+            ? "expired"
+            : "active";
+        const expiry = info.expiresAt ? new Date(info.expiresAt).toLocaleString() : "unknown";
+        const expiryStr = info.hasToken && info.expiresAt ? ` (expires ${expiry})` : "";
+        process.stdout.write(`  ${name}: ${tokenStatus}${expiryStr}\n`);
+      }
+      return;
+    }
+
+    default:
+      throw new Error("Unknown oauth command. Use: login | logout | status");
+  }
+}
+
 export async function runActCli(options?: { getServer?: GetServerFn; argv?: string[] }) {
   const args = options?.argv ?? process.argv.slice(2);
   if (args[0] === "auth") {
     throw new Error("'act auth' was removed. Use 'act config' instead.");
   }
 
-  const configuredMcpServers = readConfiguredMcpServers(readActConfig());
+  // Read raw config first so the oauth command can look up server URLs before
+  // any token injection takes place.
+  const _rawMcpServers = readConfiguredMcpServers(readActConfig());
+
+  if (args[0] === "oauth" && !args.includes("--help") && !args.includes("-h")) {
+    await runOAuthCommand(args[1], args[2], _rawMcpServers);
+    return;
+  }
+
+  // Inject OAuth tokens into headers for on-demand servers that have auth:"oauth".
+  const configuredMcpServers = await injectOAuthHeaders(_rawMcpServers, (msg) =>
+    process.stderr.write(msg),
+  );
   const _allDaemonServers = configuredMcpServers
     ? selectDaemonMcpServers(configuredMcpServers)
     : null;
@@ -1421,6 +1564,12 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
         daemonConfigHash,
         daemonSpawnOptions,
       );
+    });
+
+  cli
+    .command("oauth <action> [server]", "Manage OAuth sessions: login | logout | status")
+    .action((action: string, server: string | undefined) => {
+      pending = runOAuthCommand(action, server, _rawMcpServers);
     });
 
   cli
