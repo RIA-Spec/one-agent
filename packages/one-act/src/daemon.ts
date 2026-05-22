@@ -58,6 +58,8 @@ type ActDaemonInvokePayload =
 
 export type OneActMcpServerConfig = McpServerConfig & {
   daemon?: boolean;
+  /** Set to "oauth" to enable OAuth 2.1 PKCE authentication for this server. */
+  auth?: "oauth";
 };
 
 export type McpServersConfig = Record<string, OneActMcpServerConfig>;
@@ -267,7 +269,7 @@ function spawnActDaemonProcess(options: ActDaemonSpawnOptions) {
 export function normalizeMcpServersForRuntime(mcpServers: McpServersConfig): PlainMcpServersConfig {
   return Object.fromEntries(
     Object.entries(selectEnabledMcpServers(mcpServers)).map(([name, config]) => {
-      const { daemon: _daemon, ...runtimeConfig } = config;
+      const { daemon: _daemon, auth: _auth, ...runtimeConfig } = config;
       return [name, runtimeConfig as McpServerConfig];
     }),
   );
