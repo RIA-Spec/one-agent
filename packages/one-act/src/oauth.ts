@@ -51,8 +51,11 @@ function readOAuthStateFile(): OAuthStateFile {
 }
 
 function writeOAuthStateFile(file: OAuthStateFile) {
-  mkdirSync(dirname(OAUTH_STATE_PATH), { recursive: true });
-  writeFileSync(OAUTH_STATE_PATH, `${JSON.stringify(file, null, 2)}\n`, "utf-8");
+  mkdirSync(dirname(OAUTH_STATE_PATH), { recursive: true, mode: 0o700 });
+  writeFileSync(OAUTH_STATE_PATH, `${JSON.stringify(file, null, 2)}\n`, {
+    encoding: "utf-8",
+    mode: 0o600,
+  });
 }
 
 function readServerState(serverName: string): PerServerState | null {
@@ -177,6 +180,19 @@ class ActOAuthProvider implements OAuthClientProvider {
 }
 
 // ---------------------------------------------------------------------------
+// HTML helpers
+// ---------------------------------------------------------------------------
+
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
+// ---------------------------------------------------------------------------
 // OAuth callback HTTP server
 // ---------------------------------------------------------------------------
 
@@ -202,7 +218,7 @@ async function runOAuthCallbackServer(): Promise<{
       if (error) {
         res.writeHead(400, { "content-type": "text/html; charset=utf-8" });
         res.end(
-          `<html><body><h1>Authorization failed: ${error}</h1><p>You may close this tab.</p></body></html>`,
+          `<html><body><h1>Authorization failed: ${escapeHtml(error)}</h1><p>You may close this tab.</p></body></html>`,
         );
         rejectCode?.(new Error(`OAuth error: ${error}`));
         return;
@@ -250,10 +266,16 @@ async function runOAuthCallbackServer(): Promise<{
 // ---------------------------------------------------------------------------
 
 function openBrowser(url: string): boolean {
-  const cmd =
-    process.platform === "darwin" ? "open" : process.platform === "win32" ? "start" : "xdg-open";
   try {
-    const child = spawn(cmd, [url], { detached: true, stdio: "ignore" });
+    let child: ReturnType<typeof spawn>;
+    if (process.platform === "win32") {
+      // "start" is a cmd.exe built-in, not a standalone binary
+      child = spawn("cmd", ["/c", "start", "", url], { detached: true, stdio: "ignore" });
+    } else {
+      const cmd = process.platform === "darwin" ? "open" : "xdg-open";
+      child = spawn(cmd, [url], { detached: true, stdio: "ignore" });
+    }
+    child.on("error", () => {}); // suppress unhandled async spawn errors
     child.unref();
     return true;
   } catch {
@@ -265,8 +287,13 @@ function openBrowser(url: string): boolean {
 // Stdin fallback: wait for user to paste redirect URL or bare code
 // ---------------------------------------------------------------------------
 
-function waitForCodeFromStdin(prompt: string): Promise<string> {
+function waitForCodeFromStdin(prompt: string, signal?: AbortSignal): Promise<string> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new Error("Aborted"));
+      return;
+    }
+
     process.stderr.write(prompt);
 
     const rl = createInterface({
@@ -275,8 +302,20 @@ function waitForCodeFromStdin(prompt: string): Promise<string> {
       terminal: false,
     });
 
-    rl.once("line", (line) => {
+    const cleanup = () => {
+      signal?.removeEventListener("abort", onAbort);
       rl.close();
+    };
+
+    const onAbort = () => {
+      cleanup();
+      reject(new Error("Aborted"));
+    };
+
+    if (signal) signal.addEventListener("abort", onAbort);
+
+    rl.once("line", (line) => {
+      cleanup();
       const trimmed = line.trim();
       if (!trimmed) {
         reject(new Error("No input provided"));
@@ -297,6 +336,7 @@ function waitForCodeFromStdin(prompt: string): Promise<string> {
     });
 
     rl.once("close", () => {
+      signal?.removeEventListener("abort", onAbort);
       reject(new Error("stdin closed without input"));
     });
   });
@@ -329,8 +369,15 @@ export async function runOAuthLogin(serverName: string, serverUrl: string): Prom
       ? `If the browser didn't redirect automatically, paste the full redirect URL here and press Enter:\n> `
       : `Paste the full redirect URL (or just the code=… value) after authorizing, then press Enter:\n> `;
 
-    const stdinRace = waitForCodeFromStdin(stdinPrompt).catch(() => new Promise<string>(() => {}));
-    code = await Promise.race([callbackServer.waitForCode(), stdinRace]);
+    const abortController = new AbortController();
+    const stdinRace = waitForCodeFromStdin(stdinPrompt, abortController.signal).catch(
+      () => new Promise<string>(() => {}),
+    );
+    try {
+      code = await Promise.race([callbackServer.waitForCode(), stdinRace]);
+    } finally {
+      abortController.abort(); // close readline if callback server won the race
+    }
   } finally {
     callbackServer.close();
   }

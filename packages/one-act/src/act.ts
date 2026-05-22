@@ -1386,6 +1386,7 @@ async function runDaemonCommand(
  */
 async function injectOAuthHeaders(
   mcpServers: McpServersConfig | null,
+  warn?: (msg: string) => void,
 ): Promise<McpServersConfig | null> {
   if (!mcpServers) return null;
 
@@ -1411,7 +1412,7 @@ async function injectOAuthHeaders(
         continue;
       }
 
-      process.stderr.write(
+      warn?.(
         `Warning: no valid OAuth token for server "${name}". Run: act oauth login ${name}\n`,
       );
     }
@@ -1490,7 +1491,9 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
   }
 
   // Inject OAuth tokens into headers for on-demand servers that have auth:"oauth".
-  const configuredMcpServers = await injectOAuthHeaders(_rawMcpServers);
+  const configuredMcpServers = await injectOAuthHeaders(_rawMcpServers, (msg) =>
+    process.stderr.write(msg),
+  );
   const _allDaemonServers = configuredMcpServers
     ? selectDaemonMcpServers(configuredMcpServers)
     : null;
