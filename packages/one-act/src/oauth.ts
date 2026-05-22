@@ -19,6 +19,26 @@ import { createInterface } from "node:readline";
 import { dirname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
 
+// ---------------------------------------------------------------------------
+// Servers that use GitHub Device Flow instead of PKCE web flow.
+// GitHub OAuth Apps require client_secret in the PKCE token exchange, but
+// the Device Flow works without one.  We key by hostname.
+// ---------------------------------------------------------------------------
+
+const DEVICE_FLOW_HOSTS = new Set(["api.githubcopilot.com"]);
+
+function isDeviceFlowServer(serverUrl: string): boolean {
+  try {
+    return DEVICE_FLOW_HOSTS.has(new URL(serverUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
+// GitHub Device Flow endpoint (not in their OAuth server metadata).
+const GITHUB_DEVICE_CODE_URL = "https://github.com/login/device/code";
+const GITHUB_DEVICE_GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+
 const OAUTH_STATE_PATH = getOneConfigPath("oauth-state.json");
 
 // ---------------------------------------------------------------------------
@@ -367,11 +387,145 @@ function waitForCodeFromStdin(prompt: string, signal?: AbortSignal): Promise<str
 }
 
 // ---------------------------------------------------------------------------
+// GitHub Device Flow implementation
+// ---------------------------------------------------------------------------
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function runGitHubDeviceFlow(
+  serverName: string,
+  serverUrl: string,
+  clientId: string,
+): Promise<void> {
+  // Fetch scopes from Protected Resource Metadata.
+  let scope = "repo read:org read:user user:email"; // safe default
+  try {
+    const prMetaUrl = new URL("/.well-known/oauth-protected-resource", serverUrl).href;
+    const prResp = await fetch(prMetaUrl, { headers: { accept: "application/json" } });
+    if (prResp.ok) {
+      const prMeta = (await prResp.json()) as { scopes_supported?: string[] };
+      if (Array.isArray(prMeta.scopes_supported) && prMeta.scopes_supported.length > 0) {
+        scope = prMeta.scopes_supported.join(" ");
+      }
+    }
+  } catch {
+    // ignore — use default scope
+  }
+
+  // Step 1: request device code.
+  const deviceResp = await fetch(GITHUB_DEVICE_CODE_URL, {
+    method: "POST",
+    headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({ client_id: clientId, scope }).toString(),
+  });
+
+  const deviceData = (await deviceResp.json()) as {
+    device_code: string;
+    user_code: string;
+    verification_uri: string;
+    expires_in: number;
+    interval: number;
+    error?: string;
+    error_description?: string;
+  };
+
+  if (!deviceResp.ok || deviceData.error) {
+    const msg = deviceData.error_description ?? deviceData.error ?? `HTTP ${deviceResp.status}`;
+    const hint =
+      deviceData.error === "device_flow_disabled"
+        ? '\n→ Open your GitHub OAuth App settings and check "Enable Device Flow":\n  https://github.com/settings/developers'
+        : "";
+    throw new Error(`GitHub device flow error: ${msg}${hint}`);
+  }
+
+  // Step 2: show code to user and try to open browser.
+  const verifyUrl = deviceData.verification_uri;
+  openBrowser(verifyUrl);
+  process.stderr.write(
+    `\nOpen: ${verifyUrl}\nEnter code: ${deviceData.user_code}\n\n(Waiting for authorization…)\n`,
+  );
+
+  // Step 3: poll for token.
+  const { authorizationServerMetadata } = await discoverOAuthServerInfo(serverUrl).catch(() => ({
+    authorizationServerMetadata: undefined,
+    authorizationServerUrl: new URL("https://github.com"),
+  }));
+  const tokenEndpoint =
+    authorizationServerMetadata?.token_endpoint ?? "https://github.com/login/oauth/access_token";
+
+  const deadline = Date.now() + deviceData.expires_in * 1000;
+  const pollMs = Math.max((deviceData.interval + 1) * 1000, 5_000);
+
+  while (Date.now() < deadline) {
+    await delay(pollMs);
+
+    const tokenResp = await fetch(tokenEndpoint, {
+      method: "POST",
+      headers: { accept: "application/json", "content-type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        device_code: deviceData.device_code,
+        grant_type: GITHUB_DEVICE_GRANT,
+      }).toString(),
+    });
+
+    const tokenData = (await tokenResp.json()) as {
+      access_token?: string;
+      token_type?: string;
+      scope?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      error?: string;
+      error_description?: string;
+    };
+
+    if (tokenData.access_token) {
+      const expiresAt =
+        typeof tokenData.expires_in === "number"
+          ? Date.now() + tokenData.expires_in * 1000
+          : undefined;
+      const tokens: OAuthTokens = {
+        access_token: tokenData.access_token,
+        token_type: tokenData.token_type ?? "bearer",
+        ...(tokenData.scope !== undefined ? { scope: tokenData.scope } : {}),
+        ...(tokenData.refresh_token !== undefined
+          ? { refresh_token: tokenData.refresh_token }
+          : {}),
+        ...(tokenData.expires_in !== undefined ? { expires_in: tokenData.expires_in } : {}),
+      };
+      writeServerState(serverName, {
+        tokens,
+        expiresAt,
+        clientInfo: { client_id: clientId },
+      });
+      process.stderr.write("\nSuccessfully authorized!\n");
+      return;
+    }
+
+    if (tokenData.error === "authorization_pending") continue;
+    if (tokenData.error === "slow_down") {
+      await delay(5_000);
+      continue;
+    }
+
+    throw new Error(
+      `GitHub authorization failed: ${tokenData.error_description ?? tokenData.error ?? "unknown error"}`,
+    );
+  }
+
+  throw new Error("GitHub device flow authorization timed out. Please try again.");
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
 /**
- * Run a full interactive OAuth 2.1 PKCE login flow for the given server.
+ * Run a full interactive OAuth login flow for the given server.
+ * Uses GitHub Device Flow for GitHub Copilot (no client_secret needed).
+ * Falls back to OAuth 2.1 PKCE web flow for other servers.
  * Persists tokens to disk when complete.
  */
 export async function runOAuthLogin(
@@ -379,10 +533,16 @@ export async function runOAuthLogin(
   serverUrl: string,
   clientId?: string,
 ): Promise<void> {
+  const effectiveClientId = clientId ?? getKnownClientId(serverUrl);
+
+  // GitHub OAuth Apps require client_secret in the PKCE token exchange but
+  // NOT in the Device Flow — use Device Flow for GitHub servers.
+  if (effectiveClientId && isDeviceFlowServer(serverUrl)) {
+    return runGitHubDeviceFlow(serverName, serverUrl, effectiveClientId);
+  }
+
   const callbackServer = await runOAuthCallbackServer();
   const redirectUrl = `http://127.0.0.1:${callbackServer.port}/callback`;
-  // Resolve: explicit clientId arg → built-in known client → DCR
-  const effectiveClientId = clientId ?? getKnownClientId(serverUrl);
   const provider = new ActOAuthProvider(serverName, redirectUrl, effectiveClientId);
 
   let code: string;
@@ -394,7 +554,6 @@ export async function runOAuthLogin(
     }
 
     // result === "REDIRECT": race callback server vs. manual paste (headless fallback).
-    // If stdin closes (non-interactive), gracefully fall back to callback-only.
     const stdinPrompt = provider.browserOpened
       ? `If the browser didn't redirect automatically, paste the full redirect URL here and press Enter:\n> `
       : `Paste the full redirect URL (or just the code=… value) after authorizing, then press Enter:\n> `;
@@ -406,7 +565,7 @@ export async function runOAuthLogin(
     try {
       code = await Promise.race([callbackServer.waitForCode(), stdinRace]);
     } finally {
-      abortController.abort(); // close readline if callback server won the race
+      abortController.abort();
     }
   } finally {
     callbackServer.close();
@@ -444,7 +603,8 @@ export async function ensureOAuthToken(
   if (Date.now() < state.expiresAt - 60_000) return state.tokens.access_token;
 
   // Expired — try to refresh
-  const clientInfo = state.clientInfo ??
+  const clientInfo =
+    state.clientInfo ??
     // Fallback: built-in client_id for servers that don't support DCR
     (getKnownClientId(serverUrl) ? { client_id: getKnownClientId(serverUrl)! } : undefined);
   if (!state.tokens.refresh_token || !clientInfo) return null;

@@ -1412,9 +1412,7 @@ async function injectOAuthHeaders(
         continue;
       }
 
-      warn?.(
-        `Warning: no valid OAuth token for server "${name}". Run: act oauth login ${name}\n`,
-      );
+      warn?.(`Warning: no valid OAuth token for server "${name}". Run: act oauth login ${name}\n`);
     }
 
     result[name] = config;
