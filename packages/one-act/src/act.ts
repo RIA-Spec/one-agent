@@ -84,6 +84,11 @@ export type ActOptions = {
    * and the `ONE_ACT_MCP_SERVERS` / `MCP_SERVERS` environment variables.
    */
   mcpServers?: McpServersConfig;
+  /**
+   * If true, automatically triggers the interactive browser OAuth login flow
+   * when no valid token is found.
+   */
+  autoLogin?: boolean;
 };
 
 /**
@@ -160,6 +165,10 @@ export async function act(
 ): Promise<CallToolResult> {
   const mcpServers = await injectOAuthHeaders(
     options?.mcpServers ?? readConfiguredMcpServers(readActConfig()),
+    {
+      autoLogin: options?.autoLogin,
+      warn: (msg) => process.stderr.write(msg),
+    },
   );
   if (!mcpServers || Object.keys(mcpServers).length === 0) {
     throw new Error(
@@ -273,6 +282,10 @@ export async function act(
 export async function createActSession(options?: ActOptions): Promise<ActSession> {
   const mcpServers = await injectOAuthHeaders(
     options?.mcpServers ?? readConfiguredMcpServers(readActConfig()),
+    {
+      autoLogin: options?.autoLogin,
+      warn: (msg) => process.stderr.write(msg),
+    },
   );
   if (!mcpServers || Object.keys(mcpServers).length === 0) {
     throw new Error(
@@ -1386,11 +1399,15 @@ async function runDaemonCommand(
  */
 async function injectOAuthHeaders(
   mcpServers: McpServersConfig | null,
-  warn?: (msg: string) => void,
+  options?: {
+    warn?: (msg: string) => void;
+    autoLogin?: boolean;
+  },
 ): Promise<McpServersConfig | null> {
   if (!mcpServers) return null;
 
   const result: McpServersConfig = {};
+  const warn = options?.warn;
 
   for (const [name, config] of Object.entries(mcpServers)) {
     const configRecord = config as unknown as Record<string, unknown>;
@@ -1400,7 +1417,21 @@ async function injectOAuthHeaders(
       config.daemon !== true &&
       typeof configRecord.url === "string"
     ) {
-      const token = await ensureOAuthToken(name, configRecord.url);
+      let token = await ensureOAuthToken(name, configRecord.url, config.resource);
+
+      if (!token && options?.autoLogin) {
+        try {
+          process.stderr.write(
+            `No valid OAuth token for server "${name}". Attempting automatic login...\n`,
+          );
+          await runOAuthLogin(name, configRecord.url, config.clientId, config.resource);
+          token = await ensureOAuthToken(name, configRecord.url, config.resource);
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          warn?.(`Warning: automatic OAuth login failed for "${name}": ${msg}\n`);
+        }
+      }
+
       if (token) {
         result[name] = {
           ...config,
@@ -1437,7 +1468,12 @@ async function runOAuthCommand(
       }
 
       process.stderr.write(`Logging in to "${serverName}"...\n`);
-      await runOAuthLogin(serverName, serverRecord.url, serverConfig?.clientId);
+      await runOAuthLogin(
+        serverName,
+        serverRecord.url,
+        serverConfig?.clientId,
+        serverConfig?.resource,
+      );
       process.stderr.write(`Successfully logged in to "${serverName}".\n`);
       return;
     }
@@ -1489,9 +1525,9 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
   }
 
   // Inject OAuth tokens into headers for on-demand servers that have auth:"oauth".
-  const configuredMcpServers = await injectOAuthHeaders(_rawMcpServers, (msg) =>
-    process.stderr.write(msg),
-  );
+  const configuredMcpServers = await injectOAuthHeaders(_rawMcpServers, {
+    warn: (msg) => process.stderr.write(msg),
+  });
   const _allDaemonServers = configuredMcpServers
     ? selectDaemonMcpServers(configuredMcpServers)
     : null;
