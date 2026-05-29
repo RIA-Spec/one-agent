@@ -120,12 +120,14 @@ class ActOAuthProvider implements OAuthClientProvider {
   readonly #serverName: string;
   readonly #redirectUrl: string;
   readonly #clientId: string | undefined;
+  readonly #resource: string | undefined;
   #browserOpened = false;
 
-  constructor(serverName: string, redirectUrl: string, clientId?: string) {
+  constructor(serverName: string, redirectUrl: string, clientId?: string, resource?: string) {
     this.#serverName = serverName;
     this.#redirectUrl = redirectUrl;
     this.#clientId = clientId;
+    this.#resource = resource;
   }
 
   get redirectUrl(): string {
@@ -221,6 +223,16 @@ class ActOAuthProvider implements OAuthClientProvider {
   discoveryState(): OAuthDiscoveryState | undefined {
     return readServerState(this.#serverName)?.discoveryState ?? undefined;
   }
+
+  async validateResourceURL(serverUrl: string | URL, resource?: string): Promise<URL | undefined> {
+    if (this.#resource) {
+      return new URL(this.#resource);
+    }
+    if (resource) {
+      return new URL(resource);
+    }
+    return undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -305,11 +317,17 @@ async function runOAuthCallbackServer(): Promise<{
   };
 }
 
-// ---------------------------------------------------------------------------
-// Cross-platform browser opener
-// ---------------------------------------------------------------------------
-
-function openBrowser(url: string): boolean {
+/**
+ * Cross-platform helper to open a URL in the system's default browser.
+ * Primarily provided to assist in custom OAuth Client Provider redirect implementations.
+ *
+ * Supports Windows (via cmd start), macOS (via open), and Linux (via xdg-open).
+ * Unrefs the child process to avoid blocking the parent node process.
+ *
+ * @param url The URL to open in the browser.
+ * @returns true if the browser launch was triggered successfully; false if it failed or was suppressed.
+ */
+export function openBrowser(url: string): boolean {
   try {
     let child: ReturnType<typeof spawn>;
     if (process.platform === "win32") {
@@ -532,6 +550,7 @@ export async function runOAuthLogin(
   serverName: string,
   serverUrl: string,
   clientId?: string,
+  resource?: string,
 ): Promise<void> {
   const effectiveClientId = clientId ?? getKnownClientId(serverUrl);
 
@@ -543,7 +562,7 @@ export async function runOAuthLogin(
 
   const callbackServer = await runOAuthCallbackServer();
   const redirectUrl = `http://127.0.0.1:${callbackServer.port}/callback`;
-  const provider = new ActOAuthProvider(serverName, redirectUrl, effectiveClientId);
+  const provider = new ActOAuthProvider(serverName, redirectUrl, effectiveClientId, resource);
 
   let code: string;
   try {
@@ -592,6 +611,7 @@ export async function runOAuthLogin(
 export async function ensureOAuthToken(
   serverName: string,
   serverUrl: string,
+  resource?: string,
 ): Promise<string | null> {
   const state = readServerState(serverName);
   if (!state?.tokens?.access_token) return null;
@@ -617,6 +637,7 @@ export async function ensureOAuthToken(
       metadata: authorizationServerMetadata,
       clientInformation: clientInfo,
       refreshToken: state.tokens.refresh_token,
+      resource: resource ? new URL(resource) : undefined,
     });
 
     const expiresAt =

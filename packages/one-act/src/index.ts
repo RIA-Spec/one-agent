@@ -9,3 +9,11 @@ export {
   type McpServersConfig,
   type OneActMcpServerConfig,
 } from "./act.js";
+
+export {
+  runOAuthLogin,
+  ensureOAuthToken,
+  clearOAuthState,
+  listOAuthStates,
+  openBrowser,
+} from "./oauth.js";
