@@ -67,6 +67,12 @@ export type OneActMcpServerConfig = McpServerConfig & {
    * (e.g. api.githubcopilot.com), so this is only needed for custom servers.
    */
   clientId?: string;
+  /**
+   * Optional OAuth 2.0 Resource Indicator (RFC 8707). When provided, it overrides
+   * the selection and validation of the resource URL, avoiding dynamic discovery
+   * network requests.
+   */
+  resource?: string;
 };
 
 export type McpServersConfig = Record<string, OneActMcpServerConfig>;
