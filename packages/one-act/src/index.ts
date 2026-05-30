@@ -16,4 +16,5 @@ export {
   clearOAuthState,
   listOAuthStates,
   openBrowser,
+  type ActCustomMessages,
 } from "./oauth.js";

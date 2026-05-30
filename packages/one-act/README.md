@@ -149,6 +149,69 @@ For advanced control over authentication and system environment integrations:
 
 ---
 
+## Customizing Messages & Internationalization (i18n)
+
+You can customize or internationalize the interactive terminal prompts and messages printed during the OAuth flow. This is supported both globally via the configuration file (`act.json`) and programmatically via `ActOptions`.
+
+### Supported Message Keys & Templates
+
+The following custom message templates can be defined. You can use placeholder variables inside curly braces (e.g. `{serverName}`, `{url}`, `{code}`) which will be substituted automatically at runtime.
+
+| Key | Description | Placeholders |
+| :--- | :--- | :--- |
+| `noValidToken` | Printed when no cached OAuth token is found and automatic login starts. | `{serverName}` |
+| `openingBrowser` | Printed before opening the browser window for authorization. | `{url}` |
+| `pasteRedirect` | Stdin prompt printed when the browser has successfully opened. | |
+| `pasteRedirectManual` | Stdin prompt printed if the browser failed to open automatically. | |
+| `couldNotOpenBrowser` | Printed if the system browser cannot be opened. | `{url}` |
+| `alreadyAuthorized` | Printed when the user is already successfully authorized. | |
+| `successfullyAuthorized`| Printed upon successful authorization (Device Flow). | |
+| `githubDeviceFlow` | Printed during GitHub Device Flow authorization. | `{url}`, `{code}` |
+
+### Configuration File (`act.json`)
+
+To configure custom messages globally for the CLI:
+
+```json
+{
+  "mcpServers": {
+    "secure-mcp": {
+      "transportType": "streamable-http",
+      "url": "https://mcp-server.example.com",
+      "auth": "oauth"
+    }
+  },
+  "customMessages": {
+    "noValidToken": "No valid cached token for server \"{serverName}\". Starting auto-login...\n",
+    "openingBrowser": "\nOpening browser to authorize: {url}\n\n",
+    "pasteRedirect": "Please paste the redirect URL here once authorized: > "
+  }
+}
+```
+
+### Programmatic API (SDK)
+
+To configure custom messages dynamically in your Node.js code, pass the `customMessages` option to `act()` or `createActSession()`:
+
+```typescript
+import { act } from "@one-agent/act";
+
+const result = await act(
+  "secure-mcp_some_tool",
+  { arg1: "val" },
+  {
+    autoLogin: true,
+    customMessages: {
+      noValidToken: "No cached token for \"{serverName}\". Logging in...\n",
+      openingBrowser: "Please check your browser to authorize at: {url}\n",
+      pasteRedirect: "Paste redirect URL here: > "
+    }
+  }
+);
+```
+
+---
+
 ## References
 
 - [Re in Act Working Draft Specification](https://re-in-act.org/specification/draft/index)

@@ -16,7 +16,15 @@ import {
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
-import { clearOAuthState, ensureOAuthToken, listOAuthStates, runOAuthLogin } from "./oauth.js";
+import {
+  clearOAuthState,
+  ensureOAuthToken,
+  listOAuthStates,
+  runOAuthLogin,
+  formatMessage,
+  DEFAULT_CUSTOM_MESSAGES,
+  type ActCustomMessages,
+} from "./oauth.js";
 import {
   computeDaemonConfigHash,
   ensureActDaemonClient,
@@ -89,6 +97,11 @@ export type ActOptions = {
    * when no valid token is found.
    */
   autoLogin?: boolean;
+  /**
+   * Custom terminal prompt or output messages for the OAuth login flow.
+   * Useful for internationalization or custom styling.
+   */
+  customMessages?: ActCustomMessages;
 };
 
 /**
@@ -168,6 +181,9 @@ export async function act(
     {
       autoLogin: options?.autoLogin,
       warn: (msg) => process.stderr.write(msg),
+      customMessages:
+        options?.customMessages ??
+        (readActConfig().customMessages as ActCustomMessages | undefined),
     },
   );
   if (!mcpServers || Object.keys(mcpServers).length === 0) {
@@ -285,6 +301,9 @@ export async function createActSession(options?: ActOptions): Promise<ActSession
     {
       autoLogin: options?.autoLogin,
       warn: (msg) => process.stderr.write(msg),
+      customMessages:
+        options?.customMessages ??
+        (readActConfig().customMessages as ActCustomMessages | undefined),
     },
   );
   if (!mcpServers || Object.keys(mcpServers).length === 0) {
@@ -1402,6 +1421,7 @@ async function injectOAuthHeaders(
   options?: {
     warn?: (msg: string) => void;
     autoLogin?: boolean;
+    customMessages?: ActCustomMessages;
   },
 ): Promise<McpServersConfig | null> {
   if (!mcpServers) return null;
@@ -1422,9 +1442,17 @@ async function injectOAuthHeaders(
       if (!token && options?.autoLogin) {
         try {
           process.stderr.write(
-            `No valid OAuth token for server "${name}". Attempting automatic login...\n`,
+            formatMessage(
+              options?.customMessages?.noValidToken,
+              DEFAULT_CUSTOM_MESSAGES.noValidToken,
+              {
+                serverName: name,
+              },
+            ),
           );
-          await runOAuthLogin(name, configRecord.url, config.clientId, config.resource);
+          await runOAuthLogin(name, configRecord.url, config.clientId, config.resource, {
+            customMessages: options?.customMessages,
+          });
           token = await ensureOAuthToken(name, configRecord.url, config.resource);
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
@@ -1473,6 +1501,9 @@ async function runOAuthCommand(
         serverRecord.url,
         serverConfig?.clientId,
         serverConfig?.resource,
+        {
+          customMessages: readActConfig().customMessages as ActCustomMessages | undefined,
+        },
       );
       process.stderr.write(`Successfully logged in to "${serverName}".\n`);
       return;
@@ -1527,6 +1558,7 @@ export async function runActCli(options?: { getServer?: GetServerFn; argv?: stri
   // Inject OAuth tokens into headers for on-demand servers that have auth:"oauth".
   const configuredMcpServers = await injectOAuthHeaders(_rawMcpServers, {
     warn: (msg) => process.stderr.write(msg),
+    customMessages: readActConfig().customMessages as ActCustomMessages | undefined,
   });
   const _allDaemonServers = configuredMcpServers
     ? selectDaemonMcpServers(configuredMcpServers)
