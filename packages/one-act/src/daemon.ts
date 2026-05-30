@@ -282,7 +282,13 @@ function spawnActDaemonProcess(options: ActDaemonSpawnOptions) {
 export function normalizeMcpServersForRuntime(mcpServers: McpServersConfig): PlainMcpServersConfig {
   return Object.fromEntries(
     Object.entries(selectEnabledMcpServers(mcpServers)).map(([name, config]) => {
-      const { daemon: _daemon, auth: _auth, clientId: _clientId, ...runtimeConfig } = config;
+      const {
+        daemon: _daemon,
+        auth: _auth,
+        clientId: _clientId,
+        resource: _resource,
+        ...runtimeConfig
+      } = config;
       return [name, runtimeConfig as McpServerConfig];
     }),
   );

@@ -19,6 +19,41 @@ import { createInterface } from "node:readline";
 import { dirname } from "node:path";
 import { getOneConfigPath } from "./config-path.js";
 
+export type ActCustomMessages = {
+  noValidToken?: string;
+  openingBrowser?: string;
+  pasteRedirect?: string;
+  pasteRedirectManual?: string;
+  couldNotOpenBrowser?: string;
+  alreadyAuthorized?: string;
+  successfullyAuthorized?: string;
+  githubDeviceFlow?: string;
+};
+
+export const DEFAULT_CUSTOM_MESSAGES = {
+  noValidToken: 'No valid OAuth token for server "{serverName}". Attempting automatic login...\n',
+  openingBrowser: "\nOpening browser for OAuth authorization:\n{url}\n\n",
+  pasteRedirect:
+    "If the browser didn't redirect automatically, paste the full redirect URL here and press Enter:\n> ",
+  pasteRedirectManual:
+    "Paste the full redirect URL (or just the code=… value) after authorizing, then press Enter:\n> ",
+  couldNotOpenBrowser: "\nCould not open browser. Open this URL manually to authorize:\n{url}\n\n",
+  alreadyAuthorized: "Already authorized.\n",
+  successfullyAuthorized: "\nSuccessfully authorized!\n",
+  githubDeviceFlow: "\nOpen: {url}\nEnter code: {code}\n\n(Waiting for authorization…)\n",
+};
+
+export function formatMessage(
+  template: string | undefined,
+  defaultTemplate: string,
+  vars: Record<string, string> = {},
+): string {
+  const actualTemplate = template ?? defaultTemplate;
+  return actualTemplate.replace(/\{(\w+)\}/g, (match, key) => {
+    return key in vars ? vars[key] : match;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Servers that use GitHub Device Flow instead of PKCE web flow.
 // GitHub OAuth Apps require client_secret in the PKCE token exchange, but
@@ -122,12 +157,20 @@ class ActOAuthProvider implements OAuthClientProvider {
   readonly #clientId: string | undefined;
   readonly #resource: string | undefined;
   #browserOpened = false;
+  readonly #customMessages: ActCustomMessages | undefined;
 
-  constructor(serverName: string, redirectUrl: string, clientId?: string, resource?: string) {
+  constructor(
+    serverName: string,
+    redirectUrl: string,
+    clientId?: string,
+    resource?: string,
+    customMessages?: ActCustomMessages,
+  ) {
     this.#serverName = serverName;
     this.#redirectUrl = redirectUrl;
     this.#clientId = clientId;
     this.#resource = resource;
+    this.#customMessages = customMessages;
   }
 
   get redirectUrl(): string {
@@ -176,10 +219,24 @@ class ActOAuthProvider implements OAuthClientProvider {
     this.#browserOpened = openBrowser(url.toString());
     const urlStr = url.toString();
     if (this.#browserOpened) {
-      process.stderr.write(`\nOpening browser for OAuth authorization:\n${urlStr}\n\n`);
+      process.stderr.write(
+        formatMessage(
+          this.#customMessages?.openingBrowser,
+          DEFAULT_CUSTOM_MESSAGES.openingBrowser,
+          {
+            url: urlStr,
+          },
+        ),
+      );
     } else {
       process.stderr.write(
-        `\nCould not open browser. Open this URL manually to authorize:\n${urlStr}\n\n`,
+        formatMessage(
+          this.#customMessages?.couldNotOpenBrowser,
+          DEFAULT_CUSTOM_MESSAGES.couldNotOpenBrowser,
+          {
+            url: urlStr,
+          },
+        ),
       );
     }
   }
@@ -416,6 +473,7 @@ async function runGitHubDeviceFlow(
   serverName: string,
   serverUrl: string,
   clientId: string,
+  options?: { customMessages?: ActCustomMessages },
 ): Promise<void> {
   // Fetch scopes from Protected Resource Metadata.
   let scope = "repo read:org read:user user:email"; // safe default
@@ -462,7 +520,14 @@ async function runGitHubDeviceFlow(
   const verifyUrl = deviceData.verification_uri;
   openBrowser(verifyUrl);
   process.stderr.write(
-    `\nOpen: ${verifyUrl}\nEnter code: ${deviceData.user_code}\n\n(Waiting for authorization…)\n`,
+    formatMessage(
+      options?.customMessages?.githubDeviceFlow,
+      DEFAULT_CUSTOM_MESSAGES.githubDeviceFlow,
+      {
+        url: verifyUrl,
+        code: deviceData.user_code,
+      },
+    ),
   );
 
   // Step 3: poll for token.
@@ -518,7 +583,12 @@ async function runGitHubDeviceFlow(
         expiresAt,
         clientInfo: { client_id: clientId },
       });
-      process.stderr.write("\nSuccessfully authorized!\n");
+      process.stderr.write(
+        formatMessage(
+          options?.customMessages?.successfullyAuthorized,
+          DEFAULT_CUSTOM_MESSAGES.successfullyAuthorized,
+        ),
+      );
       return;
     }
 
@@ -551,31 +621,46 @@ export async function runOAuthLogin(
   serverUrl: string,
   clientId?: string,
   resource?: string,
+  options?: { customMessages?: ActCustomMessages },
 ): Promise<void> {
   const effectiveClientId = clientId ?? getKnownClientId(serverUrl);
 
   // GitHub OAuth Apps require client_secret in the PKCE token exchange but
   // NOT in the Device Flow — use Device Flow for GitHub servers.
   if (effectiveClientId && isDeviceFlowServer(serverUrl)) {
-    return runGitHubDeviceFlow(serverName, serverUrl, effectiveClientId);
+    return runGitHubDeviceFlow(serverName, serverUrl, effectiveClientId, options);
   }
 
   const callbackServer = await runOAuthCallbackServer();
   const redirectUrl = `http://127.0.0.1:${callbackServer.port}/callback`;
-  const provider = new ActOAuthProvider(serverName, redirectUrl, effectiveClientId, resource);
+  const provider = new ActOAuthProvider(
+    serverName,
+    redirectUrl,
+    effectiveClientId,
+    resource,
+    options?.customMessages,
+  );
 
   let code: string;
   try {
     const result = await auth(provider, { serverUrl });
     if (result === "AUTHORIZED") {
-      process.stderr.write("Already authorized.\n");
+      process.stderr.write(
+        formatMessage(
+          options?.customMessages?.alreadyAuthorized,
+          DEFAULT_CUSTOM_MESSAGES.alreadyAuthorized,
+        ),
+      );
       return;
     }
 
     // result === "REDIRECT": race callback server vs. manual paste (headless fallback).
     const stdinPrompt = provider.browserOpened
-      ? `If the browser didn't redirect automatically, paste the full redirect URL here and press Enter:\n> `
-      : `Paste the full redirect URL (or just the code=… value) after authorizing, then press Enter:\n> `;
+      ? formatMessage(options?.customMessages?.pasteRedirect, DEFAULT_CUSTOM_MESSAGES.pasteRedirect)
+      : formatMessage(
+          options?.customMessages?.pasteRedirectManual,
+          DEFAULT_CUSTOM_MESSAGES.pasteRedirectManual,
+        );
 
     const abortController = new AbortController();
     const stdinRace = waitForCodeFromStdin(stdinPrompt, abortController.signal).catch(
