@@ -20,14 +20,15 @@ const HELP_ARGUMENTS = [
   "structure       Required JSON example for structured output when --structure is not used.",
 ];
 const HELP_OPTIONS = [
-  "--prompt <text>     Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
-  "--structure <json>  Required JSON structure example. Equivalent to the second positional argument.",
-  "-h, --help          Display this message.",
+  "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
+  "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
+  "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
   "Interactive setup: reason auth",
   "Environment variables override file config.",
+  "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (also readable from CONTEXT_WINDOW in reason.json).",
 ];
 const HELP_EXAMPLES = [
   'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',
@@ -42,9 +43,21 @@ type ParsedReasonRequestArgs = {
   structureOption?: string;
 };
 
+type TruncationMeta = {
+  original_tokens: number;
+  used_tokens: number;
+  dropped_tokens: number;
+  next_offset: number;
+  remaining_chars: number;
+  next_line: number;
+  total_lines: number;
+  remaining_lines: number;
+};
+
 type BuildReasonRequestOptions = {
   stdinIsTTY?: boolean;
   readStdin?: () => Promise<string>;
+  contextWindow?: number;
 };
 
 function readReasonConfig(): Record<string, unknown> {
@@ -207,6 +220,26 @@ function parseStructureJson(raw: string) {
   }
 }
 
+/**
+ * Rough token estimator without a tokenizer library.
+ * - CJK characters (Chinese / Japanese / Korean): ~1 char per token
+ * - Everything else: ~4 chars per token
+ */
+function estimateTokens(text: string): number {
+  const cjkCount = (text.match(/[一-鿿぀-ヿ가-힯]/g) ?? []).length;
+  const otherChars = text.length - cjkCount;
+  return cjkCount + Math.ceil(otherChars / 4);
+}
+
+/**
+ * Given a token budget, return how many chars correspond to that budget.
+ * Uses the inverse of estimateTokens with a slight under-estimate to stay safe.
+ */
+function tokenBudgetToChars(tokens: number): number {
+  // Conservative: 3.5 chars/token (instead of 4) so we don't overshoot
+  return Math.floor(tokens * 3.5);
+}
+
 export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs {
   const promptValues: string[] = [];
   const positionals: string[] = [];
@@ -291,19 +324,89 @@ export async function buildReasonRequestInput(
     throw new Error("prompt is required");
   }
 
-  const stdin = needsStdin ? await readStdinFn() : "";
-  if (needsStdin) {
-    promptParts.push(stdin);
+  const rawStdin = needsStdin ? await readStdinFn() : "";
+
+  const contextWindow = options.contextWindow;
+
+  let observation = rawStdin;
+  let truncationMeta: TruncationMeta | null = null;
+
+  if (contextWindow != null) {
+    const obsText = needsStdin ? rawStdin : "";
+    const promptOnlyText = promptParts.join("\n");
+    const separator = promptOnlyText.length > 0 && obsText.length > 0 ? "\n" : "";
+    const fullText = promptOnlyText + separator + obsText;
+    const totalTokens = estimateTokens(fullText);
+
+    if (totalTokens > contextWindow) {
+      const charBudget = tokenBudgetToChars(contextWindow);
+      const truncatedFull = fullText.slice(0, charBudget);
+      const usedTokens = estimateTokens(truncatedFull);
+      const droppedTokens = totalTokens - usedTokens;
+      const nextOffset = charBudget;
+      const remainingChars = fullText.length - charBudget;
+      const totalLines = fullText.split("\n").length;
+      const usedLines = truncatedFull.split("\n").length;
+      const nextLine = usedLines + 1;
+      const remainingLines = totalLines - usedLines;
+
+      truncationMeta = {
+        original_tokens: totalTokens,
+        used_tokens: usedTokens,
+        dropped_tokens: droppedTokens,
+        next_offset: nextOffset,
+        remaining_chars: remainingChars,
+        next_line: nextLine,
+        total_lines: totalLines,
+        remaining_lines: remainingLines,
+      };
+
+      promptParts.length = 0;
+      promptParts.push(
+        truncatedFull +
+          `\n\n---[INPUT TRUNCATED]---\noriginal_chars: ${fullText.length}\nused_chars: ${charBudget}\nremaining_chars: ${remainingChars}\nnext_offset: ${nextOffset}\ntotal_lines: ${totalLines}\nused_lines: ${usedLines}\nremaining_lines: ${remainingLines}\nnext_line: ${nextLine}\nNote: ${remainingLines} lines (${remainingChars} chars) remain unread. To continue: use byte offset ${nextOffset} or line number ${nextLine}.\n---[END NOTICE]---`,
+      );
+      observation = "";
+    }
+  }
+
+  if (needsStdin && observation.length > 0) {
+    promptParts.push(observation);
   }
 
   return {
     prompt: promptParts.join("\n"),
     example: parseStructureJson(structureRaw),
+    truncationMeta,
   };
 }
 
 async function runReasonRequest(request: ParsedReasonRequestArgs) {
-  const { prompt, example } = await buildReasonRequestInput(request);
+  // Priority: env var ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW > reason.json CONTEXT_WINDOW
+  const envContextWindow =
+    process.env["ONE_REASON_CONTEXT_WINDOW"] ?? process.env["ONE_CONTEXT_WINDOW"];
+  const configContextWindow = (() => {
+    const v = readReasonConfig()["CONTEXT_WINDOW"];
+    if (v == null) return undefined;
+    const n = parseInt(String(v), 10);
+    return isNaN(n) || n <= 0 ? undefined : n;
+  })();
+  const resolvedContextWindow =
+    (envContextWindow != null ? parseInt(envContextWindow, 10) : undefined) ?? configContextWindow;
+
+  const { prompt, example, truncationMeta } = await buildReasonRequestInput(request, {
+    contextWindow: resolvedContextWindow,
+  });
+
+  if (truncationMeta) {
+    const base = `reason: input truncated — original ~${truncationMeta.original_tokens} tokens, used ~${truncationMeta.used_tokens} tokens, dropped ~${truncationMeta.dropped_tokens} tokens`;
+    const extra =
+      `lines ${truncationMeta.next_line - 1}/${truncationMeta.total_lines} (remaining ${truncationMeta.remaining_lines} lines)` +
+      ` | next_offset=${truncationMeta.next_offset} next_line=${truncationMeta.next_line} remaining_chars=${truncationMeta.remaining_chars}`;
+    process.stderr.write(
+      pc.yellow(`${base} | ${extra} (context window: ${resolvedContextWindow})\n`),
+    );
+  }
 
   const result = await reason(prompt, example);
 
