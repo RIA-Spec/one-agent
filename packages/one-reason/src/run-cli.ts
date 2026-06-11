@@ -22,13 +22,13 @@ const HELP_ARGUMENTS = [
 const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
-  "--context-window <n>     Total token budget. All input (prompts + observation) is assembled in order and cut from the end to fit. Overrides CONTEXT_WINDOW in reason.json. On truncation a warning is printed to stderr.",
   "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
   "Interactive setup: reason auth",
   "Environment variables override file config.",
+  "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (also readable from CONTEXT_WINDOW in reason.json).",
 ];
 const HELP_EXAMPLES = [
   'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',
@@ -41,7 +41,6 @@ type ParsedReasonRequestArgs = {
   positionalPrompt?: string;
   positionalStructure?: string;
   structureOption?: string;
-  contextWindow?: number;
 };
 
 type TruncationMeta = {
@@ -246,7 +245,6 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
   const promptValues: string[] = [];
   const positionals: string[] = [];
   let structureOption: string | undefined;
-  let contextWindow: number | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -277,23 +275,6 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
       continue;
     }
 
-    if (arg === "--context-window") {
-      const value = args[index + 1];
-      if (value == null) throw new Error("--context-window requires a value");
-      contextWindow = parseInt(value, 10);
-      if (isNaN(contextWindow) || contextWindow <= 0)
-        throw new Error("--context-window must be a positive integer");
-      index += 1;
-      continue;
-    }
-
-    if (arg.startsWith("--context-window=")) {
-      contextWindow = parseInt(arg.slice("--context-window=".length), 10);
-      if (isNaN(contextWindow) || contextWindow <= 0)
-        throw new Error("--context-window must be a positive integer");
-      continue;
-    }
-
     if (arg.startsWith("-") && arg !== "-") {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -310,7 +291,6 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
     positionalPrompt: positionals[0],
     positionalStructure: positionals[1],
     structureOption,
-    contextWindow,
   };
 }
 
@@ -426,7 +406,7 @@ export async function buildReasonRequestInput(
 }
 
 async function runReasonRequest(request: ParsedReasonRequestArgs) {
-  // Priority: CLI arg > env var ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW > reason.json CONTEXT_WINDOW
+  // Priority: env var ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW > reason.json CONTEXT_WINDOW
   const envContextWindow =
     process.env["ONE_REASON_CONTEXT_WINDOW"] ?? process.env["ONE_CONTEXT_WINDOW"];
   const configContextWindow = (() => {
@@ -436,9 +416,7 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
     return isNaN(n) || n <= 0 ? undefined : n;
   })();
   const resolvedContextWindow =
-    request.contextWindow ??
-    (envContextWindow != null ? parseInt(envContextWindow, 10) : undefined) ??
-    configContextWindow;
+    (envContextWindow != null ? parseInt(envContextWindow, 10) : undefined) ?? configContextWindow;
 
   const { prompt, example, truncationMeta } = await buildReasonRequestInput(request, {
     contextWindow: resolvedContextWindow,
