@@ -234,13 +234,17 @@ function estimateTokens(text: string): number {
 }
 
 /**
- * Given a token budget, return how many chars correspond to that budget.
- * Uses the inverse of estimateTokens with a slight under-estimate to stay safe.
- * inputRatio reserves a fraction of the budget for model output (default 0.8).
+ * Given a token budget and the actual text to cut, return the char count that
+ * corresponds to that budget. Uses the text's own CJK density as the inverse
+ * of estimateTokens, so CJK-heavy and ASCII-heavy texts are handled correctly.
  */
-function tokenBudgetToChars(tokens: number, inputRatio = 0.8): number {
-  // 3.5 chars/token (conservative inverse), inputRatio to leave room for model output
-  return Math.floor(tokens * 3.5 * inputRatio);
+function charBudgetForText(text: string, tokenBudget: number): number {
+  const cjkCount = (text.match(/[一-鿿぀-ヿ가-힯]/g) ?? []).length;
+  const otherChars = text.length - cjkCount;
+  const totalTokens = cjkCount + Math.ceil(otherChars / 4);
+  if (totalTokens === 0) return tokenBudget;
+  // chars/token for this specific text composition
+  return Math.floor((tokenBudget * text.length) / totalTokens);
 }
 
 export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs {
@@ -343,7 +347,8 @@ export async function buildReasonRequestInput(
     const totalTokens = estimateTokens(fullText);
 
     if (totalTokens > contextWindow) {
-      const charBudget = tokenBudgetToChars(contextWindow, inputRatio);
+      const targetTokens = Math.floor(contextWindow * inputRatio);
+      const charBudget = charBudgetForText(fullText, targetTokens);
       const truncatedFull = fullText.slice(0, charBudget);
       const usedTokens = estimateTokens(truncatedFull);
       const droppedTokens = totalTokens - usedTokens;
