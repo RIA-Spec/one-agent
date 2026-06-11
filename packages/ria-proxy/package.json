@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/ria-proxy",
-  "version": "0.0.1-beta.2",
+  "version": "0.0.1",
   "description": "Non-invasive Re in Act proxy for openai-compatible, OpenAI, and Anthropic runtimes.",
   "keywords": [
     "re-in-act",

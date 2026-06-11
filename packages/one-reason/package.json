@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/reason",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "Structured reasoning interface and CLI for ONE.",
   "keywords": [
     "reason",
