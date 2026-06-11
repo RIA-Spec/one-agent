@@ -52,7 +52,6 @@ type TruncationMeta = {
   next_line: number;
   total_lines: number;
   remaining_lines: number;
-  prompt_truncated?: boolean;
 };
 
 type BuildReasonRequestOptions = {
@@ -341,55 +340,33 @@ export async function buildReasonRequestInput(
 
     if (totalTokens > contextWindow) {
       const charBudget = tokenBudgetToChars(contextWindow);
-      const usedTokens = estimateTokens(fullText.slice(0, charBudget));
+      const truncatedFull = fullText.slice(0, charBudget);
+      const usedTokens = estimateTokens(truncatedFull);
       const droppedTokens = totalTokens - usedTokens;
-      const promptOnlyPlusSep = promptOnlyText.length + separator.length;
+      const nextOffset = charBudget;
+      const remainingChars = fullText.length - charBudget;
+      const totalLines = fullText.split("\n").length;
+      const usedLines = truncatedFull.split("\n").length;
+      const nextLine = usedLines + 1;
+      const remainingLines = totalLines - usedLines;
 
-      if (charBudget >= promptOnlyPlusSep) {
-        // Cut falls within observation — prompts stay intact
-        const obsCharBudget = charBudget - promptOnlyPlusSep;
-        const truncatedObs = rawStdin.slice(0, obsCharBudget);
-        const nextOffset = obsCharBudget;
-        const remainingChars = rawStdin.length - obsCharBudget;
-        const totalLines = rawStdin.split("\n").length;
-        const usedLines = truncatedObs.split("\n").length;
-        const nextLine = usedLines + 1;
-        const remainingLines = totalLines - usedLines;
+      truncationMeta = {
+        original_tokens: totalTokens,
+        used_tokens: usedTokens,
+        dropped_tokens: droppedTokens,
+        next_offset: nextOffset,
+        remaining_chars: remainingChars,
+        next_line: nextLine,
+        total_lines: totalLines,
+        remaining_lines: remainingLines,
+      };
 
-        truncationMeta = {
-          original_tokens: totalTokens,
-          used_tokens: usedTokens,
-          dropped_tokens: droppedTokens,
-          next_offset: nextOffset,
-          remaining_chars: remainingChars,
-          next_line: nextLine,
-          total_lines: totalLines,
-          remaining_lines: remainingLines,
-        };
-
-        observation =
-          truncatedObs +
-          `\n\n---[INPUT TRUNCATED]---\noriginal_chars: ${rawStdin.length}\nused_chars: ${obsCharBudget}\nremaining_chars: ${remainingChars}\nnext_offset: ${nextOffset}\ntotal_lines: ${totalLines}\nused_lines: ${usedLines}\nremaining_lines: ${remainingLines}\nnext_line: ${nextLine}\nNote: ${remainingLines} lines (${remainingChars} chars) remain unread. To continue: use byte offset ${nextOffset} or line number ${nextLine}.\n---[END NOTICE]---`;
-      } else {
-        // Cut falls within prompts — truncate the assembled prompt text, drop observation
-        const truncatedPromptText = promptOnlyText.slice(0, charBudget);
-        promptParts.length = 0;
-        promptParts.push(truncatedPromptText);
-        observation = "";
-        const totalLines = fullText.split("\n").length;
-        const usedLines = truncatedPromptText.split("\n").length;
-        truncationMeta = {
-          original_tokens: totalTokens,
-          used_tokens: usedTokens,
-          dropped_tokens: droppedTokens,
-          next_offset: charBudget,
-          remaining_chars: fullText.length - charBudget,
-          next_line: usedLines + 1,
-          total_lines: totalLines,
-          remaining_lines: totalLines - usedLines,
-          prompt_truncated: true,
-        };
-      }
+      promptParts.length = 0;
+      promptParts.push(
+        truncatedFull +
+          `\n\n---[INPUT TRUNCATED]---\noriginal_chars: ${fullText.length}\nused_chars: ${charBudget}\nremaining_chars: ${remainingChars}\nnext_offset: ${nextOffset}\ntotal_lines: ${totalLines}\nused_lines: ${usedLines}\nremaining_lines: ${remainingLines}\nnext_line: ${nextLine}\nNote: ${remainingLines} lines (${remainingChars} chars) remain unread. To continue: use byte offset ${nextOffset} or line number ${nextLine}.\n---[END NOTICE]---`,
+      );
+      observation = "";
     }
   }
 
@@ -423,10 +400,9 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
 
   if (truncationMeta) {
     const base = `reason: input truncated — original ~${truncationMeta.original_tokens} tokens, used ~${truncationMeta.used_tokens} tokens, dropped ~${truncationMeta.dropped_tokens} tokens`;
-    const extra = truncationMeta.prompt_truncated
-      ? `--prompt was truncated (reduce prompt size or raise --context-window)`
-      : `lines ${truncationMeta.next_line - 1}/${truncationMeta.total_lines} (remaining ${truncationMeta.remaining_lines} lines)` +
-        ` | next_offset=${truncationMeta.next_offset} next_line=${truncationMeta.next_line} remaining_chars=${truncationMeta.remaining_chars}`;
+    const extra =
+      `lines ${truncationMeta.next_line - 1}/${truncationMeta.total_lines} (remaining ${truncationMeta.remaining_lines} lines)` +
+      ` | next_offset=${truncationMeta.next_offset} next_line=${truncationMeta.next_line} remaining_chars=${truncationMeta.remaining_chars}`;
     process.stderr.write(
       pc.yellow(`${base} | ${extra} (context window: ${resolvedContextWindow})\n`),
     );
