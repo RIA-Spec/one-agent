@@ -22,7 +22,7 @@ const HELP_ARGUMENTS = [
 const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
-  "--context-window <n>     Total token budget for the model input (prompts + observation). Observation (stdin) is truncated first; if prompts alone exceed the budget they are truncated from the end too. Overrides CONTEXT_WINDOW in reason.json. On truncation a warning is printed to stderr.",
+  "--context-window <n>     Total token budget. All input (prompts + observation) is assembled in order and cut from the end to fit. Overrides CONTEXT_WINDOW in reason.json. On truncation a warning is printed to stderr.",
   "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
@@ -347,7 +347,7 @@ export async function buildReasonRequestInput(
 
   const rawStdin = needsStdin ? await readStdinFn() : "";
 
-  // Resolve context window: CLI arg > options > env var > config field
+  // Context window: CLI arg takes precedence over options (env var / config resolved by caller)
   const contextWindow = request.contextWindow ?? options.contextWindow;
 
   let observation = rawStdin;
