@@ -22,7 +22,7 @@ const HELP_ARGUMENTS = [
 const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
-  "--context-window <n>     Max tokens to send to the model. Observation (stdin) is truncated to fit; --prompt parts are always preserved. Overrides CONTEXT_WINDOW in reason.json. On truncation a warning with estimated token counts is printed to stderr.",
+  "--context-window <n>     Max token budget. Observation (stdin) is truncated to fit after --prompt token usage is subtracted; --prompt itself is not capped. Overrides CONTEXT_WINDOW in reason.json. On truncation a warning with estimated token counts is printed to stderr.",
   "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
