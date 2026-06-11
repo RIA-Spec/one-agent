@@ -28,7 +28,8 @@ const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
   "Interactive setup: reason auth",
   "Environment variables override file config.",
-  "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (also readable from CONTEXT_WINDOW in reason.json).",
+  "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (default: 65536). Also readable from CONTEXT_WINDOW in reason.json.",
+  "ONE_REASON_INPUT_RATIO / ONE_INPUT_RATIO        Fraction of context window used for input (default: 0.8, reserves 20% for model output). Also readable from INPUT_RATIO in reason.json.",
 ];
 const HELP_EXAMPLES = [
   'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',
@@ -58,6 +59,7 @@ type BuildReasonRequestOptions = {
   stdinIsTTY?: boolean;
   readStdin?: () => Promise<string>;
   contextWindow?: number;
+  inputRatio?: number;
 };
 
 function readReasonConfig(): Record<string, unknown> {
@@ -234,10 +236,11 @@ function estimateTokens(text: string): number {
 /**
  * Given a token budget, return how many chars correspond to that budget.
  * Uses the inverse of estimateTokens with a slight under-estimate to stay safe.
+ * inputRatio reserves a fraction of the budget for model output (default 0.8).
  */
-function tokenBudgetToChars(tokens: number): number {
-  // Conservative: 3.5 chars/token (instead of 4) so we don't overshoot
-  return Math.floor(tokens * 3.5);
+function tokenBudgetToChars(tokens: number, inputRatio = 0.8): number {
+  // 3.5 chars/token (conservative inverse), inputRatio to leave room for model output
+  return Math.floor(tokens * 3.5 * inputRatio);
 }
 
 export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs {
@@ -327,6 +330,7 @@ export async function buildReasonRequestInput(
   const rawStdin = needsStdin ? await readStdinFn() : "";
 
   const contextWindow = options.contextWindow;
+  const inputRatio = options.inputRatio ?? 0.8;
 
   let observation = rawStdin;
   let truncationMeta: TruncationMeta | null = null;
@@ -339,7 +343,7 @@ export async function buildReasonRequestInput(
     const totalTokens = estimateTokens(fullText);
 
     if (totalTokens > contextWindow) {
-      const charBudget = tokenBudgetToChars(contextWindow);
+      const charBudget = tokenBudgetToChars(contextWindow, inputRatio);
       const truncatedFull = fullText.slice(0, charBudget);
       const usedTokens = estimateTokens(truncatedFull);
       const droppedTokens = totalTokens - usedTokens;
@@ -382,20 +386,39 @@ export async function buildReasonRequestInput(
 }
 
 async function runReasonRequest(request: ParsedReasonRequestArgs) {
-  // Priority: env var ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW > reason.json CONTEXT_WINDOW
+  const config = readReasonConfig();
+
+  // Priority: env var > reason.json > default (65536)
   const envContextWindow =
     process.env["ONE_REASON_CONTEXT_WINDOW"] ?? process.env["ONE_CONTEXT_WINDOW"];
   const configContextWindow = (() => {
-    const v = readReasonConfig()["CONTEXT_WINDOW"];
+    const v = config["CONTEXT_WINDOW"];
     if (v == null) return undefined;
     const n = parseInt(String(v), 10);
     return isNaN(n) || n <= 0 ? undefined : n;
   })();
   const resolvedContextWindow =
-    (envContextWindow != null ? parseInt(envContextWindow, 10) : undefined) ?? configContextWindow;
+    (envContextWindow != null ? parseInt(envContextWindow, 10) : undefined) ??
+    configContextWindow ??
+    65536;
+
+  // Priority: env var > reason.json > default (0.8)
+  const envInputRatio =
+    process.env["ONE_REASON_INPUT_RATIO"] ?? process.env["ONE_INPUT_RATIO"];
+  const configInputRatio = (() => {
+    const v = config["INPUT_RATIO"];
+    if (v == null) return undefined;
+    const n = parseFloat(String(v));
+    return isNaN(n) || n <= 0 || n > 1 ? undefined : n;
+  })();
+  const resolvedInputRatio =
+    (envInputRatio != null ? parseFloat(envInputRatio) : undefined) ??
+    configInputRatio ??
+    0.8;
 
   const { prompt, example, truncationMeta } = await buildReasonRequestInput(request, {
     contextWindow: resolvedContextWindow,
+    inputRatio: resolvedInputRatio,
   });
 
   if (truncationMeta) {
