@@ -327,8 +327,7 @@ export async function buildReasonRequestInput(
 
   const rawStdin = needsStdin ? await readStdinFn() : "";
 
-  // Context window: CLI arg takes precedence over options (env var / config resolved by caller)
-  const contextWindow = request.contextWindow ?? options.contextWindow;
+  const contextWindow = options.contextWindow;
 
   let observation = rawStdin;
   let truncationMeta: TruncationMeta | null = null;
