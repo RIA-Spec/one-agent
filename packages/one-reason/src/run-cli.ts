@@ -346,8 +346,8 @@ export async function buildReasonRequestInput(
     const fullText = promptOnlyText + separator + obsText;
     const totalTokens = estimateTokens(fullText);
 
-    if (totalTokens > contextWindow) {
-      const targetTokens = Math.floor(contextWindow * inputRatio);
+    const targetTokens = Math.floor(contextWindow * inputRatio);
+    if (totalTokens > targetTokens) {
       const charBudget = charBudgetForText(fullText, targetTokens);
       const truncatedFull = fullText.slice(0, charBudget);
       const usedTokens = estimateTokens(truncatedFull);
