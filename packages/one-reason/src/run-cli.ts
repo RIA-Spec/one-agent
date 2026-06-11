@@ -20,9 +20,10 @@ const HELP_ARGUMENTS = [
   "structure       Required JSON example for structured output when --structure is not used.",
 ];
 const HELP_OPTIONS = [
-  "--prompt <text>     Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
-  "--structure <json>  Required JSON structure example. Equivalent to the second positional argument.",
-  "-h, --help          Display this message.",
+  "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
+  "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
+  "--context-window <n>     Max tokens to send to the model. Observation (stdin) is truncated to fit; --prompt parts are always preserved. Overrides CONTEXT_WINDOW in reason.json. On truncation a warning with estimated token counts is printed to stderr.",
+  "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
@@ -40,11 +41,24 @@ type ParsedReasonRequestArgs = {
   positionalPrompt?: string;
   positionalStructure?: string;
   structureOption?: string;
+  contextWindow?: number;
+};
+
+type TruncationMeta = {
+  original_tokens: number;
+  used_tokens: number;
+  dropped_tokens: number;
+  next_offset: number;
+  remaining_chars: number;
+  next_line: number;
+  total_lines: number;
+  remaining_lines: number;
 };
 
 type BuildReasonRequestOptions = {
   stdinIsTTY?: boolean;
   readStdin?: () => Promise<string>;
+  contextWindow?: number;
 };
 
 function readReasonConfig(): Record<string, unknown> {
@@ -207,10 +221,31 @@ function parseStructureJson(raw: string) {
   }
 }
 
+/**
+ * Rough token estimator without a tokenizer library.
+ * - CJK characters (Chinese / Japanese / Korean): ~1 char per token
+ * - Everything else: ~4 chars per token
+ */
+function estimateTokens(text: string): number {
+  const cjkCount = (text.match(/[一-鿿぀-ヿ가-힯]/g) ?? []).length;
+  const otherChars = text.length - cjkCount;
+  return cjkCount + Math.ceil(otherChars / 4);
+}
+
+/**
+ * Given a token budget, return how many chars correspond to that budget.
+ * Uses the inverse of estimateTokens with a slight under-estimate to stay safe.
+ */
+function tokenBudgetToChars(tokens: number): number {
+  // Conservative: 3.5 chars/token (instead of 4) so we don't overshoot
+  return Math.floor(tokens * 3.5);
+}
+
 export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs {
   const promptValues: string[] = [];
   const positionals: string[] = [];
   let structureOption: string | undefined;
+  let contextWindow: number | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -241,6 +276,23 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
       continue;
     }
 
+    if (arg === "--context-window") {
+      const value = args[index + 1];
+      if (value == null) throw new Error("--context-window requires a value");
+      contextWindow = parseInt(value, 10);
+      if (isNaN(contextWindow) || contextWindow <= 0)
+        throw new Error("--context-window must be a positive integer");
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--context-window=")) {
+      contextWindow = parseInt(arg.slice("--context-window=".length), 10);
+      if (isNaN(contextWindow) || contextWindow <= 0)
+        throw new Error("--context-window must be a positive integer");
+      continue;
+    }
+
     if (arg.startsWith("-") && arg !== "-") {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -257,6 +309,7 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
     positionalPrompt: positionals[0],
     positionalStructure: positionals[1],
     structureOption,
+    contextWindow,
   };
 }
 
@@ -291,19 +344,94 @@ export async function buildReasonRequestInput(
     throw new Error("prompt is required");
   }
 
-  const stdin = needsStdin ? await readStdinFn() : "";
+  const rawStdin = needsStdin ? await readStdinFn() : "";
+
+  // Resolve context window: CLI arg > options > env var > config field
+  const contextWindow = request.contextWindow ?? options.contextWindow;
+
+  let observation = rawStdin;
+  let truncationMeta: TruncationMeta | null = null;
+
+  if (contextWindow != null && needsStdin && rawStdin.length > 0) {
+    const promptText = promptParts.join("\n");
+    const promptTokens = estimateTokens(promptText);
+    const obsTokens = estimateTokens(rawStdin);
+    // +1 for the "\n" separator between prompt parts and observation
+    const totalTokens = promptTokens + (promptText.length > 0 ? 1 : 0) + obsTokens;
+
+    if (totalTokens > contextWindow) {
+      const separatorTokens = promptText.length > 0 ? 1 : 0;
+      const obsBudgetTokens = Math.max(0, contextWindow - promptTokens - separatorTokens);
+      const charBudget = tokenBudgetToChars(obsBudgetTokens);
+      const truncatedObs = rawStdin.slice(0, charBudget);
+      const usedObsTokens = estimateTokens(truncatedObs);
+      const droppedTokens = obsTokens - usedObsTokens;
+      const nextOffset = charBudget;
+      const remainingChars = rawStdin.length - charBudget;
+
+      // Line-based info for file-piping workflows (tail -n +<next_line>)
+      const totalLines = rawStdin.split("\n").length;
+      const usedLines = truncatedObs.split("\n").length;
+      const nextLine = usedLines + 1;
+      const remainingLines = totalLines - usedLines;
+
+      truncationMeta = {
+        original_tokens: totalTokens,
+        used_tokens: promptTokens + separatorTokens + usedObsTokens,
+        dropped_tokens: droppedTokens,
+        next_offset: nextOffset,
+        remaining_chars: remainingChars,
+        next_line: nextLine,
+        total_lines: totalLines,
+        remaining_lines: remainingLines,
+      };
+
+      // Inject a structured notice so the model can surface continuation info in its output
+      observation =
+        truncatedObs +
+        `\n\n---[INPUT TRUNCATED]---\noriginal_chars: ${rawStdin.length}\nused_chars: ${charBudget}\nremaining_chars: ${remainingChars}\nnext_offset: ${nextOffset}\ntotal_lines: ${totalLines}\nused_lines: ${usedLines}\nremaining_lines: ${remainingLines}\nnext_line: ${nextLine}\nNote: ${remainingLines} lines (${remainingChars} chars) remain unread. To continue: use byte offset ${nextOffset} or line number ${nextLine}.\n---[END NOTICE]---`;
+    }
+  }
+
   if (needsStdin) {
-    promptParts.push(stdin);
+    promptParts.push(observation);
   }
 
   return {
     prompt: promptParts.join("\n"),
     example: parseStructureJson(structureRaw),
+    truncationMeta,
   };
 }
 
 async function runReasonRequest(request: ParsedReasonRequestArgs) {
-  const { prompt, example } = await buildReasonRequestInput(request);
+  // Priority: CLI arg > env var ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW > reason.json CONTEXT_WINDOW
+  const envContextWindow =
+    process.env["ONE_REASON_CONTEXT_WINDOW"] ?? process.env["ONE_CONTEXT_WINDOW"];
+  const configContextWindow = (() => {
+    const v = readReasonConfig()["CONTEXT_WINDOW"];
+    if (v == null) return undefined;
+    const n = parseInt(String(v), 10);
+    return isNaN(n) || n <= 0 ? undefined : n;
+  })();
+  const resolvedContextWindow =
+    request.contextWindow ??
+    (envContextWindow != null ? parseInt(envContextWindow, 10) : undefined) ??
+    configContextWindow;
+
+  const { prompt, example, truncationMeta } = await buildReasonRequestInput(request, {
+    contextWindow: resolvedContextWindow,
+  });
+
+  if (truncationMeta) {
+    process.stderr.write(
+      pc.yellow(
+        `reason: input truncated — original ~${truncationMeta.original_tokens} tokens, used ~${truncationMeta.used_tokens} tokens, dropped ~${truncationMeta.dropped_tokens} tokens` +
+          ` | lines ${truncationMeta.next_line - 1}/${truncationMeta.total_lines} (remaining ${truncationMeta.remaining_lines} lines)` +
+          ` | next_offset=${truncationMeta.next_offset} next_line=${truncationMeta.next_line} remaining_chars=${truncationMeta.remaining_chars} (context window: ${resolvedContextWindow})\n`,
+      ),
+    );
+  }
 
   const result = await reason(prompt, example);
 
