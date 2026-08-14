@@ -20,6 +20,7 @@ This page discusses theory only — no product-specific solutions, file organiza
 | 12 | [Tool Observation](./12-tool-observation.md) | Sensor layer · observation budget · compression strategies |
 | 13 | [Skill Quality Evaluation](./13-skill-quality-evaluation.md) | E/A/R · eight-dimension rubric · nine failure modes |
 | 14 | [Delegation and Orchestration](./14-subagents.md) | observation pollution · long-loop instability · side-loop isolation · externalized orchestration |
+| 15 | [Reason in Action](./15-reason-in-action.md) | local control nodes · Reason-able Action Space · ReAct → Re in Act |
 
 ## External Source Material (`sources/`)
 
@@ -32,6 +33,7 @@ This page discusses theory only — no product-specific solutions, file organiza
 | [`sources/softaworks-skill-judge/`](./sources/softaworks-skill-judge/) | skill-judge upstream index · [GitHub](https://github.com/softaworks/agent-toolkit/tree/main/skills/skill-judge) · not official Anthropic |
 | [`sources/anthropic-claude-code-subagents/`](./sources/anthropic-claude-code-subagents/) | Claude Code Subagents · [docs](https://code.claude.com/docs/en/sub-agents) |
 | [`sources/anthropic-dynamic-workflows/`](./sources/anthropic-dynamic-workflows/) | Dynamic workflows · [original post 2026-02](https://x.com/trq212/status/2061907337154367865) |
+| [`sources/re-in-act/`](./sources/re-in-act/) | Re in Act open specification · [re-in-act.org](https://re-in-act.org) |
 
 ## Suggested Reading Order
 
@@ -40,3 +42,4 @@ This page discusses theory only — no product-specific solutions, file organiza
 - **12**: builds on 03/05/06/07 · dedicated to tool-return signal-to-noise ratio · complements 10
 - **13**: builds on 11 · softaworks skill-judge's evaluation rubric · complements 11's "how to write" with "how to evaluate and how to lean"
 - **14**: builds on 10/11 · side-loop observation isolation · externalized orchestration for long-loop instability · complements 03's Feedback bandwidth
+- **15**: builds on 03/10/12 · where judgment lives (control nodes inside the action space) · localizes Feedback · complements 14's delegation containment
