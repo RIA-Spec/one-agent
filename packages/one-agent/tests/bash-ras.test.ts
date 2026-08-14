@@ -91,6 +91,33 @@ describe("createBashRAS", () => {
     expect(actImpl).toHaveBeenCalledWith("__host_bash__", { command: "echo from host" });
   });
 
+  it("pipes structured inputs to act without shell-quoting source text", async () => {
+    const actImpl = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "edited" }],
+      isError: false,
+    });
+    const ras = createBashRAS(
+      makeConfig({
+        cwd: tempRoot,
+        actHandler: () => actImpl,
+      }),
+    );
+    const edit = {
+      path: "src/example.ts",
+      oldText: 'const pattern = "\\\\d+";\nconst shell = "$(echo untouched)";',
+      newText: 'const pattern = "\\\\w+";\nconst shell = "`still data`";',
+    };
+
+    const result = await ras.execute({
+      command: "one-input edit | act edit -",
+      inputs: { edit },
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(getText(result)).toContain("edited");
+    expect(actImpl).toHaveBeenCalledWith("edit", edit);
+  });
+
   it("renders act output like the CLI, including attachment URLs", async () => {
     const actImpl = vi.fn().mockResolvedValue({
       content: [{ type: "text", text: "Image fetched successfully: https://example.com/cat.png" }],

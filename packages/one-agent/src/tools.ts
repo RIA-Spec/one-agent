@@ -200,6 +200,21 @@ export async function getServer() {
                 { internal: false },
               );
 
+              const readTool = createReadTool(projectRoot);
+              server.tool("read", readTool.description, readTool.parameters, readTool.execute, {
+                internal: true,
+              });
+
+              const writeTool = createWriteTool(projectRoot);
+              server.tool("write", writeTool.description, writeTool.parameters, writeTool.execute, {
+                internal: true,
+              });
+
+              const editTool = createEditTool(projectRoot);
+              server.tool("edit", editTool.description, editTool.parameters, editTool.execute, {
+                internal: true,
+              });
+
               // Register low-level web tools so Bash RAS can call them via `act`.
               const webSearchTool = createWebSearchTool();
               server.tool(

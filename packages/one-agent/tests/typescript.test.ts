@@ -37,6 +37,25 @@ describe("createTypeScriptRAS", () => {
     expect(getText(result)).toContain("42");
   }, 30000);
 
+  it("exposes structured inputs without embedding source text in code", async () => {
+    const actImpl = vi.fn().mockResolvedValue({ ok: true });
+    const ras = createTypeScriptRAS(makeConfig({ actHandler: () => actImpl }));
+    const edit = {
+      path: "src/example.ts",
+      oldText: 'const pattern = "\\\\d+";\nconst quote = `"\'${value}`;',
+      newText: 'const pattern = "\\\\w+";\nconst quote = `updated`;',
+    };
+
+    const result = await ras.execute({
+      code: "await act('edit', inputs.edit); console.log('done');",
+      inputs: { edit },
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(getText(result)).toContain("done");
+    expect(actImpl).toHaveBeenCalledWith("edit", edit);
+  }, 30000);
+
   it("returns no-output marker when user code prints nothing", async () => {
     const ras = createTypeScriptRAS(makeConfig());
     const result = await ras.execute({ code: "const x = 1 + 1;" });

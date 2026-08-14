@@ -13,6 +13,7 @@ import { runPy } from "@mcpc-tech/code-runner-mcp";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
+import { prepareOneInputs, type OneInputs } from "./inputs.js";
 
 export interface PythonRASConfig {
   nodeFSRoot: string;
@@ -210,6 +211,7 @@ export function createPythonRAS(config: PythonRASConfig) {
   act('__manual__', {}) -> list tools       (async)
   act('__manual__', {'name': 'bash'}) -> tool definition
   agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
+  inputs                                      (JSON object supplied outside code)
 
 Usage:
   import asyncio
@@ -231,6 +233,8 @@ Execute Python code in a Pyodide WebAssembly sandbox. Return stdout/stderr.
 ## Parameters
 
 **code** (required): Python code. MUST use print() to see results. Tip: Use single quotes and avoid f-strings/backticks to reduce JSON escaping issues.
+
+**inputs** (optional): JSON object exposed to code as \`inputs\`. Put source text, tool arguments, prompts, regexes, and other data here instead of embedding them in Python string literals.
 
 **packages** (optional): Map import names to PyPI package names. Use when names differ (e.g., sklearn->scikit-learn) or for indirectly imported packages (e.g., openpyxl for pandas).
 Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}
@@ -271,11 +275,21 @@ Use packages: {"sklearn": "scikit-learn"}
           description:
             'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
         },
+        inputs: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "JSON data exposed to Python code as inputs. Use it for source text and tool arguments that should not be embedded in code.",
+        },
       },
       required: ["code"],
     }),
     execute: async (
-      { code, packages }: { code: string; packages?: Record<string, string> },
+      {
+        code,
+        packages,
+        inputs,
+      }: { code: string; packages?: Record<string, string>; inputs?: OneInputs },
       _extra?: any,
       server?: any,
     ) => {
@@ -288,11 +302,27 @@ Use packages: {"sklearn": "scikit-learn"}
         emitProgress({ type: "plan", steps });
       }
 
+      let encodedInputs: string;
+      try {
+        encodedInputs = prepareOneInputs(inputs).encoded;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
+      }
+
       // Build instrumented code:
-      // 1. Step tracking wrappers (runtime markers for progress)
-      // 2. Inline exec handler (intercepts riff.run to avoid nested runPy)
-      // 3. Original user code
+      // 1. Decode host-validated inputs without interpolating raw data into Python source
+      // 2. Step tracking wrappers (runtime markers for progress)
+      // 3. Inline exec handler (intercepts riff.run to avoid nested runPy)
+      // 4. Original user code
       const instrumentedCode = `
+import base64 as _one_inputs_b64
+import json as _one_inputs_json
+inputs = _one_inputs_json.loads(_one_inputs_b64.b64decode('${encodedInputs}').decode('utf-8'))
+
 ${STEP_TRACKING}
 
 ${INLINE_EXEC_HANDLER}

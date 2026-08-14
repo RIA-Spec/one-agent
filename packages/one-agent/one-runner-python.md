@@ -61,6 +61,10 @@ Call MCP server tools with exact arguments.
 
 **Available Tools:** bash (shell commands), websearch (internet search), webfetch (fetch and transform page content).
 
+**Structured inputs:** the optional `one.inputs` JSON object is available directly as `inputs`. Put source text and tool arguments there instead of nesting them in Python string literals. For example: `await act('edit', inputs['edit'])`.
+
+**File Tools:** use `read` for bounded/paginated reads, `edit` for unique targeted replacement with a returned diff, and `write` for creating or replacing complete files.
+
 **Reusable workflows:** use the `riff` tool for recurring, stable workflows. Storage lives under `.agents/riffs/<name>/SKILL.md` and `.agents/riffs/<name>/scripts/ras.py` (or `scripts/ras.sh` for bash riffs). `riff run` executes Python riffs inline and returns a bash command for `.sh` riffs (run it with `act bash`).
 
 ## Environment Constraints

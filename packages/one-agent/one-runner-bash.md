@@ -14,6 +14,8 @@ Run a Bash RAS using unix pipes (|) and redirection (>). Deterministic control f
 
 Write bash commands directly. Use `reason` and `act` as commands in your pipelines.
 
+When the `one` call includes structured `inputs`, read all of them with `one-input` or one top-level value with `one-input <key>`. Prefer `one-input edit | act edit -` over embedding source text in shell or JSON string literals.
+
 Direct shell commands run inside just-bash. Use `act bash ...` when you explicitly need the real host bash tool.
 
 Prefer `act` in Unix-shaped forms so it behaves like other shell commands you already know:
@@ -42,6 +44,9 @@ Use discovery first when the tool name or schema is unclear:
 act --manual
 act --manual webfetch
 act --help
+act --manual read
+act --manual edit
+act --manual write
 ```
 
 **Example:**
@@ -118,6 +123,24 @@ act bash '{"command":"ls -la"}'
 
 # Use stdin JSON
 echo '{"url":"https://google.com","format":"text"}' | act webfetch -
+```
+
+For model-facing file operations, prefer the tuned tools over shell quoting:
+
+```bash
+act read '{"path":"src/app.ts","offset":1,"limit":200}'
+one-input edit | act edit -
+one-input write | act write -
+```
+
+### one-input - Structured Input Command
+
+Print JSON supplied outside the Bash program through the `one` tool's `inputs` parameter.
+
+```bash
+one-input                 # complete inputs object
+one-input edit            # one top-level value
+one-input edit | act edit -
 ```
 
 ### riff - Reusable Workflow Command

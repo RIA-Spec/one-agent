@@ -16,6 +16,7 @@ import {
 } from "just-bash";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
+import { prepareOneInputs, type OneInputs } from "./inputs.js";
 
 type ActTextContent = { type?: string; text?: unknown };
 type ActAttachment = {
@@ -277,7 +278,7 @@ function parseActArgs(args: string[], stdin: string): ParsedActArgs | ExecResult
       showHelp = true;
       continue;
     }
-    if (!arg.startsWith("-")) {
+    if (!arg.startsWith("-") || arg === "-") {
       if (!toolName && !showManual) {
         toolName = arg;
       } else if (!argsText && !needsJsonStdin && !showManual) {
@@ -456,6 +457,30 @@ function createAgentCommand(agentHandler: BashRASConfig["agentHandler"], server:
   };
 }
 
+function createOneInputCommand(inputs: OneInputs): Command {
+  return {
+    name: "one-input",
+    trusted: true,
+    async execute(args: string[]) {
+      if (args.includes("--help") || args.includes("-h")) {
+        return ok("Usage: one-input [top-level-key]");
+      }
+      if (args.length > 1) {
+        return fail("one-input accepts at most one top-level key");
+      }
+
+      const key = args[0];
+      if (key === undefined) {
+        return ok(JSON.stringify(inputs));
+      }
+      if (!Object.prototype.hasOwnProperty.call(inputs, key)) {
+        return fail(`Input key not found: ${key}`);
+      }
+      return ok(JSON.stringify(inputs[key]));
+    },
+  };
+}
+
 export function createBashRAS(config: BashRASConfig) {
   return {
     name: "one",
@@ -467,6 +492,7 @@ export function createBashRAS(config: BashRASConfig) {
 	act <tool> -
 	agent [--prompt "text"] [prompt|-] [--config '{"budget":{"maxSteps":20}}'|config]
 	act --name "name" --args '{"key":"value"}' [--args -]
+	one-input [top-level-key]  (print JSON data supplied in the one tool's inputs parameter)
 
 File system: ${config.cwd} -> ${config.cwd}
 
@@ -479,6 +505,9 @@ Usage:
   echo '{"url":"https://example.com","format":"text"}' | act webfetch - | \
   reason --prompt 'Goal: summarize the fetched content. Observation: stdin. Constraints: return {"summary":""}.' - '{"summary":""}' | \
   jq -r '.summary'
+
+Use structured inputs without shell quoting source text:
+  one-input edit | act edit -
 
 Execute Bash commands in the just-bash sandbox and return stdout/stderr.
 
@@ -494,6 +523,8 @@ Execute Bash commands in the just-bash sandbox and return stdout/stderr.
 **command** (required): Bash command to execute.
 
 **stdin** (optional): String piped to process stdin.
+
+**inputs** (optional): JSON object available through \`one-input\`. Use \`one-input edit | act edit -\` to pass an input object directly to a tool.
 
 ## File System
 - ONLY ${config.cwd} is mounted read-write into the sandbox
@@ -526,15 +557,32 @@ jq -r '.[]'
       properties: {
         command: { type: "string", description: "Bash command to execute" },
         stdin: { type: "string", description: "Optional stdin" },
+        inputs: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "JSON data available to Bash through one-input [key]. Use it for source text and tool arguments that should not be shell-quoted in command.",
+        },
       },
       required: ["command"],
     }),
     execute: async (
-      { command, stdin }: { command: string; stdin?: string },
+      { command, stdin, inputs }: { command: string; stdin?: string; inputs?: OneInputs },
       _extra?: unknown,
       server?: unknown,
     ) => {
       const { cwd, reasonHandler, actHandler, agentHandler } = config;
+
+      let preparedInputs: OneInputs;
+      try {
+        preparedInputs = prepareOneInputs(inputs).value;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
+      }
 
       const steps = codeToAST(command, "bash");
       if (steps.length > 0) {
@@ -551,6 +599,7 @@ jq -r '.[]'
             createReasonCommand(reasonHandler),
             createActCommand(actHandler, server),
             createAgentCommand(agentHandler, server),
+            createOneInputCommand(preparedInputs),
           ],
         });
 

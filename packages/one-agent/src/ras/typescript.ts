@@ -11,6 +11,7 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import ts from "typescript";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
+import { prepareOneInputs, type OneInputs } from "./inputs.js";
 
 export interface TypeScriptRASConfig {
   nodeFSRoot: string;
@@ -128,6 +129,7 @@ export function createTypeScriptRAS(config: TypeScriptRASConfig) {
   act('__manual__', {}) -> list tools       (async)
   act('__manual__', {'name': 'bash'}) -> tool definition
   agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
+  inputs                                      (JSON object supplied outside code)
 
 Usage:
   const r = await reason('Goal: summarize the local evidence. Observation: ... Constraints: return {result}.', { result: '' });
@@ -149,6 +151,8 @@ Execute TypeScript/JavaScript in a Deno sandbox. Return stdout/stderr.
 
 **code** (required): TypeScript or JavaScript code to execute. Use console.log() for output.
 
+**inputs** (optional): JSON object exposed to code as \`inputs\`. Put source text, tool arguments, prompts, regexes, and other data here instead of embedding them in code string literals.
+
 ## File System
 - ONLY ${nodeFSMountPoint} is accessible
 - Host path: ${nodeFSRoot}
@@ -165,10 +169,20 @@ Execute TypeScript/JavaScript in a Deno sandbox. Return stdout/stderr.
           type: "string",
           description: "TypeScript or JavaScript code to execute. Use console.log() for output.",
         },
+        inputs: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "JSON data exposed to TypeScript/JavaScript code as inputs. Use it for source text and tool arguments that should not be embedded in code.",
+        },
       },
       required: ["code"],
     }),
-    execute: async ({ code }: { code: string }, _extra?: any, server?: any) => {
+    execute: async (
+      { code, inputs }: { code: string; inputs?: OneInputs },
+      _extra?: any,
+      server?: any,
+    ) => {
       if (!existsSync("./data")) mkdirSync("./data", { recursive: true });
       writeFileSync(`./data/${Date.now()}.ts`, code);
 
@@ -188,7 +202,22 @@ Execute TypeScript/JavaScript in a Deno sandbox. Return stdout/stderr.
         };
       }
 
+      let encodedInputs: string;
+      try {
+        encodedInputs = prepareOneInputs(inputs).encoded;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
+      }
+
       const instrumentedCode = `
+const inputs = JSON.parse(
+  new TextDecoder().decode(Uint8Array.from(atob("${encodedInputs}"), (char) => char.charCodeAt(0)))
+);
+
 ${STEP_TRACKING}
 
 // === User Code (compiled from TS if needed) ===
