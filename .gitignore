@@ -15,6 +15,7 @@ data
 # one-agent eval artifacts
 packages/one-agent/evals/datasets/*
 !packages/one-agent/evals/datasets/.gitkeep
+!packages/one-agent/evals/datasets/control-node.json
 packages/one-agent/evals/results/*
 !packages/one-agent/evals/results/.gitkeep
 

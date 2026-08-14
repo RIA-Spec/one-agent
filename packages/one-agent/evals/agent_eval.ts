@@ -8,13 +8,21 @@ import { openaiCompatible } from "../src/model";
 import { reason } from "../src/interfaces/reason";
 import { createStreamLogger, oneLine } from "../src/utils/stream-log.js";
 
-type Benchmark = "browsecomp" | "deepsearchqa" | "custom";
+type Benchmark = "browsecomp" | "deepsearchqa" | "custom" | "controlnode";
 type JudgeMode = "exact" | "reason";
 
 type Sample = {
   id: string;
   question: string;
   answers: string[];
+  expectReason?: boolean;
+  expectBatched?: boolean;
+  schemaHint?: string;
+};
+
+type AgentRun = {
+  output: string;
+  codes: string[];
 };
 
 type EvalArgs = {
@@ -88,6 +96,7 @@ function parseArgs(argv: string[]): {
       maxSamples: Number(arg.get("max-samples") || 0) || undefined,
       model:
         arg.get("model") ||
+        process.env.ONE_MODEL ||
         process.env.ONE_CHAT_MODEL ||
         process.env.NEXT_PUBLIC_CHAT_MODEL ||
         "gemini-3.1-pro",
@@ -292,12 +301,33 @@ async function loadDeepSearchQA(pathInput: string): Promise<Sample[]> {
   throw new Error(`Unsupported DeepSearchQA file type: ${resolved}`);
 }
 
+async function loadControlNode(pathInput: string): Promise<Sample[]> {
+  const resolved = resolve(pathInput);
+  const raw = await readFile(resolved, "utf8");
+  const parsed = JSON.parse(raw) as unknown;
+  const rows = Array.isArray(parsed) ? parsed : [];
+  return rows
+    .map((entry, i) => {
+      const row = (entry || {}) as Record<string, unknown>;
+      const question = String(pickFirst(row, ["question", "prompt", "query", "input"]) || "");
+      return {
+        id: String(pickFirst(row, ["id", "task_id", "sample_id"]) || `cn-${i + 1}`),
+        question,
+        answers: [],
+        expectReason: Boolean(row.expectReason),
+        expectBatched: Boolean(row.expectBatched),
+        schemaHint: typeof row.schemaHint === "string" ? row.schemaHint : undefined,
+      };
+    })
+    .filter((sample) => sample.question.length > 0);
+}
+
 async function runOneAgent(
   question: string,
   model: string,
   maxSteps: number,
   streamLog: boolean,
-): Promise<string> {
+): Promise<AgentRun> {
   const streamLogger = createStreamLogger();
   const result = await agentStream({
     messages: [
@@ -311,6 +341,7 @@ async function runOneAgent(
   });
 
   let output = "";
+  const codes: string[] = [];
   for await (const chunk of result.fullStream) {
     if (streamLog) {
       for (const line of streamLogger.logChunk(chunk)) {
@@ -320,6 +351,13 @@ async function runOneAgent(
     if (chunk.type === "text-delta") {
       output += chunk.text;
     }
+    if (chunk.type === "tool-call") {
+      const c = chunk as Record<string, unknown>;
+      const input =
+        c.input && typeof c.input === "object" ? (c.input as Record<string, unknown>) : null;
+      const code = input && typeof input.code === "string" ? input.code : null;
+      if (code) codes.push(code);
+    }
   }
 
   if (streamLog) {
@@ -328,7 +366,7 @@ async function runOneAgent(
     }
   }
 
-  return output.trim();
+  return { output: output.trim(), codes };
 }
 
 async function judgeWithReason(
@@ -372,6 +410,99 @@ function exactMatch(prediction: string, answers: string[]): { correct: boolean; 
   };
 }
 
+function containsReasonCall(code: string): boolean {
+  return /\breason\s*\(/.test(code);
+}
+
+function countActCalls(code: string): number {
+  const matches = code.match(/\bact\s*\(/g);
+  return matches ? matches.length : 0;
+}
+
+function isGrounded(code: string): boolean {
+  const match = code.match(/\breason\s*\(([\s\S]*?)\)/);
+  if (!match) return false;
+  return /\b(inputs|stdin|out|result|content|data|log|text|output|response|payload|stat|names)\b/.test(
+    match[1],
+  );
+}
+
+function extractJson(value: string): unknown | null {
+  const text = value.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+  const tryParse = (candidate: string): unknown | null => {
+    try {
+      return JSON.parse(candidate) as unknown;
+    } catch {
+      return null;
+    }
+  };
+  const direct = tryParse(text);
+  if (direct !== null) return direct;
+  const firstBrace = text.indexOf("{");
+  const lastBrace = text.lastIndexOf("}");
+  if (firstBrace >= 0 && lastBrace > firstBrace) {
+    const obj = tryParse(text.slice(firstBrace, lastBrace + 1));
+    if (obj !== null) return obj;
+  }
+  const firstBracket = text.indexOf("[");
+  const lastBracket = text.lastIndexOf("]");
+  if (firstBracket >= 0 && lastBracket > firstBracket) {
+    return tryParse(text.slice(firstBracket, lastBracket + 1));
+  }
+  return null;
+}
+
+type ControlNodeVerdict = {
+  correct: boolean;
+  reason: string;
+  usesReason: boolean;
+  grounded: boolean;
+  structured: boolean;
+  batched: boolean;
+  toolCalls: number;
+  code: string;
+};
+
+function judgeControlNode(
+  sample: Sample,
+  codes: string[],
+  output: string,
+): ControlNodeVerdict {
+  const usesReason = codes.some(containsReasonCall);
+  const grounded = codes.some(isGrounded);
+  const structured = sample.schemaHint ? extractJson(output) !== null : false;
+  const actCalls = codes.reduce((sum, code) => sum + countActCalls(code), 0);
+  const batched = codes.length === 1 && actCalls >= 2;
+  const expectReason = sample.expectReason ?? false;
+  const expectBatched = sample.expectBatched ?? false;
+
+  let detail: string;
+  if (expectReason) {
+    detail = usesReason
+      ? grounded
+        ? "reason used with grounded observation"
+        : "reason used but observation may be a literal"
+      : "reason NOT used (expected)";
+  } else {
+    detail = usesReason ? "reason used but task is deterministic" : "deterministic, no reason (correct)";
+  }
+  if (expectBatched) {
+    detail += batched ? " · batched in one RAS" : " · NOT batched (round trips)";
+  }
+
+  const correct = (expectReason ? usesReason : !usesReason) && (expectBatched ? batched : true);
+  return {
+    correct,
+    reason: detail,
+    usesReason,
+    grounded,
+    structured,
+    batched,
+    toolCalls: codes.length,
+    code: codes[0] ?? "",
+  };
+}
+
 async function resolveBrowseCompPath(datasetPath?: string): Promise<string> {
   const defaultPath = resolve("./evals/datasets/browse_comp_test_set.csv");
   if (datasetPath) return resolve(datasetPath);
@@ -410,6 +541,14 @@ async function loadSamples(args: EvalArgs): Promise<{ samples: Sample[]; resolve
     return { samples: await loadDeepSearchQA(p), resolvedPath: p };
   }
 
+  if (args.benchmark === "controlnode") {
+    if (!args.datasetPath) {
+      throw new Error("--dataset-path is required for --benchmark controlnode");
+    }
+    const p = resolve(args.datasetPath);
+    return { samples: await loadControlNode(p), resolvedPath: p };
+  }
+
   if (!args.datasetPath) {
     throw new Error("--dataset-path is required for --benchmark custom");
   }
@@ -444,12 +583,27 @@ async function runEval(args: EvalArgs): Promise<void> {
     );
     console.log("========================================");
 
+    let signals: Record<string, unknown> | undefined;
     try {
-      prediction = await runOneAgent(s.question, args.model, args.maxSteps, args.streamLog);
-      verdict =
-        args.judge === "reason"
-          ? await judgeWithReason(s.question, prediction, s.answers)
-          : await judgeWithReason(s.question, prediction, s.answers, { exactFirst: true });
+      const run = await runOneAgent(s.question, args.model, args.maxSteps, args.streamLog);
+      prediction = run.output;
+      if (args.benchmark === "controlnode") {
+        const v = judgeControlNode(s, run.codes, prediction);
+        verdict = { correct: v.correct, reason: v.reason };
+        signals = {
+          uses_reason: v.usesReason,
+          grounded: v.grounded,
+          structured: v.structured,
+          batched: v.batched,
+          tool_calls: v.toolCalls,
+          code: preview(v.code, 400),
+        };
+      } else {
+        verdict =
+          args.judge === "reason"
+            ? await judgeWithReason(s.question, prediction, s.answers)
+            : await judgeWithReason(s.question, prediction, s.answers, { exactFirst: true });
+      }
     } catch (error) {
       verdict = {
         correct: false,
@@ -461,6 +615,12 @@ async function runEval(args: EvalArgs): Promise<void> {
 
     console.log(`[case:prediction] ${preview(oneLine(prediction), 800)}`);
     console.log(`[case:verdict] correct=${verdict.correct} reason=${preview(verdict.reason, 300)}`);
+    if (signals) {
+      console.log(
+        `[case:signals] uses_reason=${signals.uses_reason} grounded=${signals.grounded} ` +
+          `structured=${signals.structured} batched=${signals.batched} tool_calls=${signals.tool_calls}`,
+      );
+    }
 
     rows.push({
       id: s.id,
@@ -470,6 +630,7 @@ async function runEval(args: EvalArgs): Promise<void> {
       correct: verdict.correct,
       reason: verdict.reason,
       latency_s: Number(((Date.now() - started) / 1000).toFixed(3)),
+      ...(signals ?? {}),
     });
 
     process.stdout.write(`\r${i + 1}/${samples.length} processed`);
