@@ -355,7 +355,9 @@ async function runOneAgent(
       const c = chunk as Record<string, unknown>;
       const input =
         c.input && typeof c.input === "object" ? (c.input as Record<string, unknown>) : null;
-      const code = input && typeof input.code === "string" ? input.code : null;
+      const code =
+        (input && typeof input.code === "string" ? input.code : null) ??
+        (input && typeof input.command === "string" ? input.command : null);
       if (code) codes.push(code);
     }
   }
@@ -411,20 +413,24 @@ function exactMatch(prediction: string, answers: string[]): { correct: boolean; 
 }
 
 function containsReasonCall(code: string): boolean {
-  return /\breason\s*\(/.test(code);
+  return /\breason\s*\(/.test(code) || /\breason\s+--/.test(code);
 }
 
 function countActCalls(code: string): number {
-  const matches = code.match(/\bact\s*\(/g);
-  return matches ? matches.length : 0;
+  const parenCalls = code.match(/\bact\s*\(/g) ?? [];
+  const commandCalls = code.match(/\bact\s+(?:--|[\w-]+)/g) ?? [];
+  return parenCalls.length + commandCalls.length;
 }
 
 function isGrounded(code: string): boolean {
   const match = code.match(/\breason\s*\(([\s\S]*?)\)/);
-  if (!match) return false;
-  return /\b(inputs|stdin|out|result|content|data|log|text|output|response|payload|stat|names)\b/.test(
-    match[1],
-  );
+  if (match) {
+    return /\b(inputs|stdin|out|result|content|data|log|text|output|response|payload|stat|names)\b/.test(
+      match[1],
+    );
+  }
+  // bash: reason fed from stdin (--prompt -) means the observation is runtime data
+  return /\breason\s+--prompt\b[\s\S]*?--prompt\s+-/.test(code);
 }
 
 function extractJson(value: string): unknown | null {
