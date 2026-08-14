@@ -31,7 +31,15 @@ Notes:
 pnpm evals:smoke
 pnpm evals:run:browsecomp
 pnpm evals:run:deepsearchqa
+pnpm evals:run:ras-control-node
+pnpm evals:run:directanswer
 ```
+
+The `ras-control-node` benchmark verifies control-node behavior: the agent
+must first gather evidence (`act`/`bash`), then judge with `reason()` where the
+next step is genuinely uncertain, and skip `reason()` for deterministic work.
+`directanswer` verifies the decision gate: when all material is already in the
+conversation, the agent must answer directly with zero `one` tool calls.
 
 Custom run examples:
 

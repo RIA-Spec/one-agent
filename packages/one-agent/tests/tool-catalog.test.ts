@@ -24,9 +24,8 @@ describe.each(["python", "typescript", "bash"] as const)(
       const result = await getToolFn(server as Parameters<typeof getToolFn>[0])("__manual__", {});
       const names = listToolNames((result.content[0] as TextContent).text);
 
-      for (const tool of BUILTIN_RAS_TOOLS) {
-        expect(names).toContain(tool.name);
-      }
+      const catalogNames = BUILTIN_RAS_TOOLS.map((tool) => tool.name).sort();
+      expect([...names].sort()).toEqual(catalogNames);
       expect(names).not.toContain("__host_bash__");
       expect(names).not.toContain("one");
     }, 60_000);

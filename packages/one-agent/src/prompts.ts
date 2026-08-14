@@ -24,6 +24,7 @@ const CORE_AGENT_PROMPT = `You are ONE, a general agent with one public tool nam
 Decision gate:
 - If the request can be answered correctly from the current conversation without observing or changing external state, answer directly and do not call \`one\`.
 - Use \`one\` when the task requires runtime execution, current environment evidence, file/tool access, or verifiable side effects.
+- Material already in the conversation (logs, snippets, listings) needs no \`one\` call; only gather evidence that is missing.
 
 Control policy:
 - Keep the user goal, constraints, and success criteria as the Reference.
@@ -40,8 +41,8 @@ The RAS mental model:
 - Only the denoised result crosses back to the outer loop.
 
 Directives:
-- One job = one RAS call: gather evidence, judge, and print the result in one script.
-- Never hardcode a judgment into code (no \`action = "retry"\` literals); judgments come from \`reason()\`.
+- One bounded action phase = one RAS call: batch related operations while their target and stop conditions remain clear.
+- Do not hardcode a model judgment merely to imitate \`reason()\` output; keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic.
 - Pass the raw observation into \`reason()\` from \`one.inputs\` or runtime variables — never restate it by hand. Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
 Tool discovery:
@@ -69,9 +70,6 @@ async def main():
     files = await act("bash", {"command": "git diff --name-only HEAD"})
     d = await reason(f"Goal: categorize the changes by scope. Observation: {log['content'][0]['text']} | {files['content'][0]['text']}", [{"scope": "", "message": "", "files": []}])
     print(d["data"])
-    # pure judgment, no act: classify ambiguous evidence from inputs
-    c = await reason(f"Goal: classify each item. Observation: {inputs.get('items', [])}", [{"item": "", "category": ""}])
-    print(c["data"])
 asyncio.run(main())
 \`\`\``,
   typescript: `TypeScript mode:
@@ -86,9 +84,6 @@ const log = await act("bash", { command: "git log --oneline -10" });
 const files = await act("bash", { command: "git diff --name-only HEAD" });
 const d = await reason("Goal: categorize the changes. Observation: " + log.content[0].text + " | " + files.content[0].text, [{ scope: "", message: "", files: [] }]);
 console.log(JSON.stringify(d.data));
-// pure judgment, no act: classify ambiguous evidence from inputs
-const c = await reason("Goal: classify each item. Observation: " + JSON.stringify(inputs.items ?? []), [{ item: "", category: "" }]);
-console.log(JSON.stringify(c.data));
 \`\`\``,
   bash: `Bash mode:
 - The public tool is \`one\`, with \`command\`, optional \`stdin\`, and optional \`inputs\`.
@@ -103,8 +98,6 @@ Control-node example (batch evidence, judge once at the merge point):
 log=$(act bash '{"command":"git log --oneline -10"}')
 files=$(act bash '{"command":"git diff --name-only HEAD"}')
 printf '%s\n%s' "$log" "$files" | reason --prompt "Goal: categorize the changes." --prompt - --structure '[{"scope":"","message":"","files":[]}]' | jq -c '.'
-# pure judgment, no act: classify ambiguous evidence from inputs
-one-input items | reason --prompt "Goal: classify each item." --prompt - --structure '[{"item":"","category":""}]' | jq -c '.'
 \`\`\``,
 };
 

@@ -1,0 +1,69 @@
+[
+  {
+    "id": "cn-batch-acts",
+    "question": "Investigate this repository's recent changes: gather the diff stat, the recent commit log, and the changed file names, then categorize the changes by scope. Return a JSON array [{scope, message, files}] and print it.",
+    "expectReason": true,
+    "expectBatched": true,
+    "kind": "batch-summary",
+    "schemaHint": "[{\"scope\": \"\", \"message\": \"\", \"files\": [\"\"]}]"
+  },
+  {
+    "id": "cn-retry-vs-escalate",
+    "question": "A CI deploy just failed. Read the deploy log from evals/fixtures/ci-deploy.txt, then decide: retry the same deploy, or escalate to a human? Return a JSON object {action: \"retry\"|\"escalate\", reason: string} and print it.",
+    "expectReason": true,
+    "kind": "action-choice",
+    "expected": { "allow": ["retry", "escalate"], "evidence": ["ETIMEDOUT"] },
+    "schemaHint": "{\"action\": \"retry\"|\"escalate\", \"reason\": \"\"}"
+  },
+  {
+    "id": "cn-targeting",
+    "question": "User question: \"What is the best way to persist chat history in a local AI agent?\" Read the noisy search snippets from evals/fixtures/search-snippets.txt, then pick the 2 most relevant snippets for the user question. Return a JSON array of their numbers, like [1, 2].",
+    "expectReason": true,
+    "kind": "pick-list",
+    "expected": { "items": [1, 4] },
+    "schemaHint": "[1, 2]"
+  },
+  {
+    "id": "cn-synthesis",
+    "question": "Read the raw CI test log from evals/fixtures/test-output.txt (interleaved progress lines and ANSI codes), then synthesize what went wrong in this CI run: return a JSON object {summary: string, topFailure: string, suggestedAction: string} and print it.",
+    "expectReason": true,
+    "kind": "synthesis",
+    "expected": { "mustContain": ["b.test.ts", "d.test.ts"] },
+    "schemaHint": "{\"summary\": \"\", \"topFailure\": \"\", \"suggestedAction\": \"\"}"
+  },
+  {
+    "id": "cn-ambiguous-classification",
+    "question": "Read the workspace file list from evals/fixtures/workspace-files.txt, then classify each file into a folder. Folder options: Documents, Images, Design, Spreadsheets, Other. Some files cannot be decided from the name alone — use judgment for those. Return a JSON array [{file, folder}] and print it.",
+    "expectReason": true,
+    "kind": "classification",
+    "expected": {
+      "checks": [
+        { "file": "untitled", "folder": "Other" },
+        { "file": "budget.xlsx", "folder": "Spreadsheets" },
+        { "file": "IMG_0421.HEIC", "folder": "Images" },
+        { "file": "logo.psd", "folder": "Design" }
+      ],
+      "count": 8
+    },
+    "schemaHint": "[{\"file\": \"\", \"folder\": \"\"}]"
+  },
+  {
+    "id": "cn-deterministic-classify",
+    "question": "Read the desktop file listing from evals/fixtures/desktop-listing.txt. Classify each entry: directories stay as-is, .jpg/.png files go to Images. Return a JSON array [{name, category}] and print it.",
+    "expectReason": false,
+    "kind": "rule-classify",
+    "expected": {
+      "images": ["bac-logo-compressed.jpg", "english-tips-preview.png", "style-english.png", "style-login.png", "home-tips-preview.png"],
+      "notImages": ["Disk-Images", "Documents", "Videos", "Screenshots", "bac"]
+    },
+    "schemaHint": "[{\"name\": \"\", \"category\": \"\"}]"
+  },
+  {
+    "id": "cn-deterministic-count",
+    "question": "Read the file list from evals/fixtures/file-count.txt and count how many .png files it contains. Answer with just the number.",
+    "expectReason": false,
+    "kind": "count",
+    "expected": { "value": 4 },
+    "schemaHint": "4"
+  }
+]

@@ -1,0 +1,6 @@
+a.png
+b.jpg
+c.png
+d.txt
+e.png
+f.png

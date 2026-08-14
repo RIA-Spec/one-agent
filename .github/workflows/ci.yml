@@ -40,3 +40,8 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Test
+        run: |
+          cp packages/one-agent/.env.example packages/one-agent/.env
+          pnpm test

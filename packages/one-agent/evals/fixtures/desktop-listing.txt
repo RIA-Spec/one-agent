@@ -1,0 +1,10 @@
+Disk-Images (dir)
+Documents (dir)
+Videos (dir)
+Screenshots (dir)
+bac (dir)
+bac-logo-compressed.jpg
+english-tips-preview.png
+style-english.png
+style-login.png
+home-tips-preview.png

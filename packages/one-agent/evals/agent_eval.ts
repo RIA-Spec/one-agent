@@ -8,7 +8,7 @@ import { openaiCompatible } from "../src/model";
 import { reason } from "../src/interfaces/reason";
 import { createStreamLogger, oneLine } from "../src/utils/stream-log.js";
 
-type Benchmark = "browsecomp" | "deepsearchqa" | "custom" | "controlnode";
+type Benchmark = "browsecomp" | "deepsearchqa" | "custom" | "ras-control-node" | "directanswer";
 type JudgeMode = "exact" | "reason";
 
 type Sample = {
@@ -17,7 +17,10 @@ type Sample = {
   answers: string[];
   expectReason?: boolean;
   expectBatched?: boolean;
+  expectToolCall?: boolean;
   schemaHint?: string;
+  kind?: string;
+  expected?: Record<string, unknown>;
 };
 
 type AgentRun = {
@@ -316,7 +319,13 @@ async function loadControlNode(pathInput: string): Promise<Sample[]> {
         answers: [],
         expectReason: Boolean(row.expectReason),
         expectBatched: Boolean(row.expectBatched),
+        expectToolCall: typeof row.expectToolCall === "boolean" ? row.expectToolCall : true,
         schemaHint: typeof row.schemaHint === "string" ? row.schemaHint : undefined,
+        kind: typeof row.kind === "string" ? row.kind : undefined,
+        expected:
+          row.expected && typeof row.expected === "object"
+            ? (row.expected as Record<string, unknown>)
+            : undefined,
       };
     })
     .filter((sample) => sample.question.length > 0);
@@ -434,7 +443,10 @@ function isGrounded(code: string): boolean {
 }
 
 function extractJson(value: string): unknown | null {
-  const text = value.replace(/^```(?:json)?\s*/i, "").replace(/```$/, "").trim();
+  const text = value
+    .replace(/^```(?:json)?\s*/i, "")
+    .replace(/```$/, "")
+    .trim();
   const tryParse = (candidate: string): unknown | null => {
     try {
       return JSON.parse(candidate) as unknown;
@@ -444,18 +456,124 @@ function extractJson(value: string): unknown | null {
   };
   const direct = tryParse(text);
   if (direct !== null) return direct;
+  const spans: Array<{ start: number; end: number }> = [];
   const firstBrace = text.indexOf("{");
   const lastBrace = text.lastIndexOf("}");
   if (firstBrace >= 0 && lastBrace > firstBrace) {
-    const obj = tryParse(text.slice(firstBrace, lastBrace + 1));
-    if (obj !== null) return obj;
+    spans.push({ start: firstBrace, end: lastBrace });
   }
   const firstBracket = text.indexOf("[");
   const lastBracket = text.lastIndexOf("]");
   if (firstBracket >= 0 && lastBracket > firstBracket) {
-    return tryParse(text.slice(firstBracket, lastBracket + 1));
+    spans.push({ start: firstBracket, end: lastBracket });
+  }
+  // Prefer the largest candidate span so a JSON array wrapped in prose wins
+  // over the object inside it, while a nested array stays inside its object.
+  spans.sort((a, b) => b.end - b.start - (a.end - a.start));
+  for (const { start, end } of spans) {
+    const parsed = tryParse(text.slice(start, end + 1));
+    if (parsed !== null) return parsed;
   }
   return null;
+}
+
+function containsText(haystack: string, needle: string): boolean {
+  return haystack.toLowerCase().includes(needle.toLowerCase());
+}
+
+function normalizeEntryName(name: string): string {
+  return name
+    .replace(/\s*\(dir\)\s*$/i, "")
+    .trim()
+    .toLowerCase();
+}
+
+function semanticOk(sample: Sample, output: string): boolean {
+  const kind = sample.kind ?? "";
+  const expected = sample.expected ?? {};
+  const parsed = extractJson(output);
+
+  switch (kind) {
+    case "action-choice": {
+      const obj = parsed as Record<string, unknown> | null;
+      if (!obj || typeof obj.action !== "string") return false;
+      const allow = toStringArray(expected.allow);
+      if (!allow.includes(obj.action)) return false;
+      const evidence = toStringArray(expected.evidence);
+      const reason = String(obj.reason ?? "");
+      return evidence.some((e) => containsText(reason, e));
+    }
+    case "pick-list": {
+      if (!Array.isArray(parsed)) return false;
+      const want = ((expected.items as unknown[]) ?? []).map(Number);
+      const got = parsed.map(Number);
+      return want.length === got.length && want.every((n) => got.includes(n));
+    }
+    case "synthesis": {
+      const text = JSON.stringify(parsed ?? output);
+      const must = toStringArray(expected.mustContain);
+      return must.every((m) => containsText(text, m));
+    }
+    case "count": {
+      const got = typeof parsed === "number" ? parsed : Number(String(parsed ?? "").trim());
+      return got === Number(expected.value);
+    }
+    case "classification": {
+      if (!Array.isArray(parsed)) return false;
+      const checks = (expected.checks as Array<Record<string, string>>) ?? [];
+      const count = Number(expected.count ?? -1);
+      if (count >= 0 && parsed.length !== count) return false;
+      return checks.every((c) => {
+        const item = parsed.find(
+          (row) =>
+            normalizeEntryName(
+              String(
+                (row as Record<string, unknown>).file ??
+                  (row as Record<string, unknown>).name ??
+                  "",
+              ),
+            ) === normalizeEntryName(c.file),
+        );
+        if (!item) return false;
+        const folder = String(
+          (item as Record<string, unknown>).folder ??
+            (item as Record<string, unknown>).category ??
+            "",
+        );
+        return folder.toLowerCase() === c.folder.toLowerCase();
+      });
+    }
+    case "rule-classify": {
+      if (!Array.isArray(parsed)) return false;
+      const images = toStringArray(expected.images).map(normalizeEntryName);
+      const notImages = toStringArray(expected.notImages).map(normalizeEntryName);
+      if (parsed.length !== images.length + notImages.length) return false;
+      const rows = parsed.map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          name: normalizeEntryName(String(r.name ?? r.file ?? "")),
+          category: String(r.category ?? r.folder ?? "").toLowerCase(),
+        };
+      });
+      const imageNames = new Set(rows.filter((r) => r.category === "images").map((r) => r.name));
+      return (
+        images.every((name) => imageNames.has(name)) &&
+        notImages.every((name) => !imageNames.has(name))
+      );
+    }
+    case "batch-summary": {
+      if (!Array.isArray(parsed) || parsed.length === 0) return false;
+      return parsed.some(
+        (row) =>
+          Array.isArray((row as Record<string, unknown>).files) &&
+          ((row as Record<string, unknown>).files as unknown[]).length > 0 &&
+          typeof (row as Record<string, unknown>).scope === "string" &&
+          String((row as Record<string, unknown>).scope).length > 0,
+      );
+    }
+    default:
+      return true;
+  }
 }
 
 type ControlNodeVerdict = {
@@ -464,17 +582,15 @@ type ControlNodeVerdict = {
   usesReason: boolean;
   grounded: boolean;
   structured: boolean;
+  semantic: boolean;
+  toolCallOk: boolean;
   batched: boolean;
   toolCalls: number;
   code: string;
   codes: string[];
 };
 
-function judgeControlNode(
-  sample: Sample,
-  codes: string[],
-  output: string,
-): ControlNodeVerdict {
+function judgeControlNode(sample: Sample, codes: string[], output: string): ControlNodeVerdict {
   const usesReason = codes.some(containsReasonCall);
   const grounded = codes.some(isGrounded);
   const structured = sample.schemaHint ? extractJson(output) !== null : false;
@@ -482,6 +598,9 @@ function judgeControlNode(
   const batched = codes.length === 1 && actCalls >= 2;
   const expectReason = sample.expectReason ?? false;
   const expectBatched = sample.expectBatched ?? false;
+  const expectToolCall = sample.expectToolCall ?? true;
+  const toolCallOk = expectToolCall ? codes.length > 0 : codes.length === 0;
+  const semantic = semanticOk(sample, output);
 
   let detail: string;
   if (expectReason) {
@@ -491,19 +610,36 @@ function judgeControlNode(
         : "reason used but observation may be a literal"
       : "reason NOT used (expected)";
   } else {
-    detail = usesReason ? "reason used but task is deterministic" : "deterministic, no reason (correct)";
+    detail = usesReason
+      ? "reason used but task is deterministic"
+      : "deterministic, no reason (correct)";
   }
   if (expectBatched) {
     detail += batched ? " · batched in one RAS" : " · NOT batched (round trips)";
   }
+  if (!toolCallOk) {
+    detail += expectToolCall
+      ? " · no tool call (expected one)"
+      : " · tool called (expected direct answer)";
+  }
+  if (!semantic) {
+    detail += " · semantic check failed";
+  }
 
-  const correct = (expectReason ? usesReason : !usesReason) && (expectBatched ? batched : true);
+  const correct =
+    (expectReason ? usesReason && grounded : !usesReason) &&
+    (!expectBatched || batched) &&
+    toolCallOk &&
+    (!sample.schemaHint || structured) &&
+    semantic;
   return {
     correct,
     reason: detail,
     usesReason,
     grounded,
     structured,
+    semantic,
+    toolCallOk,
     batched,
     toolCalls: codes.length,
     code: codes[0] ?? "",
@@ -549,9 +685,9 @@ async function loadSamples(args: EvalArgs): Promise<{ samples: Sample[]; resolve
     return { samples: await loadDeepSearchQA(p), resolvedPath: p };
   }
 
-  if (args.benchmark === "controlnode") {
+  if (args.benchmark === "ras-control-node" || args.benchmark === "directanswer") {
     if (!args.datasetPath) {
-      throw new Error("--dataset-path is required for --benchmark controlnode");
+      throw new Error(`--dataset-path is required for --benchmark ${args.benchmark}`);
     }
     const p = resolve(args.datasetPath);
     return { samples: await loadControlNode(p), resolvedPath: p };
@@ -595,13 +731,15 @@ async function runEval(args: EvalArgs): Promise<void> {
     try {
       const run = await runOneAgent(s.question, args.model, args.maxSteps, args.streamLog);
       prediction = run.output;
-      if (args.benchmark === "controlnode") {
+      if (args.benchmark === "ras-control-node" || args.benchmark === "directanswer") {
         const v = judgeControlNode(s, run.codes, prediction);
         verdict = { correct: v.correct, reason: v.reason };
         signals = {
           uses_reason: v.usesReason,
           grounded: v.grounded,
           structured: v.structured,
+          semantic: v.semantic,
+          tool_call_ok: v.toolCallOk,
           batched: v.batched,
           tool_calls: v.toolCalls,
           code: preview(v.code, 400),
@@ -627,7 +765,8 @@ async function runEval(args: EvalArgs): Promise<void> {
     if (signals) {
       console.log(
         `[case:signals] uses_reason=${signals.uses_reason} grounded=${signals.grounded} ` +
-          `structured=${signals.structured} batched=${signals.batched} tool_calls=${signals.tool_calls}`,
+          `structured=${signals.structured} semantic=${signals.semantic} ` +
+          `tool_call_ok=${signals.tool_call_ok} batched=${signals.batched} tool_calls=${signals.tool_calls}`,
       );
     }
 

@@ -1,0 +1,5 @@
+1. SQLite is a single-file embedded database used by many local-first apps for chat persistence
+2. vector databases like Chroma store embeddings, not raw chat logs
+3. We migrated our cloud backend to Postgres last quarter; read about it in our blog
+4. sqlite-vec adds vector search on top of SQLite tables
+5. Pinecone pricing page is here
