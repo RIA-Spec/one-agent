@@ -18,24 +18,17 @@ describe.each(["python", "typescript", "bash"] as const)(
       vi.unstubAllEnvs();
     });
 
-    it(
-      "matches the real __manual__ listing and hides internal names",
-      async () => {
-        vi.stubEnv("RAS_MODE", mode);
-        const server = await getServer();
-        const result = await getToolFn(server as Parameters<typeof getToolFn>[0])(
-          "__manual__",
-          {},
-        );
-        const names = listToolNames((result.content[0] as TextContent).text);
+    it("matches the real __manual__ listing and hides internal names", async () => {
+      vi.stubEnv("RAS_MODE", mode);
+      const server = await getServer();
+      const result = await getToolFn(server as Parameters<typeof getToolFn>[0])("__manual__", {});
+      const names = listToolNames((result.content[0] as TextContent).text);
 
-        for (const tool of BUILTIN_RAS_TOOLS) {
-          expect(names).toContain(tool.name);
-        }
-        expect(names).not.toContain("__host_bash__");
-        expect(names).not.toContain("one");
-      },
-      60_000,
-    );
+      for (const tool of BUILTIN_RAS_TOOLS) {
+        expect(names).toContain(tool.name);
+      }
+      expect(names).not.toContain("__host_bash__");
+      expect(names).not.toContain("one");
+    }, 60_000);
   },
 );

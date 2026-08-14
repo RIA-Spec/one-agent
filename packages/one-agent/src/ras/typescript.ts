@@ -118,7 +118,7 @@ function transpileTypeScript(code: string): string {
 }
 
 export function createTypeScriptRAS(config: TypeScriptRASConfig) {
-  const { nodeFSRoot, nodeFSMountPoint, reasonHandler, actHandler, agentHandler } = config;
+  const { nodeFSMountPoint, reasonHandler, actHandler, agentHandler } = config;
 
   return {
     name: "one",

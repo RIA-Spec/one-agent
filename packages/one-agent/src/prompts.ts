@@ -82,12 +82,7 @@ cat a.txt`;
 function resolveRASMode(): RASMode {
   const raw = (process.env.RAS_MODE || "python").toLowerCase();
   if (raw === "bash") return "bash";
-  if (
-    raw === "typescript" ||
-    raw === "ts" ||
-    raw === "javascript" ||
-    raw === "js"
-  ) {
+  if (raw === "typescript" || raw === "ts" || raw === "javascript" || raw === "js") {
     return "typescript";
   }
   return "python";
