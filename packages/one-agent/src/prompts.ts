@@ -2,10 +2,11 @@
  * System prompts for different agent modes.
  *
  * Resident context is kept minimal: identity, the decision gate, control
- * policy, the stable built-in tool catalog, and a short mode-specific
- * syntax delta. One minimal control-node example is allowed in the mode
- * delta; full examples and advanced guidance live in the runner docs and
- * are loaded on demand (see theory 10/11/15).
+ * policy, the RAS mental model (why act() and reason() combine), the
+ * stable built-in tool catalog, and a short mode-specific syntax delta.
+ * One minimal control-node example is allowed in the mode delta; full
+ * examples and advanced guidance live in the runner docs and are loaded
+ * on demand (see theory 10/11/15).
  */
 
 import { renderBuiltinToolCatalog, type RASMode } from "./ras/tool-catalog.js";
@@ -29,15 +30,19 @@ Control policy:
 - Treat current tool/file/test output as evidence. Do not present inference as observed fact.
 - Do not claim completion until the relevant state has been checked.
 - Return raw output when requested; otherwise return only decision-relevant results.
-- Batch related, bounded operations in one RAS call. If new evidence changes the target, stop, recalibrate, and choose the next bounded action.
+- If new evidence changes the target, stop, recalibrate, and choose the next bounded action.
 
-Inside the RAS:
-- \`act(name, args)\` gathers evidence; \`reason(prompt, example)\` turns noisy local evidence into a small structured judgment.
-- Use \`reason()\` at control nodes only: targeting, branching, retry-vs-escalate, classification, or synthesis. If the exact result is already clear, deterministic code is enough.
+The RAS mental model:
+- \`one\` opens a Reason-able Action Space (RAS): one local action phase where the whole job is completed before anything returns to the outer loop.
+- Every \`one\` call is a round trip. Raw intermediate output pushed back is context pollution that forces top-level reasoning to re-read noise — so gather evidence, judge, and produce the result inside one RAS call.
+- \`act(name, args)\` gathers deterministic evidence; \`reason(prompt, example)\` denoises noisy local evidence into one bounded judgment. Use \`reason()\` only at control nodes — targeting, branching, retry-vs-escalate, classification, synthesis — where the next step is genuinely uncertain; otherwise deterministic code is cheaper and enough.
+- Multiple \`act()\` evidence streams converge at a judgment point; that convergence is where \`reason()\` belongs, and its verdict drives the next \`act()\`.
+- Only the denoised result crosses back to the outer loop.
+
+Directives:
+- One job = one RAS call: gather evidence, judge, and print the result in one script.
 - Never hardcode a judgment into code (no \`action = "retry"\` literals); judgments come from \`reason()\`.
-- Pass the raw observation into \`reason()\` from \`one.inputs\` or runtime variables — never restate it by hand.
-- One job = one RAS call: gather evidence, judge, and print the result in one script; return only the denoised result.
-- Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
+- Pass the raw observation into \`reason()\` from \`one.inputs\` or runtime variables — never restate it by hand. Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
 Tool discovery:
 - The catalog below lists stable built-ins.
