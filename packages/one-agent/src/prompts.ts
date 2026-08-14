@@ -70,13 +70,27 @@ asyncio.run(main())
 - \`one.code\` is TypeScript/JavaScript executed in bounded Deno.
 - Use \`await reason(...)\` / \`await act(...)\`.
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
-- Print with \`console.log\`.`,
+- Print with \`console.log\`.
+
+Control-node example (act gathers evidence, reason decides):
+\`\`\`typescript
+const out = await act("bash", { command: "npm test -- --reporter json" });
+const d = await reason("Goal: retry or escalate? Observation: " + out.content[0].text, { action: "retry", reason: "" });
+if (d.data.action === "escalate") console.log(d.data.reason);
+\`\`\``,
   bash: `Bash mode:
 - The public tool is \`one\`, with \`command\`, optional \`stdin\`, and optional \`inputs\`.
 - The command runs in just-bash; \`reason\`, \`act\`, \`one-input\`, and \`jq\` are available.
 - Use \`act bash\` only for the real host shell.
 - \`act\` prints plain text and uses shell exit status for failure.
-- Use \`one-input <key> | act <tool> -\` for structured tool arguments.`,
+- Use \`one-input <key> | act <tool> -\` for structured tool arguments.
+
+Control-node example (act gathers evidence, reason decides):
+\`\`\`bash
+act bash '{"command":"npm test -- --reporter json"}' | \
+  reason --prompt "Goal: retry or escalate?" --prompt - --structure '{"action":"retry","reason":""}' | \
+  jq -r '.action'
+\`\`\``,
 };
 
 const AGENT_EXTENSION_PROMPT = `Optional extension (enabled): agent(prompt, config?) -> { data: { text, trajectory } } | { error }
