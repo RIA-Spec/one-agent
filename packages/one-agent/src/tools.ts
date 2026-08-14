@@ -163,7 +163,7 @@ export async function getServer() {
 
               const hostBashTool = createBashTool(projectRoot);
               server.tool(
-                "__host_bash__",
+                "bash",
                 hostBashTool.description,
                 hostBashTool.parameters,
                 hostBashTool.execute,

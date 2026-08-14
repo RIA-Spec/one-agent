@@ -63,7 +63,7 @@ type ParsedActArgs =
   | { kind: "call"; toolName: string; toolArgs: unknown };
 type ParsedAgentArgs = { prompt: string; config: unknown };
 
-const HOST_BASH_TOOL_NAME = "__host_bash__";
+const HOST_BASH_TOOL_NAME = "bash";
 
 export interface BashRASConfig {
   cwd: string;
