@@ -14,6 +14,17 @@ import {
   type ChalkChain,
 } from "./ansi.js";
 
+/** All tags the renderer knows how to style, used for bare-fragment repair. */
+const KNOWN_TAGS = new Set<string>([...BLOCK_TAGS, ...INLINE_STYLE_TAGS]);
+
+/**
+ * Matches a bare "name>" fragment: a known tag name immediately followed by
+ * ">" and not preceded by "<", "/", or an ASCII word char, so real tags
+ * ("<li>", "</li>"), prose ("a > b") and merged tags ("<pstrong>") are left
+ * alone.
+ */
+const BARE_TAG_FRAGMENT = /(?<!<)(?<![a-zA-Z0-9_/])([a-zA-Z][a-zA-Z0-9]*)>/g;
+
 // Force color output regardless of TTY detection (useful in tests / piped output)
 const chalk = new Chalk({ level: 3 });
 
@@ -72,6 +83,9 @@ export class StreamingHtmlRenderer {
 
   /** Stack of list contexts for bullet/number generation. */
   private listStack: ListFrame[] = [];
+
+  /** Stack of open inline tag names (kept in sync with inlineStack). */
+  private inlineTagStack: string[] = [];
 
   /** Current inline chalk chain (accumulated from open inline tags). */
   private inlineChain: ChalkChain = chalk as unknown as ChalkChain;
@@ -154,10 +168,12 @@ export class StreamingHtmlRenderer {
         }
         // Push identity chain — no color change inside pre/code
         this.inlineStack.push(this.inlineChain);
+        this.inlineTagStack.push(tag);
         return;
       }
 
       this.inlineStack.push(this.inlineChain);
+      this.inlineTagStack.push(tag);
       this.inlineChain = applyInlineOpen(tag, this.inlineChain) as ChalkChain;
 
       // <a href>: note we will append href later on close if different from text
@@ -232,14 +248,71 @@ export class StreamingHtmlRenderer {
     }
     if (!text) return;
 
-    const styled = (this.inlineChain as unknown as { (s: string): string })(text);
+    if (this.inPre) {
+      // Inside <pre> the text is code — never repair bare tag fragments.
+      const styled = (this.inlineChain as unknown as { (s: string): string })(text);
+      this.appendCurrentText(styled);
+      return;
+    }
 
+    this.emitTextWithRepair(text);
+  }
+
+  /**
+   * LLMs emitting HTML sometimes drop the angle bracket on a tag, leaving a
+   * bare fragment like "li>" or "strong>" in the text stream. Repair those
+   * fragments using the current open-tag state: a fragment matching an open
+   * element is a mangled closing tag; an inline fragment matching nothing is
+   * treated as a mangled opening tag.
+   */
+  private emitTextWithRepair(text: string): void {
+    let index = 0;
+    BARE_TAG_FRAGMENT.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = BARE_TAG_FRAGMENT.exec(text))) {
+      const name = match[1]!.toLowerCase();
+      this.appendCurrentText(text.slice(index, match.index));
+      if (KNOWN_TAGS.has(name)) {
+        this.applyBareTag(name);
+      } else {
+        this.appendCurrentText(match[0]);
+      }
+      index = match.index + match[0].length;
+    }
+    this.appendCurrentText(text.slice(index));
+  }
+
+  private appendCurrentText(text: string): void {
+    if (!text) return;
+    const styled = (this.inlineChain as unknown as { (s: string): string })(text);
     if (this.inTableCell) {
       this.currentCell += styled;
       return;
     }
-
     this.appendToCurrentBlock(styled);
+  }
+
+  /** Interpret a bare "name>" fragment as an open or close tag. */
+  private applyBareTag(name: string): void {
+    if (BLOCK_TAGS.has(name)) {
+      // A bare block fragment is always a mangled closing tag; drop it if
+      // the element isn't open (it can't start a block without "<").
+      if (this.blockStack.some((frame) => frame.tag === name)) {
+        this.handleClose(name);
+      }
+      return;
+    }
+
+    // Inline fragments: close if the element is open, otherwise treat the
+    // fragment as a mangled opening tag (multi-letter names only, to avoid
+    // false positives on single-letter words like "a>" or "b>").
+    if (this.inlineTagStack.includes(name)) {
+      this.handleClose(name);
+    } else if (name.length > 1) {
+      this.handleOpen(name, {});
+    } else {
+      this.appendCurrentText(name + ">");
+    }
   }
 
   private handleClose(tag: string): void {
@@ -257,6 +330,7 @@ export class StreamingHtmlRenderer {
       }
       const prev = this.inlineStack.pop();
       if (prev !== undefined) this.inlineChain = prev;
+      this.inlineTagStack.pop();
       return;
     }
 

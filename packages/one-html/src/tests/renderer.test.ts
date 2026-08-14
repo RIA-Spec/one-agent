@@ -487,6 +487,62 @@ describe("streaming — partial chunks (parser robustness)", () => {
   });
 });
 
+// ── bare tag fragment repair (LLMs sometimes drop "<" / "</" on a tag) ───────
+
+describe("bare tag fragment repair", () => {
+  it("repairs a bare 'li>' as the closing tag of an open item", () => {
+    const plain = renderPlain("<ul>\n<li>第一项：传入li>\n<li>第二项</li>\n</ul>");
+    expect(plain).toContain("第一项：传入");
+    expect(plain).not.toContain("li>");
+    expect(plain).toContain("第二项");
+  });
+
+  it("repairs a bare 'p>' as the closing tag of an open paragraph", () => {
+    const plain = renderPlain("<p>这个信息来自系统提示词，而不是工具定义p>");
+    expect(plain).toContain("这个信息来自系统提示词，而不是工具定义");
+    expect(plain).not.toContain("p>");
+  });
+
+  it("closes an open inline tag on a bare 'strong>' fragment", () => {
+    const plain = renderPlain("<p>这是<strong>重点</strong>strong>内容</p>");
+    expect(plain).toBe("这是重点内容");
+    expect(plain).not.toContain("strong>");
+  });
+
+  it("opens an inline tag on a bare multi-letter fragment when nothing is open", () => {
+    const plain = renderPlain("<p>这是strong>重点</strong>内容</p>");
+    expect(plain).toBe("这是重点内容");
+    expect(plain).not.toContain("strong>");
+  });
+
+  it("does not repair 'a > b' style prose", () => {
+    const plain = renderPlain("<p>use a > b and i > 0</p>");
+    expect(plain).toContain("a > b");
+    expect(plain).toContain("i > 0");
+  });
+
+  it("does not repair fragments inside <pre> code", () => {
+    const plain = renderPlain("<pre><code>echo li>;</code></pre>");
+    expect(plain).toContain("echo li>;");
+  });
+
+  it("repairs a space-separated bare 'code>' fragment", () => {
+    const plain = renderPlain("<p>注意 code>用法</p>");
+    expect(plain).toContain("注意 用法");
+    expect(plain).not.toContain("code>");
+  });
+
+  it("keeps correct block order after repairing a split fragment", () => {
+    const flushed: string[] = [];
+    const r = new StreamingHtmlRenderer({ onFlush: (t) => flushed.push(t) });
+    r.write("<p>intro</p><p>第一项：传入li>\n<li>第二项</li></p>");
+    r.end();
+    const out = flushed.map(stripAnsi).join("\n");
+    expect(out.indexOf("intro")).toBeLessThan(out.indexOf("第一项"));
+    expect(out).not.toContain("li>");
+  });
+});
+
 // ── flush() collection mode ───────────────────────────────────────────────────
 
 describe("flush() collection mode", () => {
