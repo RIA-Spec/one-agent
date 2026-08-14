@@ -20,9 +20,9 @@
   },
   {
     "id": "cn-synthesis",
-    "question": "Here is a noisy test output: \"PASS src/a.test.ts (12 tests) \\nFAIL src/b.test.ts > b > renders > AssertionError: expected 1 to be 2 \\nPASS src/c.test.ts (5 tests) \\nFAIL src/d.test.ts > d > query > TypeError: Cannot read properties of undefined (reading 'map') \\n  at query \\n  at src/d.test.ts:42:17 \\nPASS src/e.test.ts (3 tests) \\nTest Suites: 3 failed, 2 passed \\nTests: 2 failed, 18 passed\". Produce a structured failure summary: JSON object {passedSuites: number, failedSuites: number, failures: [{test, error}]} and print it.",
+    "question": "Here is a raw CI log tail with interleaved progress lines and ANSI codes: \"\\u001b[32mPASS\\u001b[0m src/a.test.ts (12 tests) \\n⠙ tsc: 3.2s done \\n\\u001b[31mFAIL\\u001b[0m src/b.test.ts > b > renders > AssertionError: expected 1 to be 2 \\n⠹ running: src/d.test.ts \\n\\u001b[32mPASS\\u001b[0m src/c.test.ts (5 tests) \\n\\u001b[31mFAIL\\u001b[0m src/d.test.ts > d > query > TypeError: Cannot read properties of undefined (reading 'map') at query (src/d.test.ts:42:17) \\n⠼ watch: watching 4 files \\n\\u001b[32mPASS\\u001b[0m src/e.test.ts (3 tests) \\nTest Suites: 3 failed, 2 passed \\nTests: 2 failed, 18 passed\". Synthesize what went wrong in this CI run: return a JSON object {summary: string, topFailure: string, suggestedAction: string} and print it.",
     "expectReason": true,
-    "schemaHint": "{\"passedSuites\": 0, \"failedSuites\": 0, \"failures\": [{\"test\": \"\", \"error\": \"\"}]}"
+    "schemaHint": "{\"summary\": \"\", \"topFailure\": \"\", \"suggestedAction\": \"\"}"
   },
   {
     "id": "cn-ambiguous-classification",

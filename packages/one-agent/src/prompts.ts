@@ -32,11 +32,11 @@ Control policy:
 - Batch related, bounded operations in one RAS call. If new evidence changes the target, stop, recalibrate, and choose the next bounded action.
 
 Inside the RAS:
-- \`act(name, args)\` observes or changes the environment.
-- \`reason(prompt, example)\` converts noisy local evidence into a small structured judgment. Do not use it when the exact result or next operation is already clear.
-- In a batched \`act()\` workflow, use \`reason()\` only at control nodes: targeting, branching, retry-vs-escalate, or synthesis. Keep loops, retries, and validation in deterministic code; return only the denoised result.
-- When a decision is not exactly determined by the observed data, call \`reason()\` for that judgment; do not inline the judgment into code.
-- Pass observations to \`reason\` from runtime variables/stdin; never manually retype them.
+- \`act(name, args)\` gathers evidence; \`reason(prompt, example)\` turns noisy local evidence into a small structured judgment.
+- Use \`reason()\` at control nodes only: targeting, branching, retry-vs-escalate, classification, or synthesis. If the exact result is already clear, deterministic code is enough.
+- Never hardcode a judgment into code (no \`action = "retry"\` literals); judgments come from \`reason()\`.
+- Pass the raw observation into \`reason()\` from \`one.inputs\` or runtime variables — never restate it by hand.
+- One job = one RAS call: gather evidence, judge, and print the result in one script; return only the denoised result.
 - Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
 Tool discovery:
@@ -56,14 +56,17 @@ const MODE_PROMPTS: Record<RASMode, string> = {
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
 - Print the final result.
 
-Control-node example (act gathers evidence, reason decides):
+Control-node example (batch evidence, judge once at the merge point):
 \`\`\`python
 import asyncio
 async def main():
-    out = await act("bash", {"command": "npm test -- --reporter json"})
-    d = await reason("Goal: retry or escalate? Observation: " + out["content"][0]["text"], {"action": "retry", "reason": ""})
-    if d["data"]["action"] == "escalate":
-        print(d["data"]["reason"])
+    log = await act("bash", {"command": "git log --oneline -10"})
+    files = await act("bash", {"command": "git diff --name-only HEAD"})
+    d = await reason(f"Goal: categorize the changes by scope. Observation: {log['content'][0]['text']} | {files['content'][0]['text']}", [{"scope": "", "message": "", "files": []}])
+    print(d["data"])
+    # pure judgment, no act: classify ambiguous evidence from inputs
+    c = await reason(f"Goal: classify each item. Observation: {inputs.get('items', [])}", [{"item": "", "category": ""}])
+    print(c["data"])
 asyncio.run(main())
 \`\`\``,
   typescript: `TypeScript mode:
@@ -72,11 +75,15 @@ asyncio.run(main())
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
 - Print with \`console.log\`.
 
-Control-node example (act gathers evidence, reason decides):
+Control-node example (batch evidence, judge once at the merge point):
 \`\`\`typescript
-const out = await act("bash", { command: "npm test -- --reporter json" });
-const d = await reason("Goal: retry or escalate? Observation: " + out.content[0].text, { action: "retry", reason: "" });
-if (d.data.action === "escalate") console.log(d.data.reason);
+const log = await act("bash", { command: "git log --oneline -10" });
+const files = await act("bash", { command: "git diff --name-only HEAD" });
+const d = await reason("Goal: categorize the changes. Observation: " + log.content[0].text + " | " + files.content[0].text, [{ scope: "", message: "", files: [] }]);
+console.log(JSON.stringify(d.data));
+// pure judgment, no act: classify ambiguous evidence from inputs
+const c = await reason("Goal: classify each item. Observation: " + JSON.stringify(inputs.items ?? []), [{ item: "", category: "" }]);
+console.log(JSON.stringify(c.data));
 \`\`\``,
   bash: `Bash mode:
 - The public tool is \`one\`, with \`command\`, optional \`stdin\`, and optional \`inputs\`.
@@ -85,11 +92,13 @@ if (d.data.action === "escalate") console.log(d.data.reason);
 - \`act\` prints plain text and uses shell exit status for failure.
 - Use \`one-input <key> | act <tool> -\` for structured tool arguments.
 
-Control-node example (act gathers evidence, reason decides):
+Control-node example (batch evidence, judge once at the merge point):
 \`\`\`bash
-act bash '{"command":"npm test -- --reporter json"}' | \
-  reason --prompt "Goal: retry or escalate?" --prompt - --structure '{"action":"retry","reason":""}' | \
-  jq -r '.action'
+log=$(act bash '{"command":"git log --oneline -10"}')
+files=$(act bash '{"command":"git diff --name-only HEAD"}')
+printf '%s\n%s' "$log" "$files" | reason --prompt "Goal: categorize the changes." --prompt - --structure '[{"scope":"","message":"","files":[]}]' | jq -c '.'
+# pure judgment, no act: classify ambiguous evidence from inputs
+one-input items | reason --prompt "Goal: classify each item." --prompt - --structure '[{"item":"","category":""}]' | jq -c '.'
 \`\`\``,
 };
 

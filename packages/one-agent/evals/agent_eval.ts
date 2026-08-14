@@ -461,6 +461,7 @@ type ControlNodeVerdict = {
   batched: boolean;
   toolCalls: number;
   code: string;
+  codes: string[];
 };
 
 function judgeControlNode(
@@ -500,6 +501,7 @@ function judgeControlNode(
     batched,
     toolCalls: codes.length,
     code: codes[0] ?? "",
+    codes,
   };
 }
 
@@ -597,6 +599,7 @@ async function runEval(args: EvalArgs): Promise<void> {
           batched: v.batched,
           tool_calls: v.toolCalls,
           code: preview(v.code, 400),
+          codes: v.codes.map((c) => preview(c, 250)),
         };
       } else {
         verdict =
