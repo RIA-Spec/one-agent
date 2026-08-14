@@ -15,12 +15,12 @@ type SuggestedActionsProps = {
 
 const SUGGESTED_ACTIONS = [
   {
-    badge: "__manual__",
-    title: "Discover tools and execute a concrete first action",
+    badge: "read",
+    title: "Read a file and summarize what it does",
     detail:
-      "List tools, inspect one schema, then run a real action with fixed inputs.",
+      "Use a known built-in directly; discover schemas only when unsure.",
     suggestion:
-      "Call act('__manual__', {}) to list tools, then act('__manual__', {'name':'websearch'}). After that, run act('websearch', {'query':'OpenTelemetry tracing best practices for AI agents'}) and return the top findings.",
+      "Read package.json with the read tool and summarize its scripts, dependencies, and purpose in a few bullets.",
   },
   {
     badge: "bash + edit",
