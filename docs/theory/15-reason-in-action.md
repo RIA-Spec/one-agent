@@ -38,6 +38,10 @@ Closed-loop reading ([03](./03-closed-loop-control.md)): Re in Act makes Sensor 
 
 Rule of thumb: if the exact next step is already clear, skip `reason()` — deterministic code is cheaper, faster, and testable. `reason()` is justified only when evidence is noisy and a bounded judgment changes the next action.
 
+### Batched Acts Converge at a Judgment Point
+
+The natural shape is **many acts, one judgment**: several deterministic evidence streams (`act()` results) converge at a single point where combining them and choosing the next step is inherently uncertain. That convergence is a control node — the typical home of `reason()`. Batching is also the practical advantage over ReAct: the reason-act-observe round-trip tax collapses into one orchestrated action phase, with only the denoised result crossing back.
+
 ## Two Forms
 
 The same pattern runs as code or as shell pipelines:
