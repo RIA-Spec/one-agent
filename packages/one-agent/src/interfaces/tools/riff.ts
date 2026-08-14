@@ -126,16 +126,23 @@ async function loadEntry(
     return null;
   }
 
-  const parsed = matter(raw);
+  let parsed: ReturnType<typeof matter>;
+  try {
+    parsed = matter(raw);
+  } catch {
+    return null;
+  }
   const data = (parsed.data ?? {}) as RiffFrontmatter;
 
   let scriptPath: string | null = null;
   let script: string | null = null;
+  const declaredScript = asString(asRecord(data.metadata)["script"]);
+  const safeDeclaredScript = /^(ras\.py|ras\.sh)$/.test(declaredScript) ? declaredScript : null;
   const scriptOrder = Array.from(
     new Set(
       [
         mode === "bash" ? "ras.sh" : mode === "python" ? "ras.py" : null,
-        asString(asRecord(data.metadata)["script"]) || null,
+        safeDeclaredScript,
         "ras.py",
         "ras.sh",
       ].filter((name): name is string => name !== null),
@@ -221,9 +228,27 @@ async function findRiff(
   skillsDir: string,
   mode: RiffMode | undefined,
 ): Promise<RiffRecord | null> {
-  const records = await discoverAll(riffsDir, skillsDir, mode);
   const normalized = name.toLowerCase();
-  return records.find((record) => record.name.toLowerCase() === normalized) ?? null;
+  for (const [dir, source] of [
+    [riffsDir, "riffs"],
+    [skillsDir, "skills"],
+  ] as const) {
+    if (!existsSync(dir)) {
+      continue;
+    }
+    const entries = await readdir(dir, { withFileTypes: true });
+    const match = entries.find(
+      (entry) => entry.isDirectory() && entry.name.toLowerCase() === normalized,
+    );
+    if (!match) {
+      continue;
+    }
+    const record = await loadEntry(dir, match.name, source, mode);
+    if (record) {
+      return record;
+    }
+  }
+  return null;
 }
 
 function buildRiffDocs(

@@ -459,4 +459,74 @@ describe("riff tool", () => {
       await rm(root, { recursive: true, force: true });
     }
   });
+
+  it("does not let metadata.script escape the skill directory", async () => {
+    const root = await mkdtemp(join(tmpdir(), "riff-traversal-"));
+
+    try {
+      const outsideScript = join(root, "outside.sh");
+      await writeFile(outsideScript, "echo escaped\n", "utf-8");
+
+      const skillDir = join(root, ".agents", "skills", "evil");
+      await mkdir(skillDir, { recursive: true });
+      await writeFile(
+        join(skillDir, "SKILL.md"),
+        matter.stringify("# Evil\n", {
+          name: "evil",
+          description: "escape the skill directory",
+          metadata: {
+            riff: "true",
+            script: "../../../outside.sh",
+            parameters: "{}",
+          },
+        }),
+        "utf-8",
+      );
+
+      const tool = createRiffTool(root, "bash");
+      const result = (await tool.execute({
+        action: "run",
+        name: "evil",
+        parameters: {},
+      })) as ToolResult;
+
+      expect(result.isError).toBe(true);
+      expect(getText(result)).not.toContain(outsideScript);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it("keeps an invalid unrelated skill from breaking a valid riff", async () => {
+    const root = await mkdtemp(join(tmpdir(), "riff-malformed-"));
+
+    try {
+      const tool = createRiffTool(root, "python");
+      await tool.execute({
+        action: "upsert",
+        name: "good",
+        description: "valid riff",
+        script: "print(1)",
+      });
+
+      const badDir = join(root, ".agents", "skills", "bad");
+      await mkdir(badDir, { recursive: true });
+      await writeFile(
+        join(badDir, "SKILL.md"),
+        "---\nname: bad\nmetadata:\n  riff: [unterminated\n---\n# Bad\n",
+        "utf-8",
+      );
+
+      const result = (await tool.execute({
+        action: "run",
+        name: "good",
+        parameters: {},
+      })) as ToolResult;
+
+      expect(result.isError).not.toBe(true);
+      expect(getText(result)).toMatch(/^__ONE_INLINE_EXEC__:/);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
 });
