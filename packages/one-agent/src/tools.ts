@@ -41,18 +41,11 @@ function parseBooleanEnv(name: string, fallback: boolean): boolean {
   return fallback;
 }
 
-function getActPrimaryText(result: RASActResult): string {
-  const text = result.content?.find((entry) => entry.type === "text")?.text;
-  return typeof text === "string" ? text : "";
-}
-
 const AGENT_EXTENSION_ENABLED = parseBooleanEnv("ONE_AGENT_EXTENSION_ENABLED", false);
 const AGENT_EXTENSION_INJECT_SYSTEM_PROMPT = parseBooleanEnv(
   "ONE_AGENT_EXTENSION_INJECT_SYSTEM_PROMPT",
   true,
 );
-const AGENT_EXTENSION_INJECT_TOOLS = parseBooleanEnv("ONE_AGENT_EXTENSION_INJECT_TOOLS", true);
-const AGENT_EXTENSION_TOOL_HINT_MAX_CHARS = 12_000;
 /**
  * Delegated worker policy injected into `agent(prompt, config)` when the extension is enabled.
  *
@@ -68,12 +61,7 @@ const AGENT_EXTENSION_TOOL_HINT_MAX_CHARS = 12_000;
  * - on_error: "fail" | "return_error" | "retry_within_budget"
  * - extension: { enabled, injectSystemPrompt, injectTools }
  */
-const AGENT_EXTENSION_BASE_SYSTEM_PROMPT = `You are a delegated local worker inside the current Reason-able Action Space (RAS).
-Role boundary: act as a bounded delegated executor, not as a top-level planner.
-Contract: do not bypass reason()/act() contracts, sandbox rules, or policy gates.
-Grounding: base claims on observed tool outputs and explicit context only.
-Output rule: return concise plain text only; the runtime will wrap it into { data: { text, trajectory } }.
-Failure rule: if blocked by budget/policy/runtime limits, report constraints clearly and stop; do not invent capabilities.`;
+const AGENT_EXTENSION_BASE_SYSTEM_PROMPT = `You are a bounded delegated worker. Complete only the delegated subtask using tools actually available in your own session. Base claims on observed evidence. Return a concise result with what was verified and what remains unknown. Stop on budget, permission, or runtime boundaries; do not claim unavailable capabilities.`;
 
 const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<RASReasonResult> => {
   const result = await reason(prompt, example);
@@ -89,7 +77,7 @@ const adaptedActHandler =
     getToolFn(server as Parameters<typeof getToolFn>[0])(name, args) as Promise<RASActResult>;
 
 const adaptedAgentHandler =
-  (server: unknown) =>
+  (_server: unknown) =>
   async (prompt: string, config: unknown): Promise<RASAgentResult> => {
     if (!AGENT_EXTENSION_ENABLED) {
       return {
@@ -97,40 +85,30 @@ const adaptedAgentHandler =
       };
     }
 
-    const baseConfig =
-      config && typeof config === "object" ? (config as Record<string, unknown>) : {};
-    const extensionBase =
-      baseConfig.extension && typeof baseConfig.extension === "object"
-        ? (baseConfig.extension as Record<string, unknown>)
-        : {};
-
-    let injectedSystem = "";
-
-    if (AGENT_EXTENSION_INJECT_SYSTEM_PROMPT) {
-      injectedSystem = AGENT_EXTENSION_BASE_SYSTEM_PROMPT;
-    }
-
-    if (AGENT_EXTENSION_INJECT_TOOLS) {
-      const manual = await adaptedActHandler(server)("__manual__", {});
-      const catalog = getActPrimaryText(manual);
-      if (catalog) {
-        const trimmed = catalog.slice(0, AGENT_EXTENSION_TOOL_HINT_MAX_CHARS);
-        const toolPrompt = `Runtime tool catalog (via act --manual):\n${trimmed}`;
-        injectedSystem = injectedSystem ? `${injectedSystem}\n\n${toolPrompt}` : toolPrompt;
-      }
-    }
-
-    const mergedConfig: AgentConfig = {
-      ...(baseConfig as AgentConfig),
-      extension: {
-        ...extensionBase,
-        enabled: true,
-        ...(injectedSystem ? { injectSystemPrompt: injectedSystem } : {}),
-      },
-    };
-
-    return delegatedAgent(prompt, mergedConfig);
+    return delegatedAgent(prompt, buildDelegatedAgentConfig(config));
   };
+
+export function buildDelegatedAgentConfig(config: unknown): AgentConfig {
+  const baseConfig =
+    config && typeof config === "object" ? (config as Record<string, unknown>) : {};
+  const extensionBase =
+    baseConfig.extension && typeof baseConfig.extension === "object"
+      ? (baseConfig.extension as Record<string, unknown>)
+      : {};
+
+  const injectedSystem = AGENT_EXTENSION_INJECT_SYSTEM_PROMPT
+    ? AGENT_EXTENSION_BASE_SYSTEM_PROMPT
+    : "";
+
+  return {
+    ...(baseConfig as AgentConfig),
+    extension: {
+      ...extensionBase,
+      enabled: true,
+      ...(injectedSystem ? { injectSystemPrompt: injectedSystem } : {}),
+    },
+  };
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
