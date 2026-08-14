@@ -64,7 +64,9 @@ describe("createTypeScriptRAS", () => {
     expect(getText(result)).toBe("(no output)");
   }, 30000);
 
-  it("executes the manual tool lookup -> websearch -> reason flow against host handlers", async () => {
+  // Unknown-schema fallback: discovery is for dynamic/unknown tools, not the
+  // per-task default flow. Known built-ins should be called directly.
+  it("supports the manual lookup fallback for an unknown tool schema", async () => {
     const actImpl = vi
       .fn()
       .mockResolvedValueOnce({ tools: ["websearch", "bash"] })
@@ -126,6 +128,48 @@ console.log(r.data?.findings?.join('\\n'));
       "OpenTelemetry tracing best practices for AI agents",
     );
     expect(reasonImpl.mock.calls[0]?.[1]).toEqual({ findings: [""] });
+  }, 30000);
+
+  it("calls a known built-in directly without manual discovery", async () => {
+    const actImpl = vi.fn().mockResolvedValue({ ok: true });
+    const ras = createTypeScriptRAS(
+      makeConfig({
+        actHandler: () => actImpl,
+      }),
+    );
+
+    const result = await ras.execute({
+      code: "await act('websearch', { query: 'structured inputs' }); console.log('done');",
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(getText(result)).toContain("done");
+    expect(actImpl.mock.calls).toEqual([["websearch", { query: "structured inputs" }]]);
+  }, 30000);
+
+  it("round-trips a real edit payload with quotes, escapes, shell syntax, and unicode through inputs", async () => {
+    const actImpl = vi.fn().mockResolvedValue({ ok: true });
+    const ras = createTypeScriptRAS(
+      makeConfig({
+        actHandler: () => actImpl,
+      }),
+    );
+    const edit = {
+      path: "src/example.ts",
+      oldText:
+        'const quote = `"\'${value}`;\nconst pattern = "\\\\d+ \\\\w+";\nconst shell = "$HOME $(cmd)";\nconst label = "中文";',
+      newText:
+        'const quote = `"\'updated`;\nconst pattern = "\\\\d+ \\\\w+";\nconst shell = "$HOME $(cmd)";\nconst label = "中文更新";',
+    };
+
+    const result = await ras.execute({
+      code: "await act('edit', inputs.edit); console.log('done');",
+      inputs: { edit },
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(getText(result)).toContain("done");
+    expect(actImpl).toHaveBeenCalledWith("edit", edit);
   }, 30000);
 
   it("keeps step markers out of stdout while still running act calls", async () => {
