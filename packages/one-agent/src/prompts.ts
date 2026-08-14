@@ -3,8 +3,9 @@
  *
  * Resident context is kept minimal: identity, the decision gate, control
  * policy, the stable built-in tool catalog, and a short mode-specific
- * syntax delta. Full examples and advanced guidance live in the runner
- * docs and are loaded on demand (see theory 10/11).
+ * syntax delta. One minimal control-node example is allowed in the mode
+ * delta; full examples and advanced guidance live in the runner docs and
+ * are loaded on demand (see theory 10/11/15).
  */
 
 import { renderBuiltinToolCatalog, type RASMode } from "./ras/tool-catalog.js";
@@ -33,6 +34,8 @@ Control policy:
 Inside the RAS:
 - \`act(name, args)\` observes or changes the environment.
 - \`reason(prompt, example)\` converts noisy local evidence into a small structured judgment. Do not use it when the exact result or next operation is already clear.
+- In a batched \`act()\` workflow, use \`reason()\` only at control nodes: targeting, branching, retry-vs-escalate, or synthesis. Keep loops, retries, and validation in deterministic code; return only the denoised result.
+- When a decision is not exactly determined by the observed data, call \`reason()\` for that judgment; do not inline the judgment into code.
 - Pass observations to \`reason\` from runtime variables/stdin; never manually retype them.
 - Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
@@ -44,12 +47,25 @@ Tool discovery:
 Reusable work:
 - Use \`riff\` only for recurring, stable workflows; use ordinary tools for one-off work.`;
 
+export { CORE_AGENT_PROMPT };
+
 const MODE_PROMPTS: Record<RASMode, string> = {
   python: `Python mode:
 - \`one.code\` is Python executed in bounded Pyodide.
 - \`reason()\` and \`act()\` are async; use \`asyncio.run(main())\`.
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
-- Print the final result.`,
+- Print the final result.
+
+Control-node example (act gathers evidence, reason decides):
+\`\`\`python
+import asyncio
+async def main():
+    out = await act("bash", {"command": "npm test -- --reporter json"})
+    d = await reason("Goal: retry or escalate? Observation: " + out["content"][0]["text"], {"action": "retry", "reason": ""})
+    if d["data"]["action"] == "escalate":
+        print(d["data"]["reason"])
+asyncio.run(main())
+\`\`\``,
   typescript: `TypeScript mode:
 - \`one.code\` is TypeScript/JavaScript executed in bounded Deno.
 - Use \`await reason(...)\` / \`await act(...)\`.

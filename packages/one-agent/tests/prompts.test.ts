@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildAgentSystemPrompt } from "../src/prompts.js";
+import { buildAgentSystemPrompt, CORE_AGENT_PROMPT } from "../src/prompts.js";
 import { BUILTIN_RAS_TOOLS } from "../src/ras/tool-catalog.js";
 
 const RESIDENT_CHAR_BUDGET = 5_500;
@@ -28,9 +28,15 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     }
   });
 
-  it("does not contain resident example blocks", () => {
+  it("keeps the shared core prompt free of example blocks", () => {
+    expect(CORE_AGENT_PROMPT).not.toContain("<examples>");
+    expect(CORE_AGENT_PROMPT).not.toContain("```");
+  });
+
+  it("keeps resident examples to one minimal block", () => {
     expect(prompt).not.toContain("<examples>");
-    expect(prompt).not.toContain("```");
+    const fenceCount = prompt.split("```").length - 1;
+    expect(fenceCount).toBeLessThanOrEqual(2);
   });
 
   it("stays within the resident character budget", () => {
