@@ -296,7 +296,8 @@ async function runRiffCommand(action: "list" | "read" | "run", payload: Record<s
     const act = getToolFn(server);
     let result: ActResult;
 
-    if (action === "run") {
+    const rawRASMode = (process.env.RAS_MODE || "python").toLowerCase();
+    if (action === "run" && rawRASMode === "python") {
       const riffArgs = JSON.stringify({ action, ...payload });
       const code = [
         "import asyncio",
