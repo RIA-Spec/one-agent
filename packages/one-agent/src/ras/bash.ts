@@ -484,7 +484,7 @@ function createOneInputCommand(inputs: OneInputs): Command {
 export function createBashRAS(config: BashRASConfig) {
   return {
     name: "one",
-    description: `Use `one` when a task benefits from a bounded Bash pipeline, host tool orchestration, or runtime verification. Commands run in just-bash with `reason`, `act`, `one-input`, and `jq`; use `act bash` for the real host shell. `act` prints plain text and signals failure through its exit status. Put structured tool arguments in `inputs` and pipe them with `one-input <key> | act <tool> -` to avoid shell/JSON escaping. The mounted workspace (${config.cwd}) is the only accessible file system.`,
+    description: `Use \`one\` when a task benefits from a bounded Bash pipeline, host tool orchestration, or runtime verification. Commands run in just-bash with \`reason\`, \`act\`, \`one-input\`, and \`jq\`; use \`act bash\` for the real host shell. \`act\` prints plain text and signals failure through its exit status. Put structured tool arguments in \`inputs\` and pipe them with \`one-input <key> | act <tool> -\` to avoid shell/JSON escaping. The mounted workspace (${config.cwd}) is the only accessible file system.`,
     parameters: jsonSchema({
       type: "object",
       properties: {

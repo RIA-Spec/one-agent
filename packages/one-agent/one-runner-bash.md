@@ -38,7 +38,7 @@ act bash '{"command":"date +%Y-%m-%d"}'
 
 Only use `jq` after `act` when the tool's text output is itself JSON that you intentionally want to parse.
 
-Use discovery first when the tool name or schema is unclear:
+Known built-ins (`bash`, `read`, `write`, `edit`, `websearch`, `webfetch`, `riff`) can be called directly. Use discovery when the tool name or exact schema is unclear, or for dynamic MCP tools:
 
 ```bash
 act --manual
