@@ -204,67 +204,7 @@ export function createPythonRAS(config: PythonRASConfig) {
 
   return {
     name: "one",
-    description: `Python Reason-able Action Space runtime - Execute Python inside a bounded workspace with built-in reason(), act(), and optional agent() extension.
-
-  reason(prompt, example) -> {data, error}  (async, use with asyncio.run, returns bounded local judgment)
-  act(name, args) -> result                 (async, use with asyncio.run, runs on host machine)
-  act('__manual__', {}) -> list tools       (async)
-  act('__manual__', {'name': 'bash'}) -> tool definition
-  agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
-  inputs                                      (JSON object supplied outside code)
-
-Usage:
-  import asyncio
-  async def main():
-      r = await reason('Goal: summarize the local evidence. Observation: ... Constraints: return {result}.', {'result': ''})
-      if r.get('error'): return print(r['error'])
-      print(r['data'].get('result', ''))
-  asyncio.run(main())
-
-Execute Python code in a Pyodide WebAssembly sandbox. Return stdout/stderr.
-
-## When to Use
-- Data analysis (pandas, numpy)
-- Math/statistics
-- Text processing
-- Validate logic by execution
-- File ops at ${nodeFSMountPoint} only
-
-## Parameters
-
-**code** (required): Python code. MUST use print() to see results. Tip: Use single quotes and avoid f-strings/backticks to reduce JSON escaping issues.
-
-**inputs** (optional): JSON object exposed to code as \`inputs\`. Put source text, tool arguments, prompts, regexes, and other data here instead of embedding them in Python string literals.
-
-**packages** (optional): Map import names to PyPI package names. Use when names differ (e.g., sklearn->scikit-learn) or for indirectly imported packages (e.g., openpyxl for pandas).
-Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}
-
-## File System
-- ONLY ${nodeFSMountPoint} is accessible
-- Host path: ${nodeFSRoot}
-
-## Examples
-
-**Basic:**
-\`\`\`python
-import pandas as pd
-df = pd.DataFrame({'a': [1, 2, 3]})
-print(df.describe())
-\`\`\`
-
-**With mapping:**
-\`\`\`python
-from sklearn.datasets import load_iris
-data = load_iris()
-print(data.feature_names)
-\`\`\`
-Use packages: {"sklearn": "scikit-learn"}
-
-## Common Errors
-| Error | Fix |
-|-------|-----|
-| (no output) | Add print() statements |
-| Permission denied | Use ${nodeFSMountPoint} path only |`,
+    description: `Use \`one\` when a task needs Python execution, current workspace evidence, internal tool calls, or a multi-step local control loop. Code runs in bounded Pyodide with async \`reason()\` and \`act()\`. \`reason()\` turns noisy runtime evidence into a small structured judgment; \`act()\` accesses registered tools. Put multiline source, regexes, prompts, and tool arguments in \`inputs\` instead of Python string literals. Print the final decision-relevant result. The mounted workspace (${nodeFSMountPoint}) is the only accessible file system.`,
     parameters: jsonSchema({
       type: "object",
       properties: {

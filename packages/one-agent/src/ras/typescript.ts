@@ -122,46 +122,7 @@ export function createTypeScriptRAS(config: TypeScriptRASConfig) {
 
   return {
     name: "one",
-    description: `TypeScript Reason-able Action Space runtime - Execute TypeScript/JavaScript inside a bounded workspace with built-in reason(), act(), and optional agent() extension.
-
-  reason(prompt, example) -> {data, error}  (async, use with await)
-  act(name, args) -> result                 (async, runs on host machine)
-  act('__manual__', {}) -> list tools       (async)
-  act('__manual__', {'name': 'bash'}) -> tool definition
-  agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
-  inputs                                      (JSON object supplied outside code)
-
-Usage:
-  const r = await reason('Goal: summarize the local evidence. Observation: ... Constraints: return {result}.', { result: '' });
-  if (r.error) {
-    console.log(r.error);
-    return;
-  }
-  console.log(r.data?.result ?? '');
-
-Execute TypeScript/JavaScript in a Deno sandbox. Return stdout/stderr.
-
-## When to Use
-- API/data processing
-- Text processing
-- Validation by execution
-- File ops at ${nodeFSMountPoint} only
-
-## Parameters
-
-**code** (required): TypeScript or JavaScript code to execute. Use console.log() for output.
-
-**inputs** (optional): JSON object exposed to code as \`inputs\`. Put source text, tool arguments, prompts, regexes, and other data here instead of embedding them in code string literals.
-
-## File System
-- ONLY ${nodeFSMountPoint} is accessible
-- Host path: ${nodeFSRoot}
-
-## Common Errors
-| Error | Fix |
-|-------|-----|
-| (no output) | Add console.log() statements |
-| Permission denied | Use ${nodeFSMountPoint} path only |`,
+    description: `Use \`one\` when a task needs TypeScript/JavaScript execution, current workspace evidence, internal tool calls, or a multi-step local control loop. Code runs in bounded Deno with async \`reason()\` and \`act()\`. \`reason()\` turns noisy runtime evidence into a small structured judgment; \`act()\` accesses registered tools. Put multiline source, regexes, prompts, and tool arguments in \`inputs\` instead of code string literals. Print the final decision-relevant result with console.log. The mounted workspace (${nodeFSMountPoint}) is the only accessible file system.`,
     parameters: jsonSchema({
       type: "object",
       properties: {

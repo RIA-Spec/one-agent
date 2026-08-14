@@ -484,74 +484,7 @@ function createOneInputCommand(inputs: OneInputs): Command {
 export function createBashRAS(config: BashRASConfig) {
   return {
     name: "one",
-    description: `Bash Reason-able Action Space runtime - Execute commands inside just-bash with built-in reason and act commands.
-
-  reason [--prompt "text"] [prompt|-] [--structure '{"key":""}'|structure]  (prints requested JSON on success; {data,error} on failure)
-	act --manual [tool]
-	act <tool> '{"key":"value"}'
-	act <tool> -
-	agent [--prompt "text"] [prompt|-] [--config '{"budget":{"maxSteps":20}}'|config]
-	act --name "name" --args '{"key":"value"}' [--args -]
-	one-input [top-level-key]  (print JSON data supplied in the one tool's inputs parameter)
-
-File system: ${config.cwd} -> ${config.cwd}
-
-Execution model:
-	- Direct shell code runs inside just-bash sandbox.
-	- reason/act/agent stay host-backed commands.
-	- act bash routes to the real host bash tool outside the just-bash sandbox.
-
-Usage:
-  echo '{"url":"https://example.com","format":"text"}' | act webfetch - | \
-  reason --prompt 'Goal: summarize the fetched content. Observation: stdin. Constraints: return {"summary":""}.' - '{"summary":""}' | \
-  jq -r '.summary'
-
-Use structured inputs without shell quoting source text:
-  one-input edit | act edit -
-
-Execute Bash commands in the just-bash sandbox and return stdout/stderr.
-
-## When to Use
-- Unix pipeline composition and automation
-- Tool orchestration via act
-- Non-deterministic extraction/decision tasks via reason
-- Text and JSON processing (jq/sed/awk)
-- File ops at ${config.cwd} only
-
-## Parameters
-
-**command** (required): Bash command to execute.
-
-**stdin** (optional): String piped to process stdin.
-
-**inputs** (optional): JSON object available through \`one-input\`. Use \`one-input edit | act edit -\` to pass an input object directly to a tool.
-
-## File System
-- ONLY ${config.cwd} is mounted read-write into the sandbox
-- Use act bash when you need the real host shell
-
-## Examples
-
-**Basic:**
-\`\`\`bash
-echo 'hello world' | tr 'a-z' 'A-Z'
-\`\`\`
-
-**Reason + act with checks:**
-\`\`\`bash
-set -e && \
-act --manual | \
-reason --prompt 'Goal: extract likely tool names from stdin. Constraints: return a JSON array of tool names.' - '["bash"]' | \
-jq -r '.[]'
-\`\`\`
-
-## Common Errors
-| Error | Fix |
-|-------|-----|
-| (no output) | Add output commands like echo/cat/jq -r |
-| Command failed | Check stderr and exit code; use set -e for fail-fast |
-| No such file | Use paths under ${config.cwd} |
-| command not found | just-bash only exposes built-ins; use act bash for host tools |`,
+    description: `Use `one` when a task benefits from a bounded Bash pipeline, host tool orchestration, or runtime verification. Commands run in just-bash with `reason`, `act`, `one-input`, and `jq`; use `act bash` for the real host shell. `act` prints plain text and signals failure through its exit status. Put structured tool arguments in `inputs` and pipe them with `one-input <key> | act <tool> -` to avoid shell/JSON escaping. The mounted workspace (${config.cwd}) is the only accessible file system.`,
     parameters: jsonSchema({
       type: "object",
       properties: {
