@@ -26,7 +26,9 @@ if ("error" in result) {
 }
 
 // Streaming
-const stream = await agentStream({ messages: [{ role: "user", content: "Summarise the last 10 git commits." }] });
+const stream = await agentStream({
+  messages: [{ role: "user", content: "Summarise the last 10 git commits." }],
+});
 for await (const chunk of stream.fullStream) {
   if (chunk.type === "text-delta") process.stdout.write(chunk.textDelta);
 }
@@ -58,6 +60,31 @@ Binary aliases installed alongside `one-agent`:
 | `one-stdio`  | stdio interface      |
 | `reason`     | `reason` CLI (short) |
 | `act`        | `act` CLI (short)    |
+
+## Development
+
+Run the CLI directly from source (no build step):
+
+```bash
+pnpm dev:cli -- riff list
+pnpm dev:cli -- riff run hello-world
+pnpm dev:cli -- auth
+```
+
+REPL from source:
+
+```bash
+pnpm run repl          # HTML REPL
+pnpm run repl:classic  # classic terminal REPL
+```
+
+Run a Python RAS script directly:
+
+```bash
+pnpm run-py examples/simple_calc.py
+```
+
+`pnpm run build` produces the `one`/`one-agent` binaries in `dist/`.
 
 ## Reason-able Action Space (RAS)
 
@@ -162,13 +189,13 @@ Environment variables always override file config.
 
 ## Related packages
 
-| Package                                                                                  | Role                                             |
-| ---------------------------------------------------------------------------------------- | ------------------------------------------------ |
-| [`@one-agent/reason`](https://www.npmjs.com/package/@one-agent/reason)                   | `reason()` — required bounded judgment interface          |
-| [`@one-agent/act`](https://www.npmjs.com/package/@one-agent/act)                         | `act()` — optional MCP tool execution interface           |
-| [`@one-agent/agent-extension`](https://www.npmjs.com/package/@one-agent/agent-extension) | `agent()` — optional nested agent delegation              |
-| [`@one-agent/html`](https://www.npmjs.com/package/@one-agent/html)                       | streaming HTML → ANSI renderer used by the HTML REPL      |
-| [`@one-agent/ria-proxy`](https://www.npmjs.com/package/@one-agent/ria-proxy)             | Re in Act plugin for OpenAI-compatible runtimes           |
+| Package                                                                                  | Role                                                 |
+| ---------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+| [`@one-agent/reason`](https://www.npmjs.com/package/@one-agent/reason)                   | `reason()` — required bounded judgment interface     |
+| [`@one-agent/act`](https://www.npmjs.com/package/@one-agent/act)                         | `act()` — optional MCP tool execution interface      |
+| [`@one-agent/agent-extension`](https://www.npmjs.com/package/@one-agent/agent-extension) | `agent()` — optional nested agent delegation         |
+| [`@one-agent/html`](https://www.npmjs.com/package/@one-agent/html)                       | streaming HTML → ANSI renderer used by the HTML REPL |
+| [`@one-agent/ria-proxy`](https://www.npmjs.com/package/@one-agent/ria-proxy)             | Re in Act plugin for OpenAI-compatible runtimes      |
 
 ## Specification
 

@@ -128,9 +128,12 @@ Examples:
 
 ```bash
 act riff '{"action":"list"}'
-act riff '{"action":"read","name":"10-life-hacks","includeScript":true}'
-act riff '{"action":"run","name":"10-life-hacks"}'
+act riff '{"action":"read","name":"hello-world","includeScript":true}'
+act riff '{"action":"run","name":"hello-world","parameters":{"name":"Codex"}}'
 ```
+
+`riff run` returns an inline exec payload for Python riffs and a bash command for
+`.sh` riffs. For `.sh` riffs, run the returned `command` with `act bash`.
 
 ## Pipeline Examples
 

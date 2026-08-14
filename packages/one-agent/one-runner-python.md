@@ -61,7 +61,7 @@ Call MCP server tools with exact arguments.
 
 **Available Tools:** bash (shell commands), websearch (internet search), webfetch (fetch and transform page content).
 
-**Reusable workflows:** use the `riff` tool for recurring, stable workflows. Storage lives under `.agent/riff/<name>/riff.md` and `.agent/riff/<name>/ras.py`.
+**Reusable workflows:** use the `riff` tool for recurring, stable workflows. Storage lives under `.agents/riffs/<name>/SKILL.md` and `.agents/riffs/<name>/scripts/ras.py` (or `scripts/ras.sh` for bash riffs). `riff run` executes Python riffs inline and returns a bash command for `.sh` riffs (run it with `act bash`).
 
 ## Environment Constraints
 

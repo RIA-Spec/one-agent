@@ -219,7 +219,7 @@ export async function getServer() {
                 { internal: true },
               );
 
-              const riffTool = createRiffTool(projectRoot);
+              const riffTool = createRiffTool(projectRoot, "bash");
               server.tool("riff", riffTool.description, riffTool.parameters, riffTool.execute, {
                 internal: true,
               });
@@ -299,7 +299,7 @@ export async function getServer() {
               { internal: true },
             );
 
-            const riffTool = createRiffTool(nodeFSRoot);
+            const riffTool = createRiffTool(nodeFSRoot, "python");
             server.tool("riff", riffTool.description, riffTool.parameters, riffTool.execute, {
               internal: true,
             });

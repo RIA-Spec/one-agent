@@ -64,6 +64,7 @@
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
+    "dev:cli": "tsx --experimental-wasm-stack-switching --env-file=.env ./src/one-agent.ts",
     "repl": "tsx --experimental-wasm-stack-switching --env-file=.env ./src/repl-html.ts",
     "repl:classic": "tsx --experimental-wasm-stack-switching --env-file=.env ./src/repl.ts",
     "test": "node --env-file=.env --experimental-wasm-stack-switching ./node_modules/vitest/vitest.mjs",

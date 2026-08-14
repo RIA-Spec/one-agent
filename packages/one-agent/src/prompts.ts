@@ -72,7 +72,7 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - ANTI-PATTERN: calling \`one\` with a single act(), reading the result, then calling \`one\` again with the next act(). Instead, put both act() calls in one script.
 8. RIFF REUSE - Optional for repeated work:
   - For recurring, stable tasks, you MAY use the \`riff\` tool to save and reuse workflows.
-  - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect riff.md/docs), \`upsert\` (save), \`run\` (execute).
+  - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect SKILL.md/docs), \`upsert\` (save), \`run\` (execute).
   - Prefer normal tool usage when the task is one-off, exploratory, or changing quickly.
   - If using riff, keep descriptions short and specific.
 </code_rules>
@@ -323,7 +323,7 @@ When writing code, you MUST follow these <code_styles/> and <code_rules> strictl
   - ANTI-PATTERN: calling \`one\` with a single act(), reading the result, then calling \`one\` again with the next act(). Instead, put both act() calls in one script.
 8. RIFF REUSE - Optional for repeated work:
   - For recurring, stable tasks, you MAY use the \`riff\` tool to save and reuse workflows.
-  - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect riff.md/docs), \`upsert\` (save), \`run\` (execute).
+  - Use \`riff\` actions intentionally: \`list\` (discover), \`read\` (inspect SKILL.md/docs), \`upsert\` (save), \`run\` (execute).
   - Prefer normal tool usage when the task is one-off, exploratory, or changing quickly.
 </code_rules>
 
