@@ -40,3 +40,12 @@ jobs:
 
       - name: Typecheck
         run: pnpm typecheck
+
+      - name: Test
+        run: |
+          cp packages/one-agent/.env.example packages/one-agent/.env
+          # one-agent spawns Pyodide and Deno; run its suite serially so the
+          # CI runner is not starved by parallel forks.
+          pnpm --filter=@one-agent/agent test -- --no-file-parallelism
+          pnpm --filter=@one-agent/agent-extension test
+          pnpm --filter=@one-agent/html test

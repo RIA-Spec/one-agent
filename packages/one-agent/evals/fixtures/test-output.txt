@@ -1,0 +1,10 @@
+[32mPASS[0m src/a.test.ts (12 tests)
+⠙ tsc: 3.2s done
+[31mFAIL[0m src/b.test.ts > b > renders > AssertionError: expected 1 to be 2
+⠹ running: src/d.test.ts
+[32mPASS[0m src/c.test.ts (5 tests)
+[31mFAIL[0m src/d.test.ts > d > query > TypeError: Cannot read properties of undefined (reading 'map') at query (src/d.test.ts:42:17)
+⠼ watch: watching 4 files
+[32mPASS[0m src/e.test.ts (3 tests)
+Test Suites: 3 failed, 2 passed
+Tests: 2 failed, 18 passed

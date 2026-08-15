@@ -13,6 +13,7 @@ import { runPy } from "@mcpc-tech/code-runner-mcp";
 import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
+import { prepareOneInputs, type OneInputs } from "./inputs.js";
 
 export interface PythonRASConfig {
   nodeFSRoot: string;
@@ -203,64 +204,7 @@ export function createPythonRAS(config: PythonRASConfig) {
 
   return {
     name: "one",
-    description: `Python Reason-able Action Space runtime - Execute Python inside a bounded workspace with built-in reason(), act(), and optional agent() extension.
-
-  reason(prompt, example) -> {data, error}  (async, use with asyncio.run, returns bounded local judgment)
-  act(name, args) -> result                 (async, use with asyncio.run, runs on host machine)
-  act('__manual__', {}) -> list tools       (async)
-  act('__manual__', {'name': 'bash'}) -> tool definition
-  agent(prompt, config?) -> {data:{text,trajectory}}|{error}  (async delegated worker; returns text plus ATIF trajectory on success)
-
-Usage:
-  import asyncio
-  async def main():
-      r = await reason('Goal: summarize the local evidence. Observation: ... Constraints: return {result}.', {'result': ''})
-      if r.get('error'): return print(r['error'])
-      print(r['data'].get('result', ''))
-  asyncio.run(main())
-
-Execute Python code in a Pyodide WebAssembly sandbox. Return stdout/stderr.
-
-## When to Use
-- Data analysis (pandas, numpy)
-- Math/statistics
-- Text processing
-- Validate logic by execution
-- File ops at ${nodeFSMountPoint} only
-
-## Parameters
-
-**code** (required): Python code. MUST use print() to see results. Tip: Use single quotes and avoid f-strings/backticks to reduce JSON escaping issues.
-
-**packages** (optional): Map import names to PyPI package names. Use when names differ (e.g., sklearn->scikit-learn) or for indirectly imported packages (e.g., openpyxl for pandas).
-Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}
-
-## File System
-- ONLY ${nodeFSMountPoint} is accessible
-- Host path: ${nodeFSRoot}
-
-## Examples
-
-**Basic:**
-\`\`\`python
-import pandas as pd
-df = pd.DataFrame({'a': [1, 2, 3]})
-print(df.describe())
-\`\`\`
-
-**With mapping:**
-\`\`\`python
-from sklearn.datasets import load_iris
-data = load_iris()
-print(data.feature_names)
-\`\`\`
-Use packages: {"sklearn": "scikit-learn"}
-
-## Common Errors
-| Error | Fix |
-|-------|-----|
-| (no output) | Add print() statements |
-| Permission denied | Use ${nodeFSMountPoint} path only |`,
+    description: `Use \`one\` when a task needs Python execution, current workspace evidence, internal tool calls, or a multi-step local control loop. Code runs in bounded Pyodide with async \`reason()\` and \`act()\`. \`reason()\` turns noisy runtime evidence into a small structured judgment; \`act()\` accesses registered tools. Put multiline source, regexes, prompts, and tool arguments in \`inputs\` instead of Python string literals. Print the final decision-relevant result. The mounted workspace (${nodeFSMountPoint}) is the only accessible file system.`,
     parameters: jsonSchema({
       type: "object",
       properties: {
@@ -271,11 +215,21 @@ Use packages: {"sklearn": "scikit-learn"}
           description:
             'Map import names to PyPI package names. Use when names differ or for indirectly imported packages. Example: {"sklearn": "scikit-learn", "openpyxl": "openpyxl"}',
         },
+        inputs: {
+          type: "object",
+          additionalProperties: true,
+          description:
+            "JSON data exposed to Python code as inputs. Use it for source text and tool arguments that should not be embedded in code.",
+        },
       },
       required: ["code"],
     }),
     execute: async (
-      { code, packages }: { code: string; packages?: Record<string, string> },
+      {
+        code,
+        packages,
+        inputs,
+      }: { code: string; packages?: Record<string, string>; inputs?: OneInputs },
       _extra?: any,
       server?: any,
     ) => {
@@ -288,11 +242,27 @@ Use packages: {"sklearn": "scikit-learn"}
         emitProgress({ type: "plan", steps });
       }
 
+      let encodedInputs: string;
+      try {
+        encodedInputs = prepareOneInputs(inputs).encoded;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        return {
+          content: [{ type: "text" as const, text: message }],
+          isError: true,
+        };
+      }
+
       // Build instrumented code:
-      // 1. Step tracking wrappers (runtime markers for progress)
-      // 2. Inline exec handler (intercepts riff.run to avoid nested runPy)
-      // 3. Original user code
+      // 1. Decode host-validated inputs without interpolating raw data into Python source
+      // 2. Step tracking wrappers (runtime markers for progress)
+      // 3. Inline exec handler (intercepts riff.run to avoid nested runPy)
+      // 4. Original user code
       const instrumentedCode = `
+import base64 as _one_inputs_b64
+import json as _one_inputs_json
+inputs = _one_inputs_json.loads(_one_inputs_b64.b64decode('${encodedInputs}').decode('utf-8'))
+
 ${STEP_TRACKING}
 
 ${INLINE_EXEC_HANDLER}

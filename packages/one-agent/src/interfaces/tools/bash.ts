@@ -144,9 +144,15 @@ async function executeBash(
   options?: BashExecutionOptions,
 ): Promise<BashExecutionResult> {
   return new Promise((resolve, reject) => {
+    // bash warns on stderr when LC_ALL points to a locale missing on the host
+    // (e.g. C.UTF-8 on macOS), polluting every command's output. Let it fall
+    // back to LANG / the C locale instead.
+    const env = { ...process.env };
+    delete env.LC_ALL;
+
     const proc = spawn("bash", ["-c", command], {
       cwd,
-      env: process.env,
+      env,
       shell: false,
     });
 

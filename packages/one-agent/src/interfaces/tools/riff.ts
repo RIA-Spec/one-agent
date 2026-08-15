@@ -290,7 +290,7 @@ export function createRiffTool(cwd: string, mode?: RiffMode) {
 
   return {
     description:
-      "Persist reusable riffs in .agents/riffs/<name> as standard agent skills (SKILL.md + scripts/ras.py|ras.sh), and list/read standard skills from .agents/skills/. Action params: list(action); read(action,name,includeScript?); upsert(action,name,description,script|content,scriptName?,parameters?); run(action,name,parameters?). run returns an inline exec payload for Python riffs, or a bash command to execute with the bash tool for .sh riffs.",
+      "Use for recurring, stable RAS workflows that should be saved, inspected, and rerun. Supports list, read, upsert, and run. Use ordinary tools for one-off, exploratory, or rapidly changing work.",
     parameters: jsonSchema({
       type: "object",
       properties: {

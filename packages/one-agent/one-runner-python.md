@@ -46,8 +46,10 @@ Call MCP server tools with exact arguments.
 
 **Tool discovery:**
 
-- `await act('__manual__', {})`: list available tools
-- `await act('__manual__', {'name': 'bash'})`: inspect one tool definition
+Built-in tools are stable; call them directly when their arguments are clear. Use `__manual__` on demand:
+
+- `await act('__manual__', {})`: list tools (needed for dynamic/unknown MCP tools)
+- `await act('__manual__', {'name': 'bash'})`: inspect one tool definition (when the exact schema is uncertain)
 
 **Parameters:**
 
@@ -59,7 +61,11 @@ Call MCP server tools with exact arguments.
 - `content`: Array of content blocks [{type: 'text', text: '...'}, ...]
 - `isError`: Boolean indicating failure (optional)
 
-**Available Tools:** bash (shell commands), websearch (internet search), webfetch (fetch and transform page content).
+**Available Tools:** bash (shell commands), read (bounded file reads), write (create/replace files), edit (targeted text replacement with diff), websearch (internet search), webfetch (fetch and transform page content), riff (reusable workflows). Dynamic MCP tools are discovered on demand via `__manual__`.
+
+**Structured inputs:** the optional `one.inputs` JSON object is available directly as `inputs`. Put source text and tool arguments there instead of nesting them in Python string literals. For example: `await act('edit', inputs['edit'])`.
+
+**File Tools:** use `read` for bounded/paginated reads, `edit` for unique targeted replacement with a returned diff, and `write` for creating or replacing complete files.
 
 **Reusable workflows:** use the `riff` tool for recurring, stable workflows. Storage lives under `.agents/riffs/<name>/SKILL.md` and `.agents/riffs/<name>/scripts/ras.py` (or `scripts/ras.sh` for bash riffs). `riff run` executes Python riffs inline and returns a bash command for `.sh` riffs (run it with `act bash`).
 

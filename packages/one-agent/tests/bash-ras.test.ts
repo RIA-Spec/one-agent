@@ -88,7 +88,34 @@ describe("createBashRAS", () => {
 
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("host bash output");
-    expect(actImpl).toHaveBeenCalledWith("__host_bash__", { command: "echo from host" });
+    expect(actImpl).toHaveBeenCalledWith("bash", { command: "echo from host" });
+  });
+
+  it("pipes structured inputs to act without shell-quoting source text", async () => {
+    const actImpl = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "edited" }],
+      isError: false,
+    });
+    const ras = createBashRAS(
+      makeConfig({
+        cwd: tempRoot,
+        actHandler: () => actImpl,
+      }),
+    );
+    const edit = {
+      path: "src/example.ts",
+      oldText: 'const pattern = "\\\\d+";\nconst shell = "$(echo untouched)";',
+      newText: 'const pattern = "\\\\w+";\nconst shell = "`still data`";',
+    };
+
+    const result = await ras.execute({
+      command: "one-input edit | act edit -",
+      inputs: { edit },
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(getText(result)).toContain("edited");
+    expect(actImpl).toHaveBeenCalledWith("edit", edit);
   });
 
   it("renders act output like the CLI, including attachment URLs", async () => {
@@ -119,9 +146,9 @@ describe("createBashRAS", () => {
     expect(getText(result)).toContain("https://cdn.example.com/cat.png");
   });
 
-  it("rewrites host bash alias in act manual output", async () => {
+  it("resolves the host bash manual under its public name", async () => {
     const actImpl = vi.fn().mockResolvedValue({
-      content: [{ type: "text", text: "Tool: __host_bash__" }],
+      content: [{ type: "text", text: "Tool: bash" }],
       isError: false,
     });
     const ras = createBashRAS(
@@ -136,7 +163,7 @@ describe("createBashRAS", () => {
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("Tool: bash");
     expect(getText(result)).not.toContain("__host_bash__");
-    expect(actImpl).toHaveBeenCalledWith("__manual__", { name: "__host_bash__" });
+    expect(actImpl).toHaveBeenCalledWith("__manual__", { name: "bash" });
   });
 
   it("matches reason CLI error behavior in bash mode", async () => {
