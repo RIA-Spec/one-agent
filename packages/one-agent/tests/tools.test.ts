@@ -20,6 +20,11 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..");
 const examplesDir = resolve(projectRoot, "examples");
 
+// reason() in these tests calls the real model provider; skip them in CI or
+// other environments where no API key is configured.
+const hasModelKey = Boolean(process.env.OPENAI_API_KEY || process.env.ONE_OPENAI_API_KEY);
+const itWithModel = hasModelKey ? it : it.skip;
+
 function getTextOutput(result: unknown): string {
   const toolResult = result as CallToolResult;
   return (toolResult.content[0] as TextContent).text;
@@ -98,37 +103,45 @@ describe("one tool", () => {
   }, 30000);
 
   // Now works with pool: "forks" instead of worker threads
-  it("executes Python with reason() function - boolean decision", async () => {
-    const code = readFileSync(resolve(examplesDir, "ai_boolean.py"), "utf-8");
+  itWithModel(
+    "executes Python with reason() function - boolean decision",
+    async () => {
+      const code = readFileSync(resolve(examplesDir, "ai_boolean.py"), "utf-8");
 
-    const result = await client.callTool({
-      name: "one",
-      arguments: { code },
-    });
+      const result = await client.callTool({
+        name: "one",
+        arguments: { code },
+      });
 
-    expect(result.content).toBeDefined();
-    const output = getTextOutput(result);
-    // Since errors > threshold, should alert
-    expect(output).toContain("Alert: Too many errors!");
-  }, 30000);
+      expect(result.content).toBeDefined();
+      const output = getTextOutput(result);
+      // Since errors > threshold, should alert
+      expect(output).toContain("Alert: Too many errors!");
+    },
+    30000,
+  );
 
   // Now works with pool: "forks" instead of worker threads
-  it("executes Python with reason() function - structured array", async () => {
-    const code = readFileSync(resolve(examplesDir, "ai_array.py"), "utf-8");
+  itWithModel(
+    "executes Python with reason() function - structured array",
+    async () => {
+      const code = readFileSync(resolve(examplesDir, "ai_array.py"), "utf-8");
 
-    const result = await client.callTool({
-      name: "one",
-      arguments: { code },
-    });
+      const result = await client.callTool({
+        name: "one",
+        arguments: { code },
+      });
 
-    expect(result.content).toBeDefined();
-    const output = getTextOutput(result);
-    // Should categorize fruits and vegetables
-    expect(output).toContain("Fruits:");
-    expect(output).toContain("Vegetables:");
-    expect(output.toLowerCase()).toContain("apple");
-    expect(output.toLowerCase()).toContain("banana");
-  }, 30000);
+      expect(result.content).toBeDefined();
+      const output = getTextOutput(result);
+      // Should categorize fruits and vegetables
+      expect(output).toContain("Fruits:");
+      expect(output).toContain("Vegetables:");
+      expect(output.toLowerCase()).toContain("apple");
+      expect(output.toLowerCase()).toContain("banana");
+    },
+    30000,
+  );
 
   it("handles Python errors gracefully", async () => {
     const code = readFileSync(resolve(examplesDir, "error_example.py"), "utf-8");
@@ -145,8 +158,10 @@ describe("one tool", () => {
   }, 30000);
 
   // Now works with pool: "forks" instead of worker threads
-  it("executes inline Python code without file", async () => {
-    const code = `
+  itWithModel(
+    "executes inline Python code without file",
+    async () => {
+      const code = `
 import asyncio
 
 async def main():
@@ -157,17 +172,19 @@ async def main():
 asyncio.run(main())
     `.trim();
 
-    const result = await client.callTool({
-      name: "one",
-      arguments: { code },
-    });
+      const result = await client.callTool({
+        name: "one",
+        arguments: { code },
+      });
 
-    expect(result.content).toBeDefined();
-    const output = getTextOutput(result);
-    expect(output).toContain("AI calculated sum:");
-    // AI should return something close to 15
-    expect(output).toMatch(/\d+/);
-  }, 30000);
+      expect(result.content).toBeDefined();
+      const output = getTextOutput(result);
+      expect(output).toContain("AI calculated sum:");
+      // AI should return something close to 15
+      expect(output).toMatch(/\d+/);
+    },
+    30000,
+  );
 
   it("handles custom package mappings", async () => {
     const code = `

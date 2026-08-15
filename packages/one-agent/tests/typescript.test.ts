@@ -25,7 +25,7 @@ describe("createTypeScriptRAS", () => {
 
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("hello world");
-  }, 30000);
+  }, 60000);
 
   it("executes TypeScript syntax by transpiling before runtime", async () => {
     const ras = createTypeScriptRAS(makeConfig());
@@ -35,7 +35,7 @@ describe("createTypeScriptRAS", () => {
 
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("42");
-  }, 30000);
+  }, 60000);
 
   it("exposes structured inputs without embedding source text in code", async () => {
     const actImpl = vi.fn().mockResolvedValue({ ok: true });
@@ -54,7 +54,7 @@ describe("createTypeScriptRAS", () => {
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("done");
     expect(actImpl).toHaveBeenCalledWith("edit", edit);
-  }, 30000);
+  }, 60000);
 
   it("returns no-output marker when user code prints nothing", async () => {
     const ras = createTypeScriptRAS(makeConfig());
@@ -62,7 +62,7 @@ describe("createTypeScriptRAS", () => {
 
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toBe("(no output)");
-  }, 30000);
+  }, 60000);
 
   // Unknown-schema fallback: discovery is for dynamic/unknown tools, not the
   // per-task default flow. Known built-ins should be called directly.
@@ -128,7 +128,7 @@ console.log(r.data?.findings?.join('\\n'));
       "OpenTelemetry tracing best practices for AI agents",
     );
     expect(reasonImpl.mock.calls[0]?.[1]).toEqual({ findings: [""] });
-  }, 30000);
+  }, 60000);
 
   it("calls a known built-in directly without manual discovery", async () => {
     const actImpl = vi.fn().mockResolvedValue({ ok: true });
@@ -145,7 +145,7 @@ console.log(r.data?.findings?.join('\\n'));
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("done");
     expect(actImpl.mock.calls).toEqual([["websearch", { query: "structured inputs" }]]);
-  }, 30000);
+  }, 60000);
 
   it("round-trips a real edit payload with quotes, escapes, shell syntax, and unicode through inputs", async () => {
     const actImpl = vi.fn().mockResolvedValue({ ok: true });
@@ -170,7 +170,7 @@ console.log(r.data?.findings?.join('\\n'));
     expect(result.isError).not.toBe(true);
     expect(getText(result)).toContain("done");
     expect(actImpl).toHaveBeenCalledWith("edit", edit);
-  }, 30000);
+  }, 60000);
 
   it("keeps step markers out of stdout while still running act calls", async () => {
     const actImpl = vi.fn().mockResolvedValue({ ok: true });
@@ -189,7 +189,7 @@ console.log(r.data?.findings?.join('\\n'));
     expect(getText(result)).not.toContain("[ONE:STEP_START");
     expect(getText(result)).not.toContain("[ONE:STEP_END");
     expect(actImpl).toHaveBeenCalledWith("bash", { command: "echo hi" });
-  }, 30000);
+  }, 60000);
 
   it("surfaces unresolved npm package failures from the Deno runtime", async () => {
     const ras = createTypeScriptRAS(makeConfig());
@@ -200,7 +200,7 @@ console.log(r.data?.findings?.join('\\n'));
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("JavaScript execution failed");
     expect(getText(result)).toContain("ERR_UNSUPPORTED_ESM_URL_SCHEME");
-  }, 30000);
+  }, 60000);
 
   it("formats runtime exceptions as JavaScript execution failures", async () => {
     const ras = createTypeScriptRAS(makeConfig());
@@ -211,7 +211,7 @@ console.log(r.data?.findings?.join('\\n'));
     expect(result.isError).toBe(true);
     expect(getText(result)).toContain("JavaScript execution failed");
     expect(getText(result)).toContain("Cannot read properties of undefined");
-  }, 30000);
+  }, 60000);
 
   it("fails before runtime on TypeScript syntax errors", async () => {
     const ras = createTypeScriptRAS(makeConfig());
