@@ -65,7 +65,7 @@ export function getResolvedModelIdForDisplay(): string {
 }
 
 export function getRASModeForDisplay(): string {
-  const mode = (process.env.RAS_MODE || "python").toLowerCase();
+  const mode = (process.env.RAS_MODE || "bash").toLowerCase();
   if (mode === "bash") return "bash";
   if (mode === "typescript" || mode === "ts" || mode === "javascript" || mode === "js")
     return "typescript";

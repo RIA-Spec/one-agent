@@ -296,7 +296,7 @@ async function runRiffCommand(action: "list" | "read" | "run", payload: Record<s
     const act = getToolFn(server);
     let result: ActResult;
 
-    const rawRASMode = (process.env.RAS_MODE || "python").toLowerCase();
+    const rawRASMode = (process.env.RAS_MODE || "bash").toLowerCase();
     if (action === "run" && rawRASMode === "python") {
       const riffArgs = JSON.stringify({ action, ...payload });
       const code = [

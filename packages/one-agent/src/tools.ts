@@ -122,7 +122,7 @@ let server: Awaited<ReturnType<typeof mcpc>> | null = null;
 
 export async function getServer() {
   // Read RAS_MODE lazily so callers (e.g. tests) can override process.env before calling.
-  const rawRASMode = (process.env.RAS_MODE || "python").toLowerCase();
+  const rawRASMode = (process.env.RAS_MODE || "bash").toLowerCase();
   const RAS_MODE =
     rawRASMode === "bash"
       ? "bash"

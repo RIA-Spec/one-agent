@@ -117,7 +117,7 @@ agent --prompt "Investigate and summarize failures in one paragraph" --config '{
 cat a.txt`;
 
 function resolveRASMode(): RASMode {
-  const raw = (process.env.RAS_MODE || "python").toLowerCase();
+  const raw = (process.env.RAS_MODE || "bash").toLowerCase();
   if (raw === "bash") return "bash";
   if (raw === "typescript" || raw === "ts" || raw === "javascript" || raw === "js") {
     return "typescript";

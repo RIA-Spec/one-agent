@@ -135,16 +135,16 @@ cat build.log | \
 Select the runtime via `RAS_MODE`:
 
 ```bash
-export RAS_MODE=python      # default
+export RAS_MODE=bash        # default
 export RAS_MODE=typescript  # or: ts
-export RAS_MODE=bash
+export RAS_MODE=python      # data tasks: pandas / numpy
 ```
 
 ## Environment variables
 
 | Variable                      | Default  | Description                                               |
 | ----------------------------- | -------- | --------------------------------------------------------- |
-| `RAS_MODE`                    | `python` | RAS runtime surface (`python`, `typescript`/`ts`, `bash`) |
+| `RAS_MODE`                    | `bash`   | RAS runtime surface (`bash`, `python`, `typescript`/`ts`) |
 | `ONE_CHAT_MODEL`              | —        | Override the main agent model ID                          |
 | `ONE_AGENT_MODEL`             | —        | Fallback model ID (lower priority than `ONE_CHAT_MODEL`)  |
 | `MODEL`                       | —        | Lowest-priority model ID fallback                         |
