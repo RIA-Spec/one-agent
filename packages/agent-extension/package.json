@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/agent-extension",
-  "version": "0.0.4",
+  "version": "0.0.5",
   "description": "Optional delegated agent() extension for ONE.",
   "keywords": [
     "agent",
