@@ -1,6 +1,6 @@
 {
   "name": "@one-agent/act",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Tool invocation interface and CLI for ONE.",
   "keywords": [
     "act",
