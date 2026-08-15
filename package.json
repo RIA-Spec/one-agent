@@ -20,6 +20,11 @@
   },
   "devDependencies": {},
   "pnpm": {
+    "onlyBuiltDependencies": [
+      "@mongodb-js/zstd",
+      "deno",
+      "node-liblzma"
+    ],
     "overrides": {
       "ai": "6.0.44",
       "@ai-sdk/provider": "3.0.4"
