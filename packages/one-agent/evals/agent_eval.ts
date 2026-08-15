@@ -431,6 +431,15 @@ function countActCalls(code: string): number {
   return parenCalls.length + commandCalls.length;
 }
 
+// Bash mode gathers evidence with plain shell commands (cat/sed/git/...)
+// inside one `one` call, so count evidence streams, not just act() calls.
+function countEvidenceStreams(code: string): number {
+  const actCount = countActCalls(code);
+  const shellReads =
+    code.match(/\b(?:cat|sed|grep|awk|tail|head|ls|find|git|rg)\s+/g) ?? [];
+  return actCount + shellReads.length;
+}
+
 function isGrounded(code: string): boolean {
   const match = code.match(/\breason\s*\(([\s\S]*?)\)/);
   if (match) {
@@ -514,6 +523,13 @@ function semanticOk(sample: Sample, output: string): boolean {
       const must = toStringArray(expected.mustContain);
       return must.every((m) => containsText(text, m));
     }
+    case "converge": {
+      const obj = parsed as Record<string, unknown> | null;
+      if (!obj) return false;
+      const files = toStringArray(obj.likelyFiles);
+      const want = toStringArray(expected.files);
+      return want.every((w) => files.some((f) => containsText(f, w)));
+    }
     case "count": {
       const got = typeof parsed === "number" ? parsed : Number(String(parsed ?? "").trim());
       return got === Number(expected.value);
@@ -594,8 +610,8 @@ function judgeControlNode(sample: Sample, codes: string[], output: string): Cont
   const usesReason = codes.some(containsReasonCall);
   const grounded = codes.some(isGrounded);
   const structured = sample.schemaHint ? extractJson(output) !== null : false;
-  const actCalls = codes.reduce((sum, code) => sum + countActCalls(code), 0);
-  const batched = codes.length === 1 && actCalls >= 2;
+  const evidenceStreams = codes.reduce((sum, code) => sum + countEvidenceStreams(code), 0);
+  const batched = codes.length === 1 && evidenceStreams >= 2;
   const expectReason = sample.expectReason ?? false;
   const expectBatched = sample.expectBatched ?? false;
   const expectToolCall = sample.expectToolCall ?? true;

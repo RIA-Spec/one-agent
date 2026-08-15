@@ -21,6 +21,20 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     expect(prompt).not.toContain("YOU MUST fetch the tool list");
   });
 
+  it("explains one job = one call via the ReAct round-trip cost model", () => {
+    expect(prompt).toContain("one job = one `one` call");
+    expect(prompt).toContain("Re in Act");
+    expect(prompt).toContain("round trip");
+    expect(prompt).toContain("failure mode");
+    expect(prompt).toContain("leaking into the main context");
+  });
+
+  it("keeps batching unconditional while reason() stays judgment-only", () => {
+    expect(prompt).toContain("gather all evidence with `act()`");
+    expect(prompt).toContain("deterministic control");
+    expect(prompt).toContain("genuinely uncertain");
+  });
+
   it("lists every stable built-in tool exactly once in the catalog", () => {
     for (const tool of BUILTIN_RAS_TOOLS) {
       const occurrences = prompt.split(`- ${tool.name}:`).length - 1;

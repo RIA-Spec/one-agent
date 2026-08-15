@@ -89,7 +89,7 @@ cat api_docs.md | reason --prompt "Extract API endpoints" --structure '{"endpoin
 
 Do not use `reason` when the exact output or exact next edit is already clear.
 
-When batching multiple `act` calls in one shell session, place `reason` at the decision nodes inside that batch. After a command/tool call, use `reason` only if you need to denoise the output into a smaller structured result or the next control decision for the next step or for the user. Keep the observation flow machine-to-machine (pipe/variable), not hand-written.
+One job = one RAS call: batch every related `act` invocation into a single shell session, and place `reason` at the decision nodes inside that batch. If a job would need more than one `one` call, that is a failure mode — regroup the remaining evidence gathering and judgment into the current call. After a command/tool call, use `reason` only if you need to denoise the output into a smaller structured result or the next control decision. Keep the observation flow machine-to-machine (pipe/variable), not hand-written.
 
 ### act - MCP Tool Command
 

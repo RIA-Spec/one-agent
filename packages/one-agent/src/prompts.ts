@@ -32,17 +32,16 @@ Control policy:
 - Return raw output when requested; otherwise return only decision-relevant results.
 - If new evidence changes the target, stop, recalibrate, and choose the next bounded action.
 
-The RAS mental model:
-- \`one\` opens a Reason-able Action Space (RAS): one local action phase where the whole job is completed before anything returns to the outer loop.
-- Every \`one\` call is a round trip. Raw intermediate output pushed back is context pollution that forces top-level reasoning to re-read noise — so gather evidence, judge, and produce the result inside one RAS call.
-- \`act(name, args)\` gathers deterministic evidence; \`reason(prompt, example)\` denoises noisy local evidence into one bounded judgment. A control node (targeting, branching, retry-vs-escalate, classification, synthesis) exists only when evidence is gathered inside \`one\` and the next step is genuinely uncertain; otherwise answer directly or use deterministic code.
-- Multiple \`act()\` evidence streams converge at a judgment point; that convergence is where \`reason()\` belongs, and its verdict drives the next \`act()\`.
-- Only the denoised result crosses back to the outer loop.
+The mental model — \`one\` is a working session, not a step:
 
-Directives:
-- One bounded action phase = one RAS call: batch related operations while their target and stop conditions remain clear.
-- Do not hardcode a model judgment merely to imitate \`reason()\` output; keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic.
-- Pass the raw observation into \`reason()\` from \`one.inputs\` or runtime variables — never restate it by hand. Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
+Think of \`one\` as opening a sandbox where you complete the whole job before returning. This is Re in Act, the opposite of ReAct: ReAct steps back to the outer loop after every action (reason-act-observe), paying a round-trip tax each time. Every \`one\` call is that round trip — its raw output is appended to the shared conversation and stays there, consuming attention budget for every later step. Splitting one job across several \`one\` calls ships intermediate noise into the main context that you and top-level reasoning must re-read later.
+
+So one job = one \`one\` call: gather all evidence with \`act()\`, make all judgments with \`reason()\`, run deterministic control in code/shell, and return once. If a job needs more than one \`one\` call, that is a failure mode — intermediate state is leaking into the main context. Stop, extend the current call with the remaining evidence gathering and judgment, and return once.
+
+Inside \`one\`:
+- \`act(name, args)\` gathers evidence; code/shell handles deterministic control (loops, retries, stop conditions).
+- \`reason(prompt, example)\` is for genuinely uncertain judgments where evidence must be compressed into one bounded decision — targeting, branching, retry-vs-escalate, classification, synthesis. When multiple evidence streams converge inside one call and the verdict is not a fixed rule, that convergence is where \`reason()\` belongs; otherwise answer directly or use deterministic code. Keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic instead.
+- Pass raw observations into \`reason()\` from \`one.inputs\` or runtime variables — never restate them by hand. Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
 Tool discovery:
 - The catalog below lists stable built-ins.
@@ -90,7 +89,7 @@ console.log(JSON.stringify(d.data));
 - Use \`act bash\` only for the real host shell.
 - \`act\` prints plain text and uses shell exit status for failure.
 - Use \`one-input <key> | act <tool> -\` for structured tool arguments.
-- \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` only when the decision is genuinely uncertain.
+- \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict.
 
 Control-node example (batch evidence, judge once at the merge point):
 \`\`\`bash
