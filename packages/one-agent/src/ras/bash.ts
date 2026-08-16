@@ -498,7 +498,7 @@ export function createBashRAS(config: BashRASConfig) {
           type: "object",
           additionalProperties: true,
           description:
-            "JSON data available to Bash through one-input [key]. Use it for source text and tool arguments that should not be shell-quoted in command. Values must be JSON objects/primitives, never JSON-encoded strings: pass {\"path\":\"x\"} as an object, not '{\"path\":\"x\"}'. JSON-encoded strings survive JSON.parse as strings and tool calls see no fields.",
+            "JSON data available to Bash through one-input [key]. Use it for source text and tool arguments that should not be shell-quoted in command. Only values piped into `act <tool> -` must be JSON objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.",
         },
       },
       required: ["command"],

@@ -10,8 +10,9 @@ export default defineConfig({
     pool: "forks",
     execArgv: ["--experimental-wasm-stack-switching"],
     testTimeout: 60000,
-    // Deno/Pyodide cold starts are slow on CI; retry once before failing.
-    retry: 1,
+    // Deno/Pyodide cold starts are slow on CI; retry once there, but keep
+    // local runs retry-free so flaky regressions surface immediately.
+    retry: process.env.CI ? 1 : 0,
     setupFiles: ["./tests/setup.ts"],
   },
 });

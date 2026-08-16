@@ -219,7 +219,7 @@ export function createPythonRAS(config: PythonRASConfig) {
           type: "object",
           additionalProperties: true,
           description:
-            "JSON data exposed to Python code as inputs. Use it for source text and tool arguments that should not be embedded in code. Values must be JSON objects/primitives, never JSON-encoded strings: pass {\"path\":\"x\"} as an object, not '{\"path\":\"x\"}'. JSON-encoded strings survive JSON.parse as strings and tool calls see no fields.",
+            "JSON data exposed to Python code as inputs. Use it for source text and tool arguments that should not be embedded in code. Values passed to `act()` must be objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.",
         },
       },
       required: ["code"],

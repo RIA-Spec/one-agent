@@ -36,7 +36,7 @@ The mental model — \`one\` is a working session, not a step:
 
 Think of \`one\` as opening a sandbox where you complete the whole job before returning. This is Re in Act, the opposite of ReAct: ReAct steps back to the outer loop after every action (reason-act-observe), paying a round-trip tax each time. Every \`one\` call is that round trip — its raw output is appended to the shared conversation and stays there, consuming attention budget for every later step. Splitting one job across several \`one\` calls ships intermediate noise into the main context that you and top-level reasoning must re-read later.
 
-So one job = one \`one\` call: gather all evidence with \`act()\`, make all judgments with \`reason()\`, run deterministic control in code/shell, and return once. If a job needs more than one \`one\` call, that is a failure mode — intermediate state is leaking into the main context. Stop, extend the current call with the remaining evidence gathering and judgment, and return once.
+So one job = one \`one\` call: batch all currently known related work into one bounded call, gather all evidence with \`act()\`, make all judgments with \`reason()\`, run deterministic control in code/shell, and return once. Start another bounded \`one\` call only when the previous call failed, timed out, or returned evidence that reveals a genuinely new target or dependency.
 
 Inside \`one\`:
 - \`act(name, args)\` gathers evidence; code/shell handles deterministic control (loops, retries, stop conditions).
@@ -58,6 +58,7 @@ const MODE_PROMPTS: Record<RASMode, string> = {
 - \`one.code\` is Python executed in bounded Pyodide.
 - \`reason()\` and \`act()\` are async; use \`asyncio.run(main())\`.
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
+- \`inputs\` values may be strings, arrays, objects, or primitives. Values passed to \`act()\` must be objects matching that tool's argument schema — do not pre-serialize them into JSON strings.
 - Print the final result.
 
 Control-node example (batch evidence, judge once at the merge point):
@@ -74,6 +75,7 @@ asyncio.run(main())
 - \`one.code\` is TypeScript/JavaScript executed in bounded Deno.
 - Use \`await reason(...)\` / \`await act(...)\`.
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
+- \`inputs\` values may be strings, arrays, objects, or primitives. Values passed to \`act()\` must be objects matching that tool's argument schema — do not pre-serialize them into JSON strings.
 - Print with \`console.log\`.
 
 Control-node example (batch evidence, judge once at the merge point):
@@ -90,7 +92,7 @@ console.log(JSON.stringify(d.data));
 - \`act\` prints plain text and uses shell exit status for failure.
 - Use \`one-input <key> | act <tool> -\` for structured tool arguments.
 - There is no placeholder substitution: \`__ONE_INPUT__\` is literal text. Pass values with \`one-input\`, never magic tokens.
-- \`inputs\` values are objects, not JSON-encoded strings: pass \`{"path":"x"}\` as an object, never as \`'{"path":"x"}'\`.
+- Only \`inputs\` values piped into \`act <tool> -\` must be JSON objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.
 - \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict.
 
 Control-node example (batch evidence, judge once at the merge point):

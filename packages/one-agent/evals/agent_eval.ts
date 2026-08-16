@@ -425,18 +425,53 @@ function containsReasonCall(code: string): boolean {
   return /\breason\s*\(/.test(code) || /\breason\s+--/.test(code);
 }
 
+// Strip comments and quoted string literals so only executable code remains.
+// This stops `act bash '{"command":"git log"}'` from double counting the act
+// call and the command inside its JSON string, and keeps cat/git mentions in
+// comments or prompt strings from counting as real evidence streams.
+function stripCodeNoise(code: string): string {
+  let out = "";
+  let i = 0;
+  while (i < code.length) {
+    const ch = code[i];
+    const next = code[i + 1];
+    if (ch === "#" && (i === 0 || /\s/.test(code[i - 1]))) {
+      while (i < code.length && code[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && next === "/") {
+      while (i < code.length && code[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === "`") {
+      i++;
+      while (i < code.length && code[i] !== ch) {
+        if (code[i] === "\\") i++;
+        i++;
+      }
+      i++;
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 function countActCalls(code: string): number {
-  const parenCalls = code.match(/\bact\s*\(/g) ?? [];
-  const commandCalls = code.match(/\bact\s+(?:--|[\w-]+)/g) ?? [];
+  const clean = stripCodeNoise(code);
+  const parenCalls = clean.match(/\bact\s*\(/g) ?? [];
+  const commandCalls = clean.match(/\bact\s+(?:--|[\w-]+)/g) ?? [];
   return parenCalls.length + commandCalls.length;
 }
 
 // Bash mode gathers evidence with plain shell commands (cat/sed/git/...)
 // inside one `one` call, so count evidence streams, not just act() calls.
 function countEvidenceStreams(code: string): number {
-  const actCount = countActCalls(code);
+  const clean = stripCodeNoise(code);
+  const actCount = countActCalls(clean);
   const shellReads =
-    code.match(/\b(?:cat|sed|grep|awk|tail|head|ls|find|git|rg)\s+/g) ?? [];
+    clean.match(/\b(?:cat|sed|grep|awk|tail|head|ls|find|git|rg)\s+/g) ?? [];
   return actCount + shellReads.length;
 }
 
@@ -526,9 +561,14 @@ function semanticOk(sample: Sample, output: string): boolean {
     case "converge": {
       const obj = parsed as Record<string, unknown> | null;
       if (!obj) return false;
-      const files = toStringArray(obj.likelyFiles);
-      const want = toStringArray(expected.files);
-      return want.every((w) => files.some((f) => containsText(f, w)));
+      const got = new Set(toStringArray(obj.likelyFiles).map(normalizeEntryName));
+      const want = new Set(toStringArray(expected.files).map(normalizeEntryName));
+      return (
+        got.size === want.size &&
+        [...want].every((file) => got.has(file)) &&
+        typeof obj.reason === "string" &&
+        obj.reason.trim().length > 0
+      );
     }
     case "count": {
       const got = typeof parsed === "number" ? parsed : Number(String(parsed ?? "").trim());

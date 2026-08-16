@@ -25,8 +25,8 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     expect(prompt).toContain("one job = one `one` call");
     expect(prompt).toContain("Re in Act");
     expect(prompt).toContain("round trip");
-    expect(prompt).toContain("failure mode");
-    expect(prompt).toContain("leaking into the main context");
+    expect(prompt).toContain("failed, timed out, or returned evidence");
+    expect(prompt).toContain("genuinely new target or dependency");
   });
 
   it("warns against placeholder tokens and shows the stdin JSON pipe", () => {
@@ -36,13 +36,17 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     expect(prompt).toContain("one-input <key> | act <tool> -");
   });
 
-  it("requires inputs values as objects, not JSON-encoded strings", () => {
-    if (mode !== "bash") return;
-    expect(prompt).toContain("inputs` values are objects");
-    expect(prompt).toContain("never as `'{\"path\":\"x\"}'`");
+  it("documents the inputs contract: act args must be objects, others free-form", () => {
+    if (mode === "bash") {
+      expect(prompt).toContain("piped into `act <tool> -` must be JSON objects");
+      expect(prompt).toContain("Do not pre-serialize an object into a JSON string");
+    } else {
+      expect(prompt).toContain("Values passed to `act()` must be objects");
+      expect(prompt).toContain("do not pre-serialize them into JSON strings");
+    }
   });
 
-  it("keeps batching unconditional while reason() stays judgment-only", () => {
+  it("makes batching the default while reason() stays judgment-only", () => {
     expect(prompt).toContain("gather all evidence with `act()`");
     expect(prompt).toContain("deterministic control");
     expect(prompt).toContain("genuinely uncertain");

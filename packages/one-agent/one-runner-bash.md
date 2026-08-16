@@ -18,7 +18,7 @@ When the `one` call includes structured `inputs`, read all of them with `one-inp
 
 There is no placeholder substitution: `__ONE_INPUT__` and similar tokens are written literally. Pass values with `one-input <key> | act <tool> -` (JSON read from stdin) or `one-input <key>` inside a `$(...)` substitution — never invent magic tokens.
 
-`inputs` values must be JSON objects/arrays/primitives, never JSON-encoded strings: passing `'{"path":"x"}'` makes `one-input` output an extra-quoted string (`"{\"path\":\"x\"}"`), so `act` parses it back into a string and the tool sees no `path`. Pass the object directly.
+Only `inputs` values piped into `act <tool> -` must be JSON objects matching that tool's argument schema: passing `'{"path":"x"}'` makes `one-input` output an extra-quoted string (`"{\"path\":\"x\"}"`), so `act` parses it back into a string and the tool sees no `path`. Other `inputs` values (source text, prompts, regexes) may be strings, arrays, objects, or primitives — pass them directly without pre-serializing.
 
 Environment limits: `jq` here is a minimal build (no `--arg`/`--slurpfile`); build JSON with `one-input` + `jq` filters instead. `python3` is not available for constructing tool arguments — keep JSON construction in shell/jq.
 
@@ -95,7 +95,7 @@ cat api_docs.md | reason --prompt "Extract API endpoints" --structure '{"endpoin
 
 Do not use `reason` when the exact output or exact next edit is already clear.
 
-One job = one RAS call: batch every related `act` invocation into a single shell session, and place `reason` at the decision nodes inside that batch. If a job would need more than one `one` call, that is a failure mode — regroup the remaining evidence gathering and judgment into the current call. After a command/tool call, use `reason` only if you need to denoise the output into a smaller structured result or the next control decision. Keep the observation flow machine-to-machine (pipe/variable), not hand-written.
+One job = one RAS call: batch every related `act` invocation into a single shell session, and place `reason` at the decision nodes inside that batch. Start a new `one` call only when the previous one failed, timed out, or returned evidence that reveals a genuinely new target or dependency. After a command/tool call, use `reason` only if you need to denoise the output into a smaller structured result or the next control decision. Keep the observation flow machine-to-machine (pipe/variable), not hand-written.
 
 ### act - MCP Tool Command
 
