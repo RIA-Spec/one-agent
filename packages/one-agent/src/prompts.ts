@@ -89,6 +89,7 @@ console.log(JSON.stringify(d.data));
 - Use \`act bash\` only for the real host shell.
 - \`act\` prints plain text and uses shell exit status for failure.
 - Use \`one-input <key> | act <tool> -\` for structured tool arguments.
+- There is no placeholder substitution: \`__ONE_INPUT__\` is literal text. Pass values with \`one-input\`, never magic tokens.
 - \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict.
 
 Control-node example (batch evidence, judge once at the merge point):

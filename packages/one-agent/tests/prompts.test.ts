@@ -29,6 +29,13 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     expect(prompt).toContain("leaking into the main context");
   });
 
+  it("warns against placeholder tokens and shows the stdin JSON pipe", () => {
+    if (mode !== "bash") return;
+    expect(prompt).toContain("There is no placeholder substitution");
+    expect(prompt).toContain("never magic tokens");
+    expect(prompt).toContain("one-input <key> | act <tool> -");
+  });
+
   it("keeps batching unconditional while reason() stays judgment-only", () => {
     expect(prompt).toContain("gather all evidence with `act()`");
     expect(prompt).toContain("deterministic control");

@@ -285,7 +285,11 @@ function parseActArgs(args: string[], stdin: string): ParsedActArgs | ExecResult
         if (arg === "-") needsJsonStdin = true;
         else argsText = arg;
       } else {
-        return fail(`Unknown argument: ${arg}`);
+        return fail(
+          arg === "-"
+            ? "Cannot combine JSON args with `-`. Use `one-input <key> | act <tool> -` to pass JSON via stdin, or pass JSON as a positional argument — not both."
+            : `Unknown argument: ${arg}`,
+        );
       }
       continue;
     }

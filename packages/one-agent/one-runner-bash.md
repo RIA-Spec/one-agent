@@ -16,6 +16,10 @@ Write bash commands directly. Use `reason` and `act` as commands in your pipelin
 
 When the `one` call includes structured `inputs`, read all of them with `one-input` or one top-level value with `one-input <key>`. Prefer `one-input edit | act edit -` over embedding source text in shell or JSON string literals.
 
+There is no placeholder substitution: `__ONE_INPUT__` and similar tokens are written literally. Pass values with `one-input <key> | act <tool> -` (JSON read from stdin) or `one-input <key>` inside a `$(...)` substitution — never invent magic tokens.
+
+Environment limits: `jq` here is a minimal build (no `--arg`/`--slurpfile`); build JSON with `one-input` + `jq` filters instead. `python3` is not available for constructing tool arguments — keep JSON construction in shell/jq.
+
 Direct shell commands run inside just-bash. Use `act bash ...` when you explicitly need the real host bash tool.
 
 Prefer `act` in Unix-shaped forms so it behaves like other shell commands you already know:
