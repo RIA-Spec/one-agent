@@ -237,8 +237,7 @@ export function createEditTool(cwd: string) {
         ) {
           throw new Error(
             "edit requires an object with string fields {path, oldText, newText}. " +
-              "If you used one-input, the inputs value must be an object, not a JSON-encoded string " +
-              "('{\"path\":\"x\"}' becomes a string after JSON.parse and edit sees no fields).",
+              "Pass the fields directly as an object, not as a JSON-encoded string.",
           );
         }
         const absolutePath = resolveToCwd(path, cwd);
