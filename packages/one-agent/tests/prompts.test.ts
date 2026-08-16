@@ -29,9 +29,8 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     expect(prompt).toContain("genuinely new target or dependency");
   });
 
-  it("warns against placeholder tokens and shows the stdin JSON pipe", () => {
+  it("steers stdin JSON pipe usage away from magic tokens", () => {
     if (mode !== "bash") return;
-    expect(prompt).toContain("There is no placeholder substitution");
     expect(prompt).toContain("never magic tokens");
     expect(prompt).toContain("one-input <key> | act <tool> -");
   });

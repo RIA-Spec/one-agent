@@ -16,7 +16,7 @@ Write bash commands directly. Use `reason` and `act` as commands in your pipelin
 
 When the `one` call includes structured `inputs`, read all of them with `one-input` or one top-level value with `one-input <key>`. Prefer `one-input edit | act edit -` over embedding source text in shell or JSON string literals.
 
-There is no placeholder substitution: `__ONE_INPUT__` and similar tokens are written literally. Pass values with `one-input <key> | act <tool> -` (JSON read from stdin) or `one-input <key>` inside a `$(...)` substitution — never invent magic tokens.
+Pass values with `one-input <key> | act <tool> -` (JSON read from stdin) or `one-input <key>` inside a `$(...)` substitution — never invent magic tokens.
 
 Only `inputs` values piped into `act <tool> -` must be JSON objects matching that tool's argument schema: passing `'{"path":"x"}'` makes `one-input` output an extra-quoted string (`"{\"path\":\"x\"}"`), so `act` parses it back into a string and the tool sees no `path`. Other `inputs` values (source text, prompts, regexes) may be strings, arrays, objects, or primitives — pass them directly without pre-serializing.
 
