@@ -55,7 +55,7 @@ export { CORE_AGENT_PROMPT };
 
 const MODE_PROMPTS: Record<RASMode, string> = {
   python: `Python mode:
-- \`one.code\` is Python executed in bounded Pyodide.
+- \`one.code\` is Python.
 - \`reason()\` and \`act()\` are async; use \`asyncio.run(main())\`.
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
 - \`inputs\` values may be strings, arrays, objects, or primitives. Values passed to \`act()\` must be objects matching that tool's argument schema — do not pre-serialize them into JSON strings.
@@ -72,7 +72,7 @@ async def main():
 asyncio.run(main())
 \`\`\``,
   typescript: `TypeScript mode:
-- \`one.code\` is TypeScript/JavaScript executed in bounded Deno.
+- \`one.code\` is TypeScript/JavaScript.
 - Use \`await reason(...)\` / \`await act(...)\`.
 - \`inputs\` is the JSON object supplied through \`one.inputs\`.
 - \`inputs\` values may be strings, arrays, objects, or primitives. Values passed to \`act()\` must be objects matching that tool's argument schema — do not pre-serialize them into JSON strings.
