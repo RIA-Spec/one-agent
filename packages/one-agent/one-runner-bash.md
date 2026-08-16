@@ -18,6 +18,8 @@ When the `one` call includes structured `inputs`, read all of them with `one-inp
 
 There is no placeholder substitution: `__ONE_INPUT__` and similar tokens are written literally. Pass values with `one-input <key> | act <tool> -` (JSON read from stdin) or `one-input <key>` inside a `$(...)` substitution — never invent magic tokens.
 
+`inputs` values must be JSON objects/arrays/primitives, never JSON-encoded strings: passing `'{"path":"x"}'` makes `one-input` output an extra-quoted string (`"{\"path\":\"x\"}"`), so `act` parses it back into a string and the tool sees no `path`. Pass the object directly.
+
 Environment limits: `jq` here is a minimal build (no `--arg`/`--slurpfile`); build JSON with `one-input` + `jq` filters instead. `python3` is not available for constructing tool arguments — keep JSON construction in shell/jq.
 
 Direct shell commands run inside just-bash. Use `act bash ...` when you explicitly need the real host bash tool.

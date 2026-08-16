@@ -36,6 +36,12 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     expect(prompt).toContain("one-input <key> | act <tool> -");
   });
 
+  it("requires inputs values as objects, not JSON-encoded strings", () => {
+    if (mode !== "bash") return;
+    expect(prompt).toContain("inputs` values are objects");
+    expect(prompt).toContain("never as `'{\"path\":\"x\"}'`");
+  });
+
   it("keeps batching unconditional while reason() stays judgment-only", () => {
     expect(prompt).toContain("gather all evidence with `act()`");
     expect(prompt).toContain("deterministic control");
