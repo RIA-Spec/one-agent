@@ -30,7 +30,7 @@ const HELP_CONFIGURATION = [
   "Environment variables override file config.",
   "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (default: 65536). Also readable from CONTEXT_WINDOW in reason.json.",
   "ONE_REASON_INPUT_RATIO / ONE_INPUT_RATIO        Fraction of context window used for input (default: 0.8, reserves 20% for model output). Also readable from INPUT_RATIO in reason.json.",
-  'ONE_REASON_REASONING_EFFORT / ONE_REASONING_EFFORT  Model thinking effort for OpenAI / OpenAI-compatible / Anthropic (off/low/medium/high; provider default when unset). Best-effort: off sends reasoning_effort "none" on OpenAI-compatible, "minimal" on OpenAI, and disabled thinking on Anthropic; not all models honor it. Also readable from REASONING_EFFORT in reason.json.',
+  'ONE_REASON_REASONING_EFFORT / ONE_REASONING_EFFORT  Model thinking effort for OpenAI / OpenAI-compatible / Anthropic (off/low/medium/high; provider default when unset). Best-effort: off sends reasoning_effort "none" on OpenAI-compatible, "minimal" on OpenAI, and disabled thinking on Anthropic (adaptive thinking + effort on Claude 4.6+/Claude 5, enabled + budget on older Claude models); not all models honor it. Also readable from REASONING_EFFORT in reason.json.',
 ];
 const HELP_EXAMPLES = [
   'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',

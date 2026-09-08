@@ -136,8 +136,71 @@ function normalizeReasoningEffort(value: string | undefined): ReasoningEffort | 
   throw new Error(`Invalid REASONING_EFFORT "${value}". Expected one of: off, low, medium, high.`);
 }
 
+// Anthropic models that enable thinking through adaptive thinking
+// (`thinking: { type: "adaptive" }` plus the `effort` output-config parameter).
+// This covers Claude 4.6 and later and the Claude 5 family. On Claude Opus 4.7
+// and later (and Claude 5), adaptive is the only accepted way to turn thinking
+// on; the legacy `enabled` + `budgetTokens` form returns a 400 error there.
+// Substring matches also cover dated aliases such as claude-sonnet-4-6-20250805.
+const ANTHROPIC_ADAPTIVE_THINKING_MODEL_SUBSTRINGS = [
+  "claude-opus-5",
+  "claude-sonnet-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+];
+
+type ReasoningEffortLevel = Exclude<ReasoningEffort, "off">;
+
+// Legacy Anthropic models (Claude 4.6 and earlier) enable thinking through
+// `thinking: { type: "enabled", budgetTokens }` and have no effort parameter.
+// Each REASONING_EFFORT level therefore maps to a fixed thinking token budget.
+const ANTHROPIC_LEGACY_THINKING_BUDGET_BY_EFFORT: Record<ReasoningEffortLevel, number> = {
+  low: 2048,
+  medium: 8192,
+  high: 16384,
+};
+
+function isAnthropicAdaptiveThinkingModel(modelId: string): boolean {
+  // Accept gateway-style model ids such as "anthropic/claude-sonnet-5".
+  const normalizedModelId = modelId.replace(/^anthropic\//, "");
+  return ANTHROPIC_ADAPTIVE_THINKING_MODEL_SUBSTRINGS.some((model) =>
+    normalizedModelId.includes(model),
+  );
+}
+
+function anthropicReasoningProviderOptions(
+  modelId: string,
+  effort: ReasoningEffort,
+): ModelProviderOptions {
+  if (effort === "off") {
+    // Explicitly disable thinking. Requires @ai-sdk/anthropic >= 3.0.93;
+    // earlier versions dropped the `disabled` thinking field from the request.
+    return { anthropic: { thinking: { type: "disabled" } } };
+  }
+
+  if (isAnthropicAdaptiveThinkingModel(modelId)) {
+    // Claude 4.6+ and Claude 5 models: adaptive thinking plus the effort level.
+    return { anthropic: { thinking: { type: "adaptive" }, effort } };
+  }
+
+  // Claude 4.6 and earlier: legacy extended thinking with a fixed token budget.
+  return {
+    anthropic: {
+      thinking: {
+        type: "enabled",
+        budgetTokens: ANTHROPIC_LEGACY_THINKING_BUDGET_BY_EFFORT[effort],
+      },
+    },
+  };
+}
+
 function reasoningEffortProviderOptions(
   provider: InterfaceProvider,
+  modelId: string,
   effort: ReasoningEffort,
 ): ModelProviderOptions | undefined {
   switch (provider) {
@@ -149,10 +212,7 @@ function reasoningEffortProviderOptions(
     case "openai-compatible":
       return { openaiCompatible: { reasoningEffort: effort === "off" ? "none" : effort } };
     case "anthropic":
-      if (effort === "off") {
-        return { anthropic: { thinking: { type: "disabled" } } };
-      }
-      return { anthropic: { effort } };
+      return anthropicReasoningProviderOptions(modelId, effort);
     default:
       throw new Error(`REASONING_EFFORT is not supported for provider: ${provider}`);
   }
@@ -179,7 +239,7 @@ export async function resolveInterfaceModel(
       name: "anthropic",
     });
     const providerOptions = reasoningEffort
-      ? reasoningEffortProviderOptions(provider, reasoningEffort)
+      ? reasoningEffortProviderOptions(provider, modelId, reasoningEffort)
       : undefined;
 
     return {
@@ -203,7 +263,7 @@ export async function resolveInterfaceModel(
         : {}),
     });
     const providerOptions = reasoningEffort
-      ? reasoningEffortProviderOptions(provider, reasoningEffort)
+      ? reasoningEffortProviderOptions(provider, modelId, reasoningEffort)
       : undefined;
 
     return {
@@ -231,7 +291,7 @@ export async function resolveInterfaceModel(
       baseURL,
     });
     const providerOptions = reasoningEffort
-      ? reasoningEffortProviderOptions(provider, reasoningEffort)
+      ? reasoningEffortProviderOptions(provider, modelId, reasoningEffort)
       : undefined;
 
     return {

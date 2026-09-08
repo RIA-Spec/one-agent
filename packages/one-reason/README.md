@@ -41,8 +41,16 @@ default is used. one-reason forwards it the way each provider expects:
 - OpenAI receives `reasoningEffort: "minimal"` for `off` (the lowest effort the
   current AI SDK accepts) and `low`/`medium`/`high` otherwise. `minimal` is not
   accepted by every OpenAI model, so treat `off` as best-effort there too.
-- Anthropic disables extended thinking (`thinking: { type: "disabled" }`) for
-  `off` and uses the reasoning `effort` parameter for `low`/`medium`/`high`.
+- Anthropic enables thinking per model generation. Claude 4.6 and later plus
+  the Claude 5 family (Sonnet 4.6/5, Opus 4.6/4.7/4.8/5, Fable 5) receive
+  adaptive thinking (`thinking: { type: "adaptive" }`) together with the
+  `effort` parameter, which is the only accepted form on Opus 4.7+/Claude 5.
+  Older Claude models (4/4.1/4.5, Haiku 4.5, 3.x) receive the legacy
+  `thinking: { type: "enabled", budgetTokens }` form with a fixed thinking
+  budget per level (2048/8192/16384 tokens for `low`/`medium`/`high`).
+  `off` sends `thinking: { type: "disabled" }`, so models that default to
+  thinking on (for example Sonnet 5) stop; this requires `@ai-sdk/anthropic`
+  >= 3.0.93 because older SDK versions silently dropped the field.
 
 The fields above are not universal: some providers gate thinking with their own
 body fields instead (for example Zhipu GLM uses
