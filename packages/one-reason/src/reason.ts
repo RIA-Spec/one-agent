@@ -69,6 +69,7 @@ export async function reason<T = any>(prompt: string, example: T): Promise<AIRes
   const resolved = await resolveInterfaceModel("reason", "gemini-3.1-flash-lite");
   const result = streamText({
     model: resolved.model,
+    providerOptions: resolved.providerOptions,
     prompt: buildPrompt(prompt, example, outputSchema),
     experimental_telemetry: {
       isEnabled: true,

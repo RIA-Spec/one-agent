@@ -14,8 +14,15 @@ export type ResolvedInterfaceModel = {
   model: LanguageModel;
   provider: InterfaceProvider;
   modelId: string;
+  providerOptions?: ModelProviderOptions;
   cleanup?: () => Promise<void> | void;
 };
+
+export type ReasoningEffort = "off" | "low" | "medium" | "high";
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export type ModelProviderOptions = Record<string, Record<string, JsonValue>>;
 
 type Scope = "reason" | "act" | "one";
 type ScopeConfig = Record<string, unknown>;
@@ -114,6 +121,103 @@ function parseArgs(value: string | undefined): string[] {
   return trimmed.split(/\s+/).filter(Boolean);
 }
 
+function normalizeReasoningEffort(value: string | undefined): ReasoningEffort | undefined {
+  if (value == null) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "") return undefined;
+  if (
+    normalized === "off" ||
+    normalized === "low" ||
+    normalized === "medium" ||
+    normalized === "high"
+  ) {
+    return normalized;
+  }
+  throw new Error(`Invalid REASONING_EFFORT "${value}". Expected one of: off, low, medium, high.`);
+}
+
+// Anthropic models that enable thinking through adaptive thinking
+// (`thinking: { type: "adaptive" }` plus the `effort` output-config parameter).
+// This covers Claude 4.6 and later and the Claude 5 family. On Claude Opus 4.7
+// and later (and Claude 5), adaptive is the only accepted way to turn thinking
+// on; the legacy `enabled` + `budgetTokens` form returns a 400 error there.
+// Substring matches also cover dated aliases such as claude-sonnet-4-6-20250805.
+const ANTHROPIC_ADAPTIVE_THINKING_MODEL_SUBSTRINGS = [
+  "claude-opus-5",
+  "claude-sonnet-5",
+  "claude-fable-5",
+  "claude-mythos-5",
+  "claude-opus-4-8",
+  "claude-opus-4-7",
+  "claude-opus-4-6",
+  "claude-sonnet-4-6",
+];
+
+type ReasoningEffortLevel = Exclude<ReasoningEffort, "off">;
+
+// Legacy Anthropic models (Claude 4.6 and earlier) enable thinking through
+// `thinking: { type: "enabled", budgetTokens }` and have no effort parameter.
+// Each REASONING_EFFORT level therefore maps to a fixed thinking token budget.
+const ANTHROPIC_LEGACY_THINKING_BUDGET_BY_EFFORT: Record<ReasoningEffortLevel, number> = {
+  low: 2048,
+  medium: 8192,
+  high: 16384,
+};
+
+function isAnthropicAdaptiveThinkingModel(modelId: string): boolean {
+  // Accept gateway-style model ids such as "anthropic/claude-sonnet-5".
+  const normalizedModelId = modelId.replace(/^anthropic\//, "");
+  return ANTHROPIC_ADAPTIVE_THINKING_MODEL_SUBSTRINGS.some((model) =>
+    normalizedModelId.includes(model),
+  );
+}
+
+function anthropicReasoningProviderOptions(
+  modelId: string,
+  effort: ReasoningEffort,
+): ModelProviderOptions {
+  if (effort === "off") {
+    // Explicitly disable thinking. Requires @ai-sdk/anthropic >= 3.0.93;
+    // earlier versions dropped the `disabled` thinking field from the request.
+    return { anthropic: { thinking: { type: "disabled" } } };
+  }
+
+  if (isAnthropicAdaptiveThinkingModel(modelId)) {
+    // Claude 4.6+ and Claude 5 models: adaptive thinking plus the effort level.
+    return { anthropic: { thinking: { type: "adaptive" }, effort } };
+  }
+
+  // Claude 4.6 and earlier: legacy extended thinking with a fixed token budget.
+  return {
+    anthropic: {
+      thinking: {
+        type: "enabled",
+        budgetTokens: ANTHROPIC_LEGACY_THINKING_BUDGET_BY_EFFORT[effort],
+      },
+    },
+  };
+}
+
+function reasoningEffortProviderOptions(
+  provider: InterfaceProvider,
+  modelId: string,
+  effort: ReasoningEffort,
+): ModelProviderOptions | undefined {
+  switch (provider) {
+    case "openai":
+      if (effort === "off") {
+        return { openai: { reasoningEffort: "minimal" } };
+      }
+      return { openai: { reasoningEffort: effort } };
+    case "openai-compatible":
+      return { openaiCompatible: { reasoningEffort: effort === "off" ? "none" : effort } };
+    case "anthropic":
+      return anthropicReasoningProviderOptions(modelId, effort);
+    default:
+      throw new Error(`REASONING_EFFORT is not supported for provider: ${provider}`);
+  }
+}
+
 export async function resolveInterfaceModel(
   scope: Scope,
   defaultModelId = "gemini-3.1-flash-lite",
@@ -124,6 +228,9 @@ export async function resolveInterfaceModel(
     readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
   ).toLowerCase() as InterfaceProvider;
   const modelId = readScopedValue(scope, "MODEL", config) ?? defaultModelId;
+  const reasoningEffort = normalizeReasoningEffort(
+    readScopedValue(scope, "REASONING_EFFORT", config),
+  );
 
   if (provider === "anthropic") {
     const anthropicProvider = createAnthropic({
@@ -131,11 +238,15 @@ export async function resolveInterfaceModel(
       baseURL: readScopedValue(scope, "ANTHROPIC_BASE_URL", config),
       name: "anthropic",
     });
+    const providerOptions = reasoningEffort
+      ? reasoningEffortProviderOptions(provider, modelId, reasoningEffort)
+      : undefined;
 
     return {
       model: wrap(anthropicProvider(modelId), enableDevTools),
       provider,
       modelId,
+      providerOptions,
     };
   }
 
@@ -151,11 +262,15 @@ export async function resolveInterfaceModel(
         ? { baseURL: readScopedValue(scope, "OPENAI_BASE_URL", config) }
         : {}),
     });
+    const providerOptions = reasoningEffort
+      ? reasoningEffortProviderOptions(provider, modelId, reasoningEffort)
+      : undefined;
 
     return {
       model: wrap(openaiProvider(modelId), enableDevTools),
       provider,
       modelId,
+      providerOptions,
     };
   }
 
@@ -175,15 +290,22 @@ export async function resolveInterfaceModel(
       apiKey,
       baseURL,
     });
+    const providerOptions = reasoningEffort
+      ? reasoningEffortProviderOptions(provider, modelId, reasoningEffort)
+      : undefined;
 
     return {
       model: wrap(compatibleProvider(modelId), enableDevTools),
       provider,
       modelId,
+      providerOptions,
     };
   }
 
   if (provider === "acp") {
+    if (reasoningEffort) {
+      throw new Error("REASONING_EFFORT is not supported for provider: acp");
+    }
     const command = readScopedValue(scope, "ACP_COMMAND", config);
     if (!command) {
       throw new Error("ACP provider selected but ACP_COMMAND is not set");
