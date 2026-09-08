@@ -30,6 +30,7 @@ const HELP_CONFIGURATION = [
   "Environment variables override file config.",
   "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (default: 65536). Also readable from CONTEXT_WINDOW in reason.json.",
   "ONE_REASON_INPUT_RATIO / ONE_INPUT_RATIO        Fraction of context window used for input (default: 0.8, reserves 20% for model output). Also readable from INPUT_RATIO in reason.json.",
+  'ONE_REASON_REASONING_EFFORT / ONE_REASONING_EFFORT  Model thinking effort for OpenAI / OpenAI-compatible / Anthropic (off/low/medium/high; provider default when unset). Best-effort: off sends reasoning_effort "none" on OpenAI-compatible, "minimal" on OpenAI, and disabled thinking on Anthropic; not all models honor it. Also readable from REASONING_EFFORT in reason.json.',
 ];
 const HELP_EXAMPLES = [
   'cat build.log | reason --prompt "goal: detect failures; constraints: ignore warnings" - \'{"failed":false,"reason":""}\'',
@@ -95,6 +96,27 @@ async function runReasonAuthCli() {
 
   const readOptionalText = async (message: string) => {
     const value = await text({ message });
+    if (isCancel(value)) return null;
+    return value.trim();
+  };
+
+  const readOptionalReasoningEffort = async (message: string) => {
+    const value = await text({
+      message,
+      validate(input) {
+        if (!input?.trim()) return undefined;
+        const normalized = input.trim().toLowerCase();
+        if (
+          normalized === "off" ||
+          normalized === "low" ||
+          normalized === "medium" ||
+          normalized === "high"
+        ) {
+          return undefined;
+        }
+        return "Expected one of: off, low, medium, high";
+      },
+    });
     if (isCancel(value)) return null;
     return value.trim();
   };
@@ -194,6 +216,15 @@ async function runReasonAuthCli() {
     return;
   }
   if (model) nextConfig.MODEL = model;
+
+  const reasoningEffort = await readOptionalReasoningEffort(
+    "REASONING_EFFORT (optional: off/low/medium/high)",
+  );
+  if (reasoningEffort == null) {
+    cancel("Operation cancelled.");
+    return;
+  }
+  if (reasoningEffort) nextConfig.REASONING_EFFORT = reasoningEffort.toLowerCase();
 
   writeReasonConfig(nextConfig);
   outro(pc.green(`Saved config to ${REASON_CONFIG_PATH}`));
@@ -408,8 +439,7 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
     65536;
 
   // Priority: env var > reason.json > default (0.8)
-  const envInputRatio =
-    process.env["ONE_REASON_INPUT_RATIO"] ?? process.env["ONE_INPUT_RATIO"];
+  const envInputRatio = process.env["ONE_REASON_INPUT_RATIO"] ?? process.env["ONE_INPUT_RATIO"];
   const configInputRatio = (() => {
     const v = config["INPUT_RATIO"];
     if (v == null) return undefined;
@@ -417,9 +447,7 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
     return isNaN(n) || n <= 0 || n > 1 ? undefined : n;
   })();
   const resolvedInputRatio =
-    (envInputRatio != null ? parseFloat(envInputRatio) : undefined) ??
-    configInputRatio ??
-    0.8;
+    (envInputRatio != null ? parseFloat(envInputRatio) : undefined) ?? configInputRatio ?? 0.8;
 
   const { prompt, example, truncationMeta } = await buildReasonRequestInput(request, {
     contextWindow: resolvedContextWindow,

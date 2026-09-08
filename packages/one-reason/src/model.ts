@@ -14,8 +14,15 @@ export type ResolvedInterfaceModel = {
   model: LanguageModel;
   provider: InterfaceProvider;
   modelId: string;
+  providerOptions?: ModelProviderOptions;
   cleanup?: () => Promise<void> | void;
 };
+
+export type ReasoningEffort = "off" | "low" | "medium" | "high";
+
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+export type ModelProviderOptions = Record<string, Record<string, JsonValue>>;
 
 type Scope = "reason" | "act" | "one";
 type ScopeConfig = Record<string, unknown>;
@@ -114,6 +121,43 @@ function parseArgs(value: string | undefined): string[] {
   return trimmed.split(/\s+/).filter(Boolean);
 }
 
+function normalizeReasoningEffort(value: string | undefined): ReasoningEffort | undefined {
+  if (value == null) return undefined;
+  const normalized = value.trim().toLowerCase();
+  if (normalized === "") return undefined;
+  if (
+    normalized === "off" ||
+    normalized === "low" ||
+    normalized === "medium" ||
+    normalized === "high"
+  ) {
+    return normalized;
+  }
+  throw new Error(`Invalid REASONING_EFFORT "${value}". Expected one of: off, low, medium, high.`);
+}
+
+function reasoningEffortProviderOptions(
+  provider: InterfaceProvider,
+  effort: ReasoningEffort,
+): ModelProviderOptions | undefined {
+  switch (provider) {
+    case "openai":
+      if (effort === "off") {
+        return { openai: { reasoningEffort: "minimal" } };
+      }
+      return { openai: { reasoningEffort: effort } };
+    case "openai-compatible":
+      return { openaiCompatible: { reasoningEffort: effort === "off" ? "none" : effort } };
+    case "anthropic":
+      if (effort === "off") {
+        return { anthropic: { thinking: { type: "disabled" } } };
+      }
+      return { anthropic: { effort } };
+    default:
+      throw new Error(`REASONING_EFFORT is not supported for provider: ${provider}`);
+  }
+}
+
 export async function resolveInterfaceModel(
   scope: Scope,
   defaultModelId = "gemini-3.1-flash-lite",
@@ -124,6 +168,9 @@ export async function resolveInterfaceModel(
     readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
   ).toLowerCase() as InterfaceProvider;
   const modelId = readScopedValue(scope, "MODEL", config) ?? defaultModelId;
+  const reasoningEffort = normalizeReasoningEffort(
+    readScopedValue(scope, "REASONING_EFFORT", config),
+  );
 
   if (provider === "anthropic") {
     const anthropicProvider = createAnthropic({
@@ -131,11 +178,15 @@ export async function resolveInterfaceModel(
       baseURL: readScopedValue(scope, "ANTHROPIC_BASE_URL", config),
       name: "anthropic",
     });
+    const providerOptions = reasoningEffort
+      ? reasoningEffortProviderOptions(provider, reasoningEffort)
+      : undefined;
 
     return {
       model: wrap(anthropicProvider(modelId), enableDevTools),
       provider,
       modelId,
+      providerOptions,
     };
   }
 
@@ -151,11 +202,15 @@ export async function resolveInterfaceModel(
         ? { baseURL: readScopedValue(scope, "OPENAI_BASE_URL", config) }
         : {}),
     });
+    const providerOptions = reasoningEffort
+      ? reasoningEffortProviderOptions(provider, reasoningEffort)
+      : undefined;
 
     return {
       model: wrap(openaiProvider(modelId), enableDevTools),
       provider,
       modelId,
+      providerOptions,
     };
   }
 
@@ -175,15 +230,22 @@ export async function resolveInterfaceModel(
       apiKey,
       baseURL,
     });
+    const providerOptions = reasoningEffort
+      ? reasoningEffortProviderOptions(provider, reasoningEffort)
+      : undefined;
 
     return {
       model: wrap(compatibleProvider(modelId), enableDevTools),
       provider,
       modelId,
+      providerOptions,
     };
   }
 
   if (provider === "acp") {
+    if (reasoningEffort) {
+      throw new Error("REASONING_EFFORT is not supported for provider: acp");
+    }
     const command = readScopedValue(scope, "ACP_COMMAND", config);
     if (!command) {
       throw new Error("ACP provider selected but ACP_COMMAND is not set");
