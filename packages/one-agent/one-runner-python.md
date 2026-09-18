@@ -38,7 +38,7 @@ Do not manually rewrite or hand-type tool output into a new `reason()` prompt. P
 
 **Do not use it for:** cases where the exact output or exact next edit is already clear.
 
-When writing a Python RAS script, prefer batching related `act()` calls in one run. Put `reason()` only at the decision nodes inside that batch. After a command/tool call, use `reason()` only if you need to denoise the output into a smaller structured result or the next control decision for the workflow or the user. Observation content should come directly from runtime data, not hand-written restatements.
+One job = one RAS call: batch every related `act()` call into a single run, and put `reason()` only at the decision nodes inside that batch. Start a new `one` call only when the previous one failed, timed out, or returned evidence that reveals a genuinely new target or dependency. After a command/tool call, use `reason()` only if you need to denoise the output into a smaller structured result or the next control decision. Observation content should come directly from runtime data, not hand-written restatements.
 
 ### act(name, args) -> {content, isError}
 

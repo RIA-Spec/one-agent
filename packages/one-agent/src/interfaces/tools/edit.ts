@@ -221,18 +221,25 @@ export function createEditTool(cwd: string) {
       required: ["path", "oldText", "newText"],
     }),
     execute: async (
-      {
-        path,
-        oldText,
-        newText,
-      }: {
-        path: string;
-        oldText: string;
-        newText: string;
+      args: {
+        path?: string;
+        oldText?: string;
+        newText?: string;
       },
       extra?: any,
     ) => {
       try {
+        const { path, oldText, newText } = args ?? {};
+        if (
+          typeof path !== "string" ||
+          typeof oldText !== "string" ||
+          typeof newText !== "string"
+        ) {
+          throw new Error(
+            "edit requires an object with string fields {path, oldText, newText}. " +
+              "Pass the fields directly as an object, not as a JSON-encoded string.",
+          );
+        }
         const absolutePath = resolveToCwd(path, cwd);
 
         // Check if file is readable and writable

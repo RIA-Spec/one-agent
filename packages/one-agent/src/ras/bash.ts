@@ -285,7 +285,11 @@ function parseActArgs(args: string[], stdin: string): ParsedActArgs | ExecResult
         if (arg === "-") needsJsonStdin = true;
         else argsText = arg;
       } else {
-        return fail(`Unknown argument: ${arg}`);
+        return fail(
+          arg === "-"
+            ? "Cannot combine JSON args with `-`. Use `one-input <key> | act <tool> -` to pass JSON via stdin, or pass JSON as a positional argument — not both."
+            : `Unknown argument: ${arg}`,
+        );
       }
       continue;
     }
@@ -494,7 +498,7 @@ export function createBashRAS(config: BashRASConfig) {
           type: "object",
           additionalProperties: true,
           description:
-            "JSON data available to Bash through one-input [key]. Use it for source text and tool arguments that should not be shell-quoted in command.",
+            "JSON data available to Bash through one-input [key]. Use it for source text and tool arguments that should not be shell-quoted in command. Only values piped into `act <tool> -` must be JSON objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.",
         },
       },
       required: ["command"],

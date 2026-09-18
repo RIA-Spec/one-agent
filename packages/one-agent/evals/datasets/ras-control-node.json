@@ -65,5 +65,14 @@
     "kind": "count",
     "expected": { "value": 4 },
     "schemaHint": "4"
+  },
+  {
+    "id": "cn-repl-converge",
+    "question": "Investigate this CI failure like an interactive session. Evidence is in evals/fixtures/: changed-files.txt (which files changed), test-output.txt (raw test log), ci-deploy.txt (deploy log). Combine the evidence and decide which changed files are most likely responsible for the test failures. Return a JSON object {likelyFiles: string[], reason: string} and print it.",
+    "expectReason": true,
+    "expectBatched": true,
+    "kind": "converge",
+    "expected": { "files": ["src/b.test.ts", "src/d.test.ts"] },
+    "schemaHint": "{\"likelyFiles\": [\"\"], \"reason\": \"\"}"
   }
 ]

@@ -134,7 +134,7 @@ export function createTypeScriptRAS(config: TypeScriptRASConfig) {
           type: "object",
           additionalProperties: true,
           description:
-            "JSON data exposed to TypeScript/JavaScript code as inputs. Use it for source text and tool arguments that should not be embedded in code.",
+            "JSON data exposed to TypeScript/JavaScript code as inputs. Use it for source text and tool arguments that should not be embedded in code. Values passed to `act()` must be objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.",
         },
       },
       required: ["code"],

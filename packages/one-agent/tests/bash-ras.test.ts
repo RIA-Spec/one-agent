@@ -70,6 +70,37 @@ describe("createBashRAS", () => {
     expect(reasonImpl).toHaveBeenCalledWith("Summarize:\nraw input", { summary: "" });
   });
 
+  it("rejects mixing positional JSON with stdin dash and shows correct usage", async () => {
+    const ras = createBashRAS(makeConfig({ cwd: tempRoot }));
+    const result = await ras.execute({
+      command: `act write '{"path":"demo.txt"}' -`,
+    });
+
+    expect(result.isError).toBe(true);
+    expect(getText(result)).toContain("one-input <key> | act <tool> -");
+  });
+
+  it("reads JSON args from stdin with act <tool> -", async () => {
+    const actImpl = vi.fn().mockResolvedValue({
+      content: [{ type: "text", text: "written" }],
+      isError: false,
+    });
+    const ras = createBashRAS(
+      makeConfig({
+        cwd: tempRoot,
+        actHandler: () => actImpl,
+      }),
+    );
+
+    const result = await ras.execute({
+      command: `printf '{"path":"demo.txt","content":"hi"}' | act write -`,
+    });
+
+    expect(result.isError).not.toBe(true);
+    expect(getText(result)).toContain("written");
+    expect(actImpl).toHaveBeenCalledWith("write", { path: "demo.txt", content: "hi" });
+  });
+
   it("routes act bash to the host bash tool alias", async () => {
     const actImpl = vi.fn().mockResolvedValue({
       content: [{ type: "text", text: "host bash output" }],
