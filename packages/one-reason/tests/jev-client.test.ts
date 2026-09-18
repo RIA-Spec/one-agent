@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { evaluateJev, JevHttpError } from "../src/jev/client.js";
 import { mapExampleToQuestions } from "../src/jev/map-example.js";
 import { reasonWithJev } from "../src/jev/reason-jev.js";
-import { resolveJevBackend } from "../src/model.js";
+import { resolveJevBackend, resolveLlmFallbackModel } from "../src/model.js";
 
 afterEach(() => {
   vi.unstubAllEnvs();
@@ -172,5 +172,30 @@ describe("resolveJevBackend", () => {
   it("returns null for LLM providers", () => {
     vi.stubEnv("ONE_REASON_PROVIDER", "openai-compatible");
     expect(resolveJevBackend("reason")).toBeNull();
+  });
+});
+
+describe("resolveLlmFallbackModel", () => {
+  it("resolves via ONE_REASON_FALLBACK_* when primary provider is Jev", async () => {
+    vi.stubEnv("ONE_REASON_PROVIDER", "typesafe");
+    vi.stubEnv("ONE_REASON_OPENAI_API_KEY", "jev-key");
+    vi.stubEnv("ONE_REASON_FALLBACK_PROVIDER", "openai-compatible");
+    vi.stubEnv("ONE_REASON_FALLBACK_OPENAI_API_KEY", "llm-key");
+    vi.stubEnv("ONE_REASON_FALLBACK_OPENAI_BASE_URL", "https://api.example.com/v1");
+    vi.stubEnv("ONE_REASON_FALLBACK_MODEL", "gpt-test");
+
+    const resolved = await resolveLlmFallbackModel("reason");
+    expect(resolved.provider).toBe("openai-compatible");
+    expect(resolved.modelId).toBe("gpt-test");
+  });
+
+  it("throws a clear error when no fallback LLM is configured", async () => {
+    vi.stubEnv("ONE_REASON_PROVIDER", "typesafe");
+    vi.stubEnv("ONE_REASON_OPENAI_API_KEY", "jev-key");
+    // Ensure one scope is not an LLM either
+    vi.stubEnv("ONE_ONE_PROVIDER", "typesafe");
+    vi.stubEnv("ONE_ONE_OPENAI_API_KEY", "x");
+
+    await expect(resolveLlmFallbackModel("reason")).rejects.toThrow(/FALLBACK_PROVIDER|LLM synthesis/);
   });
 });

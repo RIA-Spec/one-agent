@@ -148,7 +148,7 @@ function questionFromInferred(
         };
       }
     }
-    // Free-text string: Jev cannot emit arbitrary text — keep example value.
+    // Free-text string: not Jev-mappable (classifyExampleForJev → llm-synthesis).
     return { question: null, passthrough: value };
   }
 
@@ -266,12 +266,13 @@ function answerToValue(
   question: JevQuestion,
   answer: JevAnswers[string] | undefined,
   fallback: unknown,
+  booleanThreshold = 0.5,
 ): unknown {
   if (!answer) return fallback;
 
   if (question.type === "noul" || question.type === "boolean") {
-    if (answer.type === "noul") return answer.noul >= 0.5;
-    if (answer.type === "boolean") return answer.probability >= 0.5;
+    if (answer.type === "noul") return answer.noul >= booleanThreshold;
+    if (answer.type === "boolean") return answer.probability >= booleanThreshold;
     return fallback;
   }
 
@@ -288,6 +289,153 @@ function answerToValue(
   return fallback;
 }
 
+export type ExampleJevKind = "jev-decision" | "llm-synthesis";
+
+export type ExampleJevClassification =
+  | {
+      kind: "jev-decision";
+      questions: JevQuestions;
+      freeTextPaths: string[];
+      applyAnswers: (answers: JevAnswers, booleanThreshold?: number) => unknown;
+    }
+  | {
+      kind: "llm-synthesis";
+      reason: string;
+      freeTextPaths: string[];
+      questions: JevQuestions;
+    };
+
+function buildApplyAnswers(
+  example: unknown,
+  leaves: LeafPlan[],
+): (answers: JevAnswers, booleanThreshold?: number) => unknown {
+  return (answers: JevAnswers, booleanThreshold = 0.5) => {
+    let data: unknown = structuredClone(example);
+    for (const leaf of leaves) {
+      if (leaf.kind === "passthrough") {
+        data = setAtPath(data, leaf.path, leaf.value);
+        continue;
+      }
+      const value = answerToValue(
+        leaf.question,
+        answers[leaf.path],
+        leaf.exampleValue,
+        booleanThreshold,
+      );
+      data = setAtPath(data, leaf.path, value);
+    }
+    return data;
+  };
+}
+
+function isIgnorablePassthrough(value: unknown): boolean {
+  if (value == null) return true;
+  if (isPlainObject(value) && Object.keys(value).length === 0) return true;
+  return false;
+}
+
+/**
+ * Classify a `reason()` example for Jev vs LLM routing.
+ *
+ * - `jev-decision`: every leaf is boolean / number / choice / `$jev` (no free-text)
+ * - `llm-synthesis`: any free-text string (or other non-Jev generative field), or
+ *   no mappable decision fields at all
+ */
+export function classifyExampleForJev(example: unknown): ExampleJevClassification {
+  const leaves: LeafPlan[] = [];
+  collectLeaves(example, "", leaves);
+
+  const questions: JevQuestions = {};
+  const freeTextPaths: string[] = [];
+  const otherPaths: string[] = [];
+
+  for (const leaf of leaves) {
+    if (leaf.kind === "question") {
+      questions[leaf.path] = leaf.question;
+      continue;
+    }
+    if (typeof leaf.value === "string") {
+      freeTextPaths.push(leaf.path);
+      continue;
+    }
+    if (!isIgnorablePassthrough(leaf.value)) {
+      otherPaths.push(leaf.path);
+    }
+  }
+
+  if (freeTextPaths.length > 0 || otherPaths.length > 0) {
+    const parts: string[] = [];
+    if (freeTextPaths.length > 0) {
+      parts.push(`free-text field(s): ${freeTextPaths.join(", ")}`);
+    }
+    if (otherPaths.length > 0) {
+      parts.push(`non-Jev field(s): ${otherPaths.join(", ")}`);
+    }
+    return {
+      kind: "llm-synthesis",
+      reason: parts.join("; "),
+      freeTextPaths,
+      questions,
+    };
+  }
+
+  if (Object.keys(questions).length === 0) {
+    return {
+      kind: "llm-synthesis",
+      reason: "no Jev-mappable decision fields in example",
+      freeTextPaths,
+      questions,
+    };
+  }
+
+  return {
+    kind: "jev-decision",
+    questions,
+    freeTextPaths,
+    applyAnswers: buildApplyAnswers(example, leaves),
+  };
+}
+
+/** True when the example is pure control-node judgment shape (no free-text). */
+export function isJevDecisionExample(example: unknown): boolean {
+  return classifyExampleForJev(example).kind === "jev-decision";
+}
+
+/**
+ * Build MappedQuestions from an explicit questions map + example skeleton.
+ * Used when `reason(..., { questions })` is provided.
+ */
+export function mapExplicitQuestions(
+  example: unknown,
+  questions: JevQuestions,
+): MappedQuestions {
+  if (Object.keys(questions).length === 0) {
+    throw new Error("Explicit Jev `questions` must contain at least one question.");
+  }
+
+  return {
+    questions,
+    applyAnswers(answers: JevAnswers, booleanThreshold = 0.5) {
+      let data: unknown = structuredClone(example);
+      for (const [path, question] of Object.entries(questions)) {
+        const fallback =
+          question.type === "noul" || question.type === "boolean"
+            ? false
+            : question.type === "choice"
+              ? Object.keys(question.criteria)[0]
+              : 0;
+        const value = answerToValue(question, answers[path], fallback, booleanThreshold);
+        if (path === "$" || path === "") {
+          data = value;
+        } else {
+          data = setAtPath(data, path, value);
+        }
+      }
+      return data;
+    },
+  };
+}
+
 /**
  * Derive Jev questions from a `reason(prompt, example)` example value.
  *
@@ -295,7 +443,7 @@ function answerToValue(
  * - `boolean` → noul/boolean
  * - `number` → score (criteria auto-generated as `level 0` .. `level N`)
  * - `string` with `|` separators, or `string[]` → choice
- * - plain `string` → passthrough (kept as example; Jev cannot emit free text)
+ * - plain `string` → not Jev-mappable (see classifyExampleForJev → LLM synthesis)
  * - explicit marker:
  *   `{ "$jev": "noul"|"choice"|"score", "instructions"?, "criteria"?, "value"? }`
  *
@@ -303,6 +451,17 @@ function answerToValue(
  * example shape when answers are applied.
  */
 export function mapExampleToQuestions(example: unknown): MappedQuestions {
+  const classified = classifyExampleForJev(example);
+  if (classified.kind === "llm-synthesis" && Object.keys(classified.questions).length === 0) {
+    throw new Error(
+      "TypeSafe/Gateway Jev provider could not derive any questions from the example. " +
+        "Use booleans, numbers, pipe-separated choice strings (a|b|c), string arrays, " +
+        'or explicit { "$jev": "noul"|"choice"|"score", ... } markers. ' +
+        "Summary/free-text examples should use the LLM reason path " +
+        '(mode: "llm" or auto-fallback when PROVIDER is typesafe|gateway).',
+    );
+  }
+
   const leaves: LeafPlan[] = [];
   collectLeaves(example, "", leaves);
 
@@ -323,18 +482,7 @@ export function mapExampleToQuestions(example: unknown): MappedQuestions {
 
   return {
     questions,
-    applyAnswers(answers: JevAnswers) {
-      let data: unknown = structuredClone(example);
-      for (const leaf of leaves) {
-        if (leaf.kind === "passthrough") {
-          data = setAtPath(data, leaf.path, leaf.value);
-          continue;
-        }
-        const value = answerToValue(leaf.question, answers[leaf.path], leaf.exampleValue);
-        data = setAtPath(data, leaf.path, value);
-      }
-      return data;
-    },
+    applyAnswers: buildApplyAnswers(example, leaves),
   };
 }
 
