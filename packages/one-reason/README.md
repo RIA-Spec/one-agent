@@ -76,3 +76,65 @@ cat build.log | reason --prompt "goal: detect failures" - '{"failed":false,"reas
 ```
 
 The structure argument is required and must be valid JSON.
+
+## TypeSafe Jev providers
+
+`reason()` can use TypeSafe Jev (decision-only evaluation) instead of an LLM when
+`ONE_REASON_PROVIDER` is `typesafe` or `gateway`. Config still feels OpenAI-compatible:
+set a base URL, API key, and model.
+
+### TypeSafe official API
+
+```bash
+export ONE_REASON_PROVIDER=typesafe
+export ONE_REASON_OPENAI_API_KEY=ts_...          # or ONE_REASON_TYPESAFE_API_KEY / TYPESAFE_API_KEY / TYPESAFE_AI_API_KEY
+export ONE_REASON_OPENAI_BASE_URL=https://api.typesafe.ai/v1   # optional
+export ONE_REASON_MODEL=jev-latest              # optional
+```
+
+Calls `POST {baseURL}/systemone` with Bearer auth. Question types on the wire are
+`noul` | `choice` | `score`.
+
+### Vercel AI Gateway
+
+```bash
+export ONE_REASON_PROVIDER=gateway
+export ONE_REASON_OPENAI_API_KEY=...            # or ONE_REASON_GATEWAY_API_KEY / AI_GATEWAY_API_KEY
+export ONE_REASON_OPENAI_BASE_URL=https://ai-gateway.vercel.sh/v4/ai   # optional
+export ONE_REASON_MODEL=typesafe-ai/jev         # optional
+```
+
+Gateway evaluation is **not** on OpenAI-compatible chat endpoints. This package
+calls the Gateway evaluation HTTP surface discovered from `@ai-sdk/gateway`:
+
+`POST {baseURL}/evaluation-model`
+
+with headers:
+
+- `ai-evaluation-model-specification-version: 4`
+- `ai-model-id: <model>`
+- `ai-gateway-protocol-version: 0.0.1`
+- `Authorization: Bearer <key>`
+
+Question types on the wire are `boolean` | `choice` | `score` (Gateway uses
+`boolean` instead of TypeSafe's `noul`). No `ai@7` dependency is required.
+
+### Example → question mapping
+
+`reason(prompt, example)` keeps the same signature. For Jev providers, `prompt`
+becomes evaluation `state`, and questions are derived from `example`:
+
+| Example field | Jev question |
+| --- | --- |
+| `boolean` | noul / boolean |
+| `number` | score (auto `level 0` .. `level N` criteria) |
+| `string` with `a\|b\|c` | choice |
+| `string[]` | choice |
+| plain `string` | passthrough (kept as example; Jev cannot emit free text) |
+| `{ "$jev": "noul"\|"choice"\|"score", ... }` | explicit question |
+
+Nested objects are flattened to dotted question ids and rebuilt into the example
+shape when answers are applied.
+
+Errors `401` / `422` / `429` / `529` return clear messages; `429` and `529` are
+retried lightly with backoff.

@@ -1,5 +1,6 @@
 import * as ai from "ai";
-import { resolveInterfaceModel } from "./model.js";
+import { resolveInterfaceModel, resolveJevBackend } from "./model.js";
+import { reasonWithJev } from "./jev/reason-jev.js";
 import {
   type AIResult,
   buildPrompt,
@@ -32,6 +33,11 @@ function hasSubmittedResult(steps: StreamStep[] | undefined): boolean {
 }
 
 export async function reason<T = any>(prompt: string, example: T): Promise<AIResult<T>> {
+  const jevBackend = resolveJevBackend("reason");
+  if (jevBackend) {
+    return reasonWithJev(prompt, example, jevBackend);
+  }
+
   const { jsonSchema, stepCountIs, streamText, tool } = ai;
   const { validate, outputSchema } = compileAiResultValidator(example);
   const dataSchema = exampleToJsonSchema(example);

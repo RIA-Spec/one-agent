@@ -7,8 +7,24 @@ import { type LanguageModel, wrapLanguageModel } from "ai";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getOneConfigDir } from "./config-path.js";
+import type { JevProvider, ResolvedJevBackend } from "./jev/types.js";
 
-export type InterfaceProvider = "openai-compatible" | "openai" | "anthropic" | "acp";
+export const DEFAULT_TYPESAFE_BASE_URL = "https://api.typesafe.ai/v1";
+export const DEFAULT_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v4/ai";
+export const DEFAULT_TYPESAFE_MODEL = "jev-latest";
+export const DEFAULT_GATEWAY_MODEL = "typesafe-ai/jev";
+
+export function isJevProvider(provider: string): provider is JevProvider {
+  return provider === "typesafe" || provider === "gateway";
+}
+
+export type InterfaceProvider =
+  | "openai-compatible"
+  | "openai"
+  | "anthropic"
+  | "acp"
+  | "typesafe"
+  | "gateway";
 
 export type ResolvedInterfaceModel = {
   model: LanguageModel;
@@ -344,5 +360,94 @@ export async function resolveInterfaceModel(
     };
   }
 
+  if (isJevProvider(provider)) {
+    throw new Error(
+      `Provider "${provider}" is a Jev evaluation backend and does not expose a language model. ` +
+        `Call reason() directly, or use resolveJevBackend("reason").`,
+    );
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  for (const value of values) {
+    if (value != null && value !== "") return value;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve TypeSafe / AI Gateway Jev config when PROVIDER is `typesafe` or `gateway`.
+ * Returns null for LLM providers so `reason()` can fall through to streamText.
+ *
+ * DX mirrors OpenAI-compatible config: base URL + API key + model.
+ * Scoped ONE_REASON_* keys win; provider-specific aliases are accepted as fallbacks.
+ */
+export function resolveJevBackend(scope: Scope): ResolvedJevBackend | null {
+  const config = loadScopedConfig(scope);
+  const provider = (
+    readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
+  ).toLowerCase();
+
+  if (!isJevProvider(provider)) {
+    return null;
+  }
+
+  if (provider === "typesafe") {
+    const apiKey = firstNonEmpty(
+      readScopedValue(scope, "TYPESAFE_API_KEY", config),
+      readScopedValue(scope, "OPENAI_API_KEY", config),
+      process.env.TYPESAFE_API_KEY,
+      process.env.TYPESAFE_AI_API_KEY,
+    );
+    if (!apiKey) {
+      throw new Error(
+        "typesafe provider selected but no API key found. Set ONE_REASON_TYPESAFE_API_KEY " +
+          "(or ONE_REASON_OPENAI_API_KEY), or TYPESAFE_API_KEY / TYPESAFE_AI_API_KEY.",
+      );
+    }
+    const baseURL =
+      firstNonEmpty(
+        readScopedValue(scope, "TYPESAFE_BASE_URL", config),
+        readScopedValue(scope, "OPENAI_BASE_URL", config),
+        process.env.TYPESAFE_BASE_URL,
+        process.env.TYPESAFE_AI_BASE_URL,
+      ) ?? DEFAULT_TYPESAFE_BASE_URL;
+    const modelId = readScopedValue(scope, "MODEL", config) ?? DEFAULT_TYPESAFE_MODEL;
+    return {
+      kind: "jev",
+      provider: "typesafe",
+      apiKey,
+      baseURL: baseURL.replace(/\/+$/, ""),
+      modelId,
+    };
+  }
+
+  const apiKey = firstNonEmpty(
+    readScopedValue(scope, "GATEWAY_API_KEY", config),
+    readScopedValue(scope, "OPENAI_API_KEY", config),
+    process.env.AI_GATEWAY_API_KEY,
+    process.env.VERCEL_AI_GATEWAY_API_KEY,
+  );
+  if (!apiKey) {
+    throw new Error(
+      "gateway provider selected but no API key found. Set ONE_REASON_GATEWAY_API_KEY " +
+        "(or ONE_REASON_OPENAI_API_KEY), or AI_GATEWAY_API_KEY.",
+    );
+  }
+  const baseURL =
+    firstNonEmpty(
+      readScopedValue(scope, "GATEWAY_BASE_URL", config),
+      readScopedValue(scope, "OPENAI_BASE_URL", config),
+      process.env.AI_GATEWAY_BASE_URL,
+    ) ?? DEFAULT_GATEWAY_BASE_URL;
+  const modelId = readScopedValue(scope, "MODEL", config) ?? DEFAULT_GATEWAY_MODEL;
+  return {
+    kind: "jev",
+    provider: "gateway",
+    apiKey,
+    baseURL: baseURL.replace(/\/+$/, ""),
+    modelId,
+  };
 }
