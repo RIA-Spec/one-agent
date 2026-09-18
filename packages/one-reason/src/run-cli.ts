@@ -37,7 +37,7 @@ const HELP_EXAMPLES = [
   "cat build.log | reason --prompt 'goal: decide whether to deploy; observation: latest build log from CI; constraints: return deploy=false unless the log is clean; if deploy=true, provide the exact command' - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
 ];
 
-type ProviderChoice = "openai-compatible" | "openai" | "anthropic";
+type ProviderChoice = "openai-compatible" | "openai" | "anthropic" | "typesafe" | "gateway";
 type ParsedReasonRequestArgs = {
   promptValues: string[];
   positionalPrompt?: string;
@@ -134,12 +134,14 @@ async function runReasonAuthCli() {
 
   const readProvider = async () => {
     const value = await select<ProviderChoice>({
-      message: "Select provider (openai-compatible/openai/anthropic)",
+      message: "Select provider (openai-compatible/openai/anthropic/typesafe/gateway)",
       initialValue: "openai-compatible",
       options: [
         { label: "openai-compatible", value: "openai-compatible" },
         { label: "openai", value: "openai" },
         { label: "anthropic", value: "anthropic" },
+        { label: "typesafe (TypeSafe Jev)", value: "typesafe" },
+        { label: "gateway (Vercel AI Gateway Jev)", value: "gateway" },
       ],
     });
 
@@ -210,21 +212,77 @@ async function runReasonAuthCli() {
     if (baseURL) nextConfig.ANTHROPIC_BASE_URL = baseURL;
   }
 
-  const model = await readOptionalText("MODEL (optional)");
+  if (provider === "typesafe") {
+    const baseURL = await readOptionalText(
+      "TYPESAFE_BASE_URL / OPENAI_BASE_URL (optional, default https://api.typesafe.ai/v1)",
+    );
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    const apiKey = await readRequiredSecret("TYPESAFE_API_KEY / OPENAI_API_KEY");
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    nextConfig.OPENAI_API_KEY = apiKey;
+    nextConfig.TYPESAFE_API_KEY = apiKey;
+    if (baseURL) {
+      nextConfig.OPENAI_BASE_URL = baseURL;
+      nextConfig.TYPESAFE_BASE_URL = baseURL;
+    }
+  }
+
+  if (provider === "gateway") {
+    const baseURL = await readOptionalText(
+      "GATEWAY_BASE_URL / OPENAI_BASE_URL (optional, default https://ai-gateway.vercel.sh/v4/ai)",
+    );
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    const apiKey = await readRequiredSecret(
+      "GATEWAY_API_KEY / OPENAI_API_KEY / AI_GATEWAY_API_KEY",
+    );
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    nextConfig.OPENAI_API_KEY = apiKey;
+    nextConfig.GATEWAY_API_KEY = apiKey;
+    if (baseURL) {
+      nextConfig.OPENAI_BASE_URL = baseURL;
+      nextConfig.GATEWAY_BASE_URL = baseURL;
+    }
+  }
+
+  const modelPlaceholder =
+    provider === "typesafe"
+      ? "MODEL (optional, default jev-latest)"
+      : provider === "gateway"
+        ? "MODEL (optional, default typesafe-ai/jev)"
+        : "MODEL (optional)";
+  const model = await readOptionalText(modelPlaceholder);
   if (model == null) {
     cancel("Operation cancelled.");
     return;
   }
   if (model) nextConfig.MODEL = model;
 
-  const reasoningEffort = await readOptionalReasoningEffort(
-    "REASONING_EFFORT (optional: off/low/medium/high)",
-  );
-  if (reasoningEffort == null) {
-    cancel("Operation cancelled.");
-    return;
+  if (provider !== "typesafe" && provider !== "gateway") {
+    const reasoningEffort = await readOptionalReasoningEffort(
+      "REASONING_EFFORT (optional: off/low/medium/high)",
+    );
+    if (reasoningEffort == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    if (reasoningEffort) nextConfig.REASONING_EFFORT = reasoningEffort.toLowerCase();
   }
-  if (reasoningEffort) nextConfig.REASONING_EFFORT = reasoningEffort.toLowerCase();
 
   writeReasonConfig(nextConfig);
   outro(pc.green(`Saved config to ${REASON_CONFIG_PATH}`));

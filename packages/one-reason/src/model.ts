@@ -7,8 +7,24 @@ import { type LanguageModel, wrapLanguageModel } from "ai";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { getOneConfigDir } from "./config-path.js";
+import type { JevProvider, ResolvedJevBackend } from "./jev/types.js";
 
-export type InterfaceProvider = "openai-compatible" | "openai" | "anthropic" | "acp";
+export const DEFAULT_TYPESAFE_BASE_URL = "https://api.typesafe.ai/v1";
+export const DEFAULT_GATEWAY_BASE_URL = "https://ai-gateway.vercel.sh/v4/ai";
+export const DEFAULT_TYPESAFE_MODEL = "jev-latest";
+export const DEFAULT_GATEWAY_MODEL = "typesafe-ai/jev";
+
+export function isJevProvider(provider: string): provider is JevProvider {
+  return provider === "typesafe" || provider === "gateway";
+}
+
+export type InterfaceProvider =
+  | "openai-compatible"
+  | "openai"
+  | "anthropic"
+  | "acp"
+  | "typesafe"
+  | "gateway";
 
 export type ResolvedInterfaceModel = {
   model: LanguageModel;
@@ -344,5 +360,203 @@ export async function resolveInterfaceModel(
     };
   }
 
+  if (isJevProvider(provider)) {
+    throw new Error(
+      `Provider "${provider}" is a Jev evaluation backend and does not expose a language model. ` +
+        `Call reason() directly, or use resolveJevBackend("reason").`,
+    );
+  }
+
   throw new Error(`Unsupported provider: ${provider}`);
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string | undefined {
+  for (const value of values) {
+    if (value != null && value !== "") return value;
+  }
+  return undefined;
+}
+
+/**
+ * Resolve an LLM language model for synthesis-style `reason()` when the primary
+ * PROVIDER is typesafe|gateway (Jev).
+ *
+ * Resolution order:
+ * 1. ONE_REASON_FALLBACK_PROVIDER (+ FALLBACK_OPENAI_API_KEY / FALLBACK_MODEL / …)
+ * 2. The `one` scope config (`one auth`) when that provider is an LLM
+ * 3. Otherwise throw a clear error telling the user how to configure fallback
+ */
+export async function resolveLlmFallbackModel(
+  scope: Scope = "reason",
+  defaultModelId = "gemini-3.1-flash-lite",
+): Promise<ResolvedInterfaceModel> {
+  const config = loadScopedConfig(scope);
+  const fallbackProvider = readScopedValue(scope, "FALLBACK_PROVIDER", config)?.toLowerCase();
+
+  if (fallbackProvider) {
+    if (isJevProvider(fallbackProvider)) {
+      throw new Error(
+        `ONE_REASON_FALLBACK_PROVIDER="${fallbackProvider}" is a Jev backend; ` +
+          `fallback must be an LLM provider (openai-compatible|openai|anthropic|acp).`,
+      );
+    }
+
+    const envKeys: Array<[string, string | undefined]> = [
+      ["ONE_REASON_PROVIDER", fallbackProvider],
+      [
+        "ONE_REASON_MODEL",
+        readScopedValue(scope, "FALLBACK_MODEL", config) ??
+          readScopedValue(scope, "FALLBACK_OPENAI_MODEL", config),
+      ],
+      [
+        "ONE_REASON_OPENAI_API_KEY",
+        firstNonEmpty(
+          readScopedValue(scope, "FALLBACK_OPENAI_API_KEY", config),
+          readScopedValue(scope, "FALLBACK_API_KEY", config),
+        ),
+      ],
+      [
+        "ONE_REASON_OPENAI_BASE_URL",
+        firstNonEmpty(
+          readScopedValue(scope, "FALLBACK_OPENAI_BASE_URL", config),
+          readScopedValue(scope, "FALLBACK_BASE_URL", config),
+        ),
+      ],
+      [
+        "ONE_REASON_ANTHROPIC_API_KEY",
+        readScopedValue(scope, "FALLBACK_ANTHROPIC_API_KEY", config),
+      ],
+      [
+        "ONE_REASON_ANTHROPIC_BASE_URL",
+        readScopedValue(scope, "FALLBACK_ANTHROPIC_BASE_URL", config),
+      ],
+      ["ONE_REASON_ACP_COMMAND", readScopedValue(scope, "FALLBACK_ACP_COMMAND", config)],
+      ["ONE_REASON_ACP_ARGS", readScopedValue(scope, "FALLBACK_ACP_ARGS", config)],
+      ["ONE_REASON_ACP_MODEL", readScopedValue(scope, "FALLBACK_ACP_MODEL", config)],
+      [
+        "ONE_REASON_REASONING_EFFORT",
+        readScopedValue(scope, "FALLBACK_REASONING_EFFORT", config),
+      ],
+    ];
+
+    const previous = new Map<string, string | undefined>();
+    for (const [key, value] of envKeys) {
+      previous.set(key, process.env[key]);
+      if (value != null && value !== "") {
+        process.env[key] = value;
+      } else if (key === "ONE_REASON_PROVIDER") {
+        process.env[key] = fallbackProvider;
+      } else {
+        delete process.env[key];
+      }
+    }
+
+    try {
+      return await resolveInterfaceModel(scope, defaultModelId);
+    } finally {
+      for (const [key, value] of previous) {
+        if (value === undefined) delete process.env[key];
+        else process.env[key] = value;
+      }
+    }
+  }
+
+  // Prefer the main agent LLM (`one auth`) when reason PROVIDER is Jev-only.
+  if (scope === "reason") {
+    try {
+      const oneConfig = loadScopedConfig("one");
+      const oneProvider = (
+        readScopedValue("one", "PROVIDER", oneConfig) ?? ""
+      ).toLowerCase();
+      if (oneProvider && !isJevProvider(oneProvider)) {
+        return await resolveInterfaceModel("one", defaultModelId);
+      }
+    } catch {
+      // fall through to clear error below
+    }
+  }
+
+  throw new Error(
+    "This reason() example needs the LLM synthesis path (free-text / summary fields), " +
+      "but PROVIDER is typesafe|gateway (Jev-only). Configure a fallback LLM via " +
+      "ONE_REASON_FALLBACK_PROVIDER=openai-compatible (plus ONE_REASON_FALLBACK_OPENAI_API_KEY, " +
+      "ONE_REASON_FALLBACK_OPENAI_BASE_URL, ONE_REASON_FALLBACK_MODEL), or run `one auth` " +
+      "so the main agent model can be used. Alternatively call reason(prompt, example, { mode: 'llm' }) " +
+      "with an LLM PROVIDER.",
+  );
+}
+
+/**
+ * Resolve TypeSafe / AI Gateway Jev config when PROVIDER is `typesafe` or `gateway`.
+ * Returns null for LLM providers so `reason()` can fall through to streamText.
+ *
+ * DX mirrors OpenAI-compatible config: base URL + API key + model.
+ * Scoped ONE_REASON_* keys win; provider-specific aliases are accepted as fallbacks.
+ */
+export function resolveJevBackend(scope: Scope): ResolvedJevBackend | null {
+  const config = loadScopedConfig(scope);
+  const provider = (
+    readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
+  ).toLowerCase();
+
+  if (!isJevProvider(provider)) {
+    return null;
+  }
+
+  if (provider === "typesafe") {
+    const apiKey = firstNonEmpty(
+      readScopedValue(scope, "TYPESAFE_API_KEY", config),
+      readScopedValue(scope, "OPENAI_API_KEY", config),
+      process.env.TYPESAFE_API_KEY,
+      process.env.TYPESAFE_AI_API_KEY,
+    );
+    if (!apiKey) {
+      throw new Error(
+        "typesafe provider selected but no API key found. Set ONE_REASON_TYPESAFE_API_KEY " +
+          "(or ONE_REASON_OPENAI_API_KEY), or TYPESAFE_API_KEY / TYPESAFE_AI_API_KEY.",
+      );
+    }
+    const baseURL =
+      firstNonEmpty(
+        readScopedValue(scope, "TYPESAFE_BASE_URL", config),
+        readScopedValue(scope, "OPENAI_BASE_URL", config),
+        process.env.TYPESAFE_BASE_URL,
+        process.env.TYPESAFE_AI_BASE_URL,
+      ) ?? DEFAULT_TYPESAFE_BASE_URL;
+    const modelId = readScopedValue(scope, "MODEL", config) ?? DEFAULT_TYPESAFE_MODEL;
+    return {
+      kind: "jev",
+      provider: "typesafe",
+      apiKey,
+      baseURL: baseURL.replace(/\/+$/, ""),
+      modelId,
+    };
+  }
+
+  const apiKey = firstNonEmpty(
+    readScopedValue(scope, "GATEWAY_API_KEY", config),
+    readScopedValue(scope, "OPENAI_API_KEY", config),
+    process.env.AI_GATEWAY_API_KEY,
+    process.env.VERCEL_AI_GATEWAY_API_KEY,
+  );
+  if (!apiKey) {
+    throw new Error(
+      "gateway provider selected but no API key found. Set ONE_REASON_GATEWAY_API_KEY " +
+        "(or ONE_REASON_OPENAI_API_KEY), or AI_GATEWAY_API_KEY.",
+    );
+  }
+  const baseURL =
+    firstNonEmpty(
+      readScopedValue(scope, "GATEWAY_BASE_URL", config),
+      readScopedValue(scope, "OPENAI_BASE_URL", config),
+      process.env.AI_GATEWAY_BASE_URL,
+    ) ?? DEFAULT_GATEWAY_BASE_URL;
+  const modelId = readScopedValue(scope, "MODEL", config) ?? DEFAULT_GATEWAY_MODEL;
+  return {
+    kind: "jev",
+    provider: "gateway",
+    apiKey,
+    baseURL: baseURL.replace(/\/+$/, ""),
+    modelId,
+  };
 }
