@@ -24,7 +24,6 @@ const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
   "--mode <jev|llm>         Jev routing (decision -> Jev, free text -> LLM) or force LLM.",
-  "--jev / --no-jev         Explicitly enable or disable the Jev decision backend.",
   "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
@@ -50,7 +49,6 @@ type ParsedReasonRequestArgs = {
   positionalStructure?: string;
   structureOption?: string;
   mode?: ReasonMode;
-  jevEnabled?: boolean;
 };
 
 type TruncationMeta = {
@@ -349,7 +347,6 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
   const positionals: string[] = [];
   let structureOption: string | undefined;
   let mode: ReasonMode | undefined;
-  let jevEnabled: boolean | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -401,16 +398,6 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
       continue;
     }
 
-    if (arg === "--jev") {
-      jevEnabled = true;
-      continue;
-    }
-
-    if (arg === "--no-jev") {
-      jevEnabled = false;
-      continue;
-    }
-
     if (arg.startsWith("-") && arg !== "-") {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -428,7 +415,6 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
     positionalStructure: positionals[1],
     structureOption,
     mode,
-    jevEnabled,
   };
 }
 
@@ -567,7 +553,6 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
 
   const result = await reason(prompt, example, {
     mode: request.mode,
-    jevEnabled: request.jevEnabled,
   });
 
   if (result.error) {

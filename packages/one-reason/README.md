@@ -126,8 +126,8 @@ reason --mode jev "The user wants a refund" '{"is_refund":false}'
 # Force LLM generation
 reason --mode llm "Summarize findings" '{"summary":""}'
 
-# Temporarily disable Jev without unsetting keys
-reason --no-jev "Check status" '{"ok":false}'
+# Explicitly use Jev routing for decision-shaped examples
+reason --mode jev "Check status" '{"ok":false,"route":{"$jev":"choice","options":["approve","manual","deny"]}}'
 ```
 
 ### TypeSafe official API details
