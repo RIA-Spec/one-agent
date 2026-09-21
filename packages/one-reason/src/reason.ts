@@ -6,7 +6,7 @@ import {
 } from "./model.js";
 import { reasonWithJev } from "./jev/reason-jev.js";
 import { classifyExampleForJev } from "./jev/map-example.js";
-import type { ReasonOptions } from "./jev/types.js";
+import type { ReasonMode, ReasonOptions } from "./jev/types.js";
 import {
   type AIResult,
   buildPrompt,
@@ -142,27 +142,27 @@ Rules:
  * Bounded local judgment: turn prompt text + a required JSON example shape into
  * structured output.
  *
- * When PROVIDER is `typesafe` or `gateway`, decision-shaped examples (boolean /
- * choice / score / `$jev`) use Jev. Summary / free-text synthesis examples
- * auto-fall back to the LLM `streamText` path (see `options.mode`).
+ * In `jev` mode, a configured Jev backend handles decision-shaped examples
+ * (boolean / choice / score / `$jev`), while summary / free-text examples use
+ * the LLM `streamText` path. The default `llm` mode preserves historical behavior.
  */
 export async function reason<T = any>(
   prompt: string,
   example: T,
   options: ReasonOptions = {},
 ): Promise<AIResult<T>> {
-  const mode = options.mode ?? "auto";
-  const jevBackend = resolveJevBackend("reason");
+  const envMode = (
+    process.env.ONE_REASON_MODE ??
+    process.env.ONE_MODE
+  )?.toLowerCase() as ReasonMode | undefined;
+  // Preserve the historical LLM behavior unless callers opt into Jev routing.
+  const mode: ReasonMode = options.mode ?? envMode ?? "llm";
+  const jevBackend =
+    mode === "jev"
+      ? resolveJevBackend("reason", { jevEnabled: options.jevEnabled })
+      : null;
 
   if (mode === "llm") {
-    if (jevBackend) {
-      debugLog(
-        `mode=llm: using LLM fallback despite Jev provider "${jevBackend.provider}"`,
-      );
-      return reasonWithLlm(prompt, example, () =>
-        resolveLlmFallbackModel("reason", "gemini-3.1-flash-lite"),
-      );
-    }
     return reasonWithLlm(prompt, example, () =>
       resolveInterfaceModel("reason", "gemini-3.1-flash-lite"),
     );
@@ -170,45 +170,20 @@ export async function reason<T = any>(
 
   if (mode === "jev") {
     if (!jevBackend) {
-      return {
-        data: null,
-        error:
-          'reason() mode is "jev" but PROVIDER is not typesafe|gateway. ' +
-          "Set ONE_REASON_PROVIDER=typesafe or gateway, or use mode: \"auto\"|\"llm\".",
-      };
-    }
-    if (!options.questions) {
-      const classified = classifyExampleForJev(example);
-      if (classified.kind === "llm-synthesis") {
-        return {
-          data: null,
-          error:
-            `reason() mode is "jev" but the example is not decision-shaped (${classified.reason}). ` +
-            "Jev only returns noul/choice/score probabilities — it cannot generate free-text summaries. " +
-            'Pass options.questions for explicit decision fields, use mode: "llm", or mode: "auto" for LLM fallback.',
-        };
-      }
-    }
-    return reasonWithJev(prompt, example, jevBackend, options);
-  }
-
-  // mode === "auto"
-  if (jevBackend) {
-    if (options.questions) {
-      debugLog(`mode=auto: explicit questions → Jev (${jevBackend.provider})`);
-      return reasonWithJev(prompt, example, jevBackend, options);
+      debugLog('mode=jev: Jev unavailable → LLM fallback');
+      return reasonWithLlm(prompt, example, () =>
+        resolveInterfaceModel("reason", "gemini-3.1-flash-lite"),
+      );
     }
     const classified = classifyExampleForJev(example);
-    if (classified.kind === "jev-decision") {
-      debugLog(`mode=auto: decision-shaped example → Jev (${jevBackend.provider})`);
-      return reasonWithJev(prompt, example, jevBackend, options);
+    if (classified.kind === "llm-synthesis") {
+      debugLog(`mode=jev: ${classified.reason} → LLM fallback`);
+      return reasonWithLlm(prompt, example, () =>
+        resolveLlmFallbackModel("reason", "gemini-3.1-flash-lite"),
+      );
     }
-    debugLog(
-      `mode=auto: ${classified.reason} → LLM fallback (Jev cannot synthesize free text)`,
-    );
-    return reasonWithLlm(prompt, example, () =>
-      resolveLlmFallbackModel("reason", "gemini-3.1-flash-lite"),
-    );
+    debugLog(`mode=jev: decision-shaped example → Jev (${jevBackend.provider})`);
+    return reasonWithJev(prompt, example, jevBackend, options);
   }
 
   return reasonWithLlm(prompt, example, () =>

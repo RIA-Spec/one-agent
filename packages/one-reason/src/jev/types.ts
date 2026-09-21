@@ -6,6 +6,11 @@ export type GatewayQuestionType = "boolean" | "choice" | "score";
 
 export type JevProvider = "typesafe" | "gateway";
 
+export type ScoreRange = {
+  min: number;
+  max: number;
+};
+
 export type JevQuestion =
   | {
       type: "noul" | "boolean";
@@ -21,6 +26,7 @@ export type JevQuestion =
       type: "score";
       instructions: string;
       criteria: string[];
+      scoreRange?: ScoreRange;
     };
 
 export type JevQuestions = Record<string, JevQuestion>;
@@ -71,21 +77,20 @@ export type ResolvedJevBackend = {
 };
 
 /** How `reason()` chooses between Jev evaluation and the LLM streamText path. */
-export type ReasonMode = "auto" | "jev" | "llm";
+export type ReasonMode = "jev" | "llm";
 
 /**
  * Optional third argument to `reason(prompt, example, options?)`.
  *
- * - `mode: "auto"` (default): use Jev when PROVIDER is typesafe|gateway and the
- *   example is decision-shaped (or `questions` is provided); otherwise LLM.
- * - `mode: "jev"`: always Jev (requires a Jev backend); errors if free-text
- *   cannot map and `questions` is not provided.
+ * - omitted: preserve the historical LLM behavior (`mode: "llm"`).
+ * - `mode: "jev"`: enable Jev routing for decision-shaped examples and fall
+ *   back to LLM for free-text examples or when Jev is unavailable.
  * - `mode: "llm"`: always LLM streamText + submit_result (even if PROVIDER is Jev).
  */
 export type ReasonOptions = {
   mode?: ReasonMode;
-  /** Explicit Jev questions; when set, skip inference from `example` for Jev. */
-  questions?: JevQuestions;
+  /** Explicitly toggle Jev decision backend on/off (overrides ONE_REASON_JEV_ENABLED). */
+  jevEnabled?: boolean;
   /** Evaluation state override (default: the `prompt` string). */
   state?: string | Record<string, unknown> | unknown[];
   /** Probability threshold for noul/boolean → boolean (default 0.5). */

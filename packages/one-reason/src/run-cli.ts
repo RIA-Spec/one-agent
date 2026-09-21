@@ -5,6 +5,7 @@ import { cancel, intro, isCancel, outro, password, select, text } from "@clack/p
 import { cac } from "cac";
 import pc from "picocolors";
 import { getOneConfigPath } from "./config-path.js";
+import type { ReasonMode } from "./jev/types.js";
 import { reason } from "./reason.js";
 
 const REASON_CONFIG_PATH = getOneConfigPath("reason.json");
@@ -22,12 +23,17 @@ const HELP_ARGUMENTS = [
 const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
+  "--mode <jev|llm>         Jev routing (decision -> Jev, free text -> LLM) or force LLM.",
+  "--jev / --no-jev         Explicitly enable or disable the Jev decision backend.",
   "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
   "Interactive setup: reason auth",
   "Environment variables override file config.",
+  "ONE_REASON_MODE / ONE_MODE                          Execution policy (llm default; or jev routing). Also readable from MODE in reason.json.",
+  "ONE_REASON_JEV_ENABLED / ONE_JEV_ENABLED            Enable Jev availability (1/0, true/false); does not select mode. Also readable from JEV_ENABLED in reason.json.",
+  "ONE_REASON_JEV_PROVIDER / JEV_PROVIDER              Jev provider (typesafe/gateway; auto-detected if keys are present).",
   "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (default: 65536). Also readable from CONTEXT_WINDOW in reason.json.",
   "ONE_REASON_INPUT_RATIO / ONE_INPUT_RATIO        Fraction of context window used for input (default: 0.8, reserves 20% for model output). Also readable from INPUT_RATIO in reason.json.",
   'ONE_REASON_REASONING_EFFORT / ONE_REASONING_EFFORT  Model thinking effort for OpenAI / OpenAI-compatible / Anthropic (off/low/medium/high; provider default when unset). Best-effort: off sends reasoning_effort "none" on OpenAI-compatible, "minimal" on OpenAI, and disabled thinking on Anthropic (adaptive thinking + effort on Claude 4.6+/Claude 5, enabled + budget on older Claude models); not all models honor it. Also readable from REASONING_EFFORT in reason.json.',
@@ -43,6 +49,8 @@ type ParsedReasonRequestArgs = {
   positionalPrompt?: string;
   positionalStructure?: string;
   structureOption?: string;
+  mode?: ReasonMode;
+  jevEnabled?: boolean;
 };
 
 type TruncationMeta = {
@@ -340,6 +348,8 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
   const promptValues: string[] = [];
   const positionals: string[] = [];
   let structureOption: string | undefined;
+  let mode: ReasonMode | undefined;
+  let jevEnabled: boolean | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -370,6 +380,37 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
       continue;
     }
 
+    if (arg === "--mode") {
+      const value = args[index + 1];
+      if (value == null) throw new Error("--mode requires a value (jev|llm)");
+      const normalized = value.toLowerCase();
+      if (normalized !== "jev" && normalized !== "llm") {
+        throw new Error(`Invalid --mode "${value}". Expected one of: jev, llm`);
+      }
+      mode = normalized as ReasonMode;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--mode=")) {
+      const value = arg.slice("--mode=".length).toLowerCase();
+      if (value !== "jev" && value !== "llm") {
+        throw new Error(`Invalid --mode "${value}". Expected one of: jev, llm`);
+      }
+      mode = value as ReasonMode;
+      continue;
+    }
+
+    if (arg === "--jev") {
+      jevEnabled = true;
+      continue;
+    }
+
+    if (arg === "--no-jev") {
+      jevEnabled = false;
+      continue;
+    }
+
     if (arg.startsWith("-") && arg !== "-") {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -386,6 +427,8 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
     positionalPrompt: positionals[0],
     positionalStructure: positionals[1],
     structureOption,
+    mode,
+    jevEnabled,
   };
 }
 
@@ -522,7 +565,10 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
     );
   }
 
-  const result = await reason(prompt, example);
+  const result = await reason(prompt, example, {
+    mode: request.mode,
+    jevEnabled: request.jevEnabled,
+  });
 
   if (result.error) {
     process.exitCode = 1;

@@ -461,6 +461,21 @@ export async function resolveLlmFallbackModel(
     }
   }
 
+  // If reason scope itself has an LLM provider (and Jev was configured via JEV_PROVIDER or keys), use reason's LLM.
+  if (scope === "reason") {
+    try {
+      const reasonConfig = loadScopedConfig("reason");
+      const reasonProvider = (
+        readScopedValue("reason", "PROVIDER", reasonConfig) ?? ""
+      ).toLowerCase();
+      if (reasonProvider && !isJevProvider(reasonProvider)) {
+        return await resolveInterfaceModel("reason", defaultModelId);
+      }
+    } catch {
+      // fall through
+    }
+  }
+
   // Prefer the main agent LLM (`one auth`) when reason PROVIDER is Jev-only.
   if (scope === "reason") {
     try {
@@ -486,44 +501,130 @@ export async function resolveLlmFallbackModel(
   );
 }
 
+export function isJevEnabled(scope: Scope = "reason", config?: ScopeConfig): boolean {
+  const loadedConfig = config ?? loadScopedConfig(scope);
+  const raw = firstNonEmpty(
+    readScopedEnv(scope, "JEV_ENABLED"),
+    process.env.ONE_JEV_ENABLED,
+    process.env.JEV_ENABLED,
+    loadedConfig ? (readScopedValue(scope, "JEV_ENABLED", loadedConfig) as string | undefined) : undefined,
+  );
+  if (raw == null || raw === "") return true;
+  return parseBoolean(raw) ?? true;
+}
+
+export async function resolveReasonLlmModel(defaultModelId = "gemini-3.1-flash-lite") {
+  const config = loadScopedConfig("reason");
+  const provider = (readScopedValue("reason", "PROVIDER", config) ?? "").toLowerCase();
+  if (provider && !isJevProvider(provider)) {
+    return await resolveInterfaceModel("reason", defaultModelId);
+  }
+  return await resolveLlmFallbackModel("reason", defaultModelId);
+}
+
 /**
- * Resolve TypeSafe / AI Gateway Jev config when PROVIDER is `typesafe` or `gateway`.
- * Returns null for LLM providers so `reason()` can fall through to streamText.
+ * Resolve TypeSafe / AI Gateway Jev config when the caller's mode allows Jev.
+ * This resolves backend availability/configuration; it does not select the
+ * `jev` or `llm` execution policy.
  *
- * DX mirrors OpenAI-compatible config: base URL + API key + model.
- * Scoped ONE_REASON_* keys win; provider-specific aliases are accepted as fallbacks.
+ * Supports:
+ * - Switch: ONE_REASON_JEV_ENABLED=0|false to disable completely
+ * - Dedicated Jev provider: ONE_REASON_JEV_PROVIDER=typesafe|gateway
+ * - Auto-detection: if TYPESAFE_API_KEY is present -> typesafe; if AI_GATEWAY_API_KEY -> gateway
+ * - Legacy compatibility: ONE_REASON_PROVIDER=typesafe|gateway
+ *
+ * Returns null when Jev is disabled, not configured, or for LLM providers.
  */
-export function resolveJevBackend(scope: Scope): ResolvedJevBackend | null {
+export function resolveJevBackend(
+  scope: Scope = "reason",
+  options?: { jevEnabled?: boolean },
+): ResolvedJevBackend | null {
   const config = loadScopedConfig(scope);
-  const provider = (
-    readScopedValue(scope, "PROVIDER", config) ?? "openai-compatible"
+  if (options?.jevEnabled === false || !isJevEnabled(scope, config)) {
+    return null;
+  }
+
+  // 1. Explicit JEV_PROVIDER
+  let provider = (
+    firstNonEmpty(
+      readScopedValue(scope, "JEV_PROVIDER", config),
+      process.env.JEV_PROVIDER,
+    ) ?? ""
   ).toLowerCase();
+
+  // 2. Legacy fallback: PROVIDER=typesafe|gateway
+  if (!provider) {
+    const legacyProvider = (
+      readScopedValue(scope, "PROVIDER", config) ?? ""
+    ).toLowerCase();
+    if (isJevProvider(legacyProvider)) {
+      provider = legacyProvider;
+    }
+  }
+
+  // 3. Auto-detect from available API keys
+  if (!provider) {
+    const hasTypesafe = Boolean(
+      firstNonEmpty(
+        readScopedValue(scope, "TYPESAFE_API_KEY", config),
+        process.env.TYPESAFE_API_KEY,
+        process.env.TYPESAFE_AI_API_KEY,
+      ),
+    );
+    const hasGateway = Boolean(
+      firstNonEmpty(
+        readScopedValue(scope, "GATEWAY_API_KEY", config),
+        process.env.AI_GATEWAY_API_KEY,
+        process.env.VERCEL_AI_GATEWAY_API_KEY,
+      ),
+    );
+    if (hasTypesafe) {
+      provider = "typesafe";
+    } else if (hasGateway) {
+      provider = "gateway";
+    }
+  }
 
   if (!isJevProvider(provider)) {
     return null;
   }
 
+  const configProvider =
+    typeof config.JEV_PROVIDER === "string"
+      ? config.JEV_PROVIDER.toLowerCase()
+      : typeof config.PROVIDER === "string"
+        ? config.PROVIDER.toLowerCase()
+        : undefined;
+  const providerConfig = configProvider === provider ? config : {};
+
   if (provider === "typesafe") {
     const apiKey = firstNonEmpty(
-      readScopedValue(scope, "TYPESAFE_API_KEY", config),
-      readScopedValue(scope, "OPENAI_API_KEY", config),
+      readScopedValue(scope, "JEV_API_KEY", providerConfig),
+      readScopedValue(scope, "TYPESAFE_API_KEY", providerConfig),
+      readScopedValue(scope, "OPENAI_API_KEY", providerConfig),
       process.env.TYPESAFE_API_KEY,
       process.env.TYPESAFE_AI_API_KEY,
     );
     if (!apiKey) {
       throw new Error(
-        "typesafe provider selected but no API key found. Set ONE_REASON_TYPESAFE_API_KEY " +
-          "(or ONE_REASON_OPENAI_API_KEY), or TYPESAFE_API_KEY / TYPESAFE_AI_API_KEY.",
+        "typesafe provider selected but no API key found. Set ONE_REASON_JEV_API_KEY, " +
+          "ONE_REASON_TYPESAFE_API_KEY (or ONE_REASON_OPENAI_API_KEY), or TYPESAFE_API_KEY / TYPESAFE_AI_API_KEY.",
       );
     }
     const baseURL =
       firstNonEmpty(
-        readScopedValue(scope, "TYPESAFE_BASE_URL", config),
-        readScopedValue(scope, "OPENAI_BASE_URL", config),
+        readScopedValue(scope, "JEV_BASE_URL", providerConfig),
+        readScopedValue(scope, "TYPESAFE_BASE_URL", providerConfig),
+        readScopedValue(scope, "OPENAI_BASE_URL", providerConfig),
         process.env.TYPESAFE_BASE_URL,
         process.env.TYPESAFE_AI_BASE_URL,
       ) ?? DEFAULT_TYPESAFE_BASE_URL;
-    const modelId = readScopedValue(scope, "MODEL", config) ?? DEFAULT_TYPESAFE_MODEL;
+    const modelId =
+      firstNonEmpty(
+        readScopedValue(scope, "JEV_MODEL", providerConfig),
+        readScopedValue(scope, "TYPESAFE_MODEL", providerConfig),
+        readScopedValue(scope, "MODEL", providerConfig),
+      ) ?? DEFAULT_TYPESAFE_MODEL;
     return {
       kind: "jev",
       provider: "typesafe",
@@ -534,24 +635,31 @@ export function resolveJevBackend(scope: Scope): ResolvedJevBackend | null {
   }
 
   const apiKey = firstNonEmpty(
-    readScopedValue(scope, "GATEWAY_API_KEY", config),
-    readScopedValue(scope, "OPENAI_API_KEY", config),
+    readScopedValue(scope, "JEV_API_KEY", providerConfig),
+    readScopedValue(scope, "GATEWAY_API_KEY", providerConfig),
+    readScopedValue(scope, "OPENAI_API_KEY", providerConfig),
     process.env.AI_GATEWAY_API_KEY,
     process.env.VERCEL_AI_GATEWAY_API_KEY,
   );
   if (!apiKey) {
     throw new Error(
-      "gateway provider selected but no API key found. Set ONE_REASON_GATEWAY_API_KEY " +
-        "(or ONE_REASON_OPENAI_API_KEY), or AI_GATEWAY_API_KEY.",
+      "gateway provider selected but no API key found. Set ONE_REASON_JEV_API_KEY, " +
+        "ONE_REASON_GATEWAY_API_KEY (or ONE_REASON_OPENAI_API_KEY), or AI_GATEWAY_API_KEY.",
     );
   }
   const baseURL =
     firstNonEmpty(
-      readScopedValue(scope, "GATEWAY_BASE_URL", config),
-      readScopedValue(scope, "OPENAI_BASE_URL", config),
+      readScopedValue(scope, "JEV_BASE_URL", providerConfig),
+      readScopedValue(scope, "GATEWAY_BASE_URL", providerConfig),
+      readScopedValue(scope, "OPENAI_BASE_URL", providerConfig),
       process.env.AI_GATEWAY_BASE_URL,
     ) ?? DEFAULT_GATEWAY_BASE_URL;
-  const modelId = readScopedValue(scope, "MODEL", config) ?? DEFAULT_GATEWAY_MODEL;
+  const modelId =
+    firstNonEmpty(
+      readScopedValue(scope, "JEV_MODEL", providerConfig),
+      readScopedValue(scope, "GATEWAY_MODEL", providerConfig),
+      readScopedValue(scope, "MODEL", providerConfig),
+    ) ?? DEFAULT_GATEWAY_MODEL;
   return {
     kind: "jev",
     provider: "gateway",

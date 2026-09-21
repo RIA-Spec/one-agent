@@ -85,7 +85,7 @@ describe("reason() mode routing", () => {
     return cleanup;
   }
 
-  it("mode=auto + decision example → Jev when backend present", async () => {
+  it("mode=jev + decision example → Jev when backend present", async () => {
     resolveJevBackend.mockReturnValue({
       kind: "jev",
       provider: "typesafe",
@@ -96,14 +96,32 @@ describe("reason() mode routing", () => {
     reasonWithJev.mockResolvedValue({ data: { retry: true }, error: null });
 
     const reason = await loadReason();
-    const result = await reason("should we retry?", { retry: false });
+    const result = await reason("should we retry?", { retry: false }, { mode: "jev" });
 
     expect(reasonWithJev).toHaveBeenCalledOnce();
     expect(streamText).not.toHaveBeenCalled();
     expect(result.data).toEqual({ retry: true });
   });
 
-  it("mode=auto + summary example → LLM fallback when backend present", async () => {
+  it("omitted mode preserves the historical LLM path", async () => {
+    resolveJevBackend.mockReturnValue({
+      kind: "jev",
+      provider: "typesafe",
+      apiKey: "k",
+      baseURL: "https://api.typesafe.ai/v1",
+      modelId: "jev-latest",
+    });
+    stubLlmSuccess({ retry: true });
+
+    const reason = await loadReason();
+    const result = await reason("should we retry?", { retry: false });
+
+    expect(reasonWithJev).not.toHaveBeenCalled();
+    expect(resolveInterfaceModel).toHaveBeenCalled();
+    expect(result.data).toEqual({ retry: true });
+  });
+
+  it("mode=jev + summary example → LLM fallback when backend present", async () => {
     resolveJevBackend.mockReturnValue({
       kind: "jev",
       provider: "typesafe",
@@ -114,11 +132,15 @@ describe("reason() mode routing", () => {
     stubLlmSuccess({ summary: "all good", findings: "none", next: "ship" });
 
     const reason = await loadReason();
-    const result = await reason("summarize", {
-      summary: "",
-      findings: "",
-      next: "",
-    });
+    const result = await reason(
+      "summarize",
+      {
+        summary: "",
+        findings: "",
+        next: "",
+      },
+      { mode: "jev" },
+    );
 
     expect(reasonWithJev).not.toHaveBeenCalled();
     expect(resolveLlmFallbackModel).toHaveBeenCalled();
@@ -145,11 +167,11 @@ describe("reason() mode routing", () => {
     const result = await reason("check", { ok: false }, { mode: "llm" });
 
     expect(reasonWithJev).not.toHaveBeenCalled();
-    expect(resolveLlmFallbackModel).toHaveBeenCalled();
+    expect(resolveInterfaceModel).toHaveBeenCalled();
     expect(result.data).toEqual({ ok: true });
   });
 
-  it("mode=jev with free-text example returns a clear error", async () => {
+  it("mode=jev with free-text example falls back to LLM", async () => {
     resolveJevBackend.mockReturnValue({
       kind: "jev",
       provider: "typesafe",
@@ -158,6 +180,7 @@ describe("reason() mode routing", () => {
       modelId: "jev-latest",
     });
 
+    stubLlmSuccess({ summary: "all good", findings: "none" });
     const reason = await loadReason();
     const result = await reason(
       "summarize",
@@ -166,8 +189,9 @@ describe("reason() mode routing", () => {
     );
 
     expect(reasonWithJev).not.toHaveBeenCalled();
-    expect(result.data).toBeNull();
-    expect(result.error).toMatch(/not decision-shaped|free-text|cannot generate/i);
+    expect(resolveLlmFallbackModel).toHaveBeenCalled();
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({ summary: "all good", findings: "none" });
   });
 
   it("mode=jev with decision example calls Jev", async () => {
@@ -188,37 +212,16 @@ describe("reason() mode routing", () => {
     expect(args[3]).toMatchObject({ mode: "jev", booleanThreshold: 0.7 });
   });
 
-  it("mode=jev without Jev backend returns a clear error", async () => {
+  it("mode=jev without Jev backend falls back to LLM", async () => {
     resolveJevBackend.mockReturnValue(null);
+    stubLlmSuccess({ ok: true });
 
     const reason = await loadReason();
     const result = await reason("x", { ok: true }, { mode: "jev" });
 
-    expect(result.data).toBeNull();
-    expect(result.error).toMatch(/PROVIDER is not typesafe\|gateway/);
+    expect(resolveInterfaceModel).toHaveBeenCalled();
+    expect(result.error).toBeNull();
+    expect(result.data).toEqual({ ok: true });
   });
 
-  it("mode=auto with explicit questions uses Jev", async () => {
-    resolveJevBackend.mockReturnValue({
-      kind: "jev",
-      provider: "typesafe",
-      apiKey: "k",
-      baseURL: "https://api.typesafe.ai/v1",
-      modelId: "jev-latest",
-    });
-    reasonWithJev.mockResolvedValue({ data: { ok: true }, error: null });
-
-    const reason = await loadReason();
-    await reason(
-      "ok?",
-      { ok: false, note: "ignored for routing when questions set" },
-      {
-        mode: "auto",
-        questions: { ok: { type: "noul", instructions: "ok?" } },
-      },
-    );
-
-    expect(reasonWithJev).toHaveBeenCalledOnce();
-    expect(streamText).not.toHaveBeenCalled();
-  });
 });

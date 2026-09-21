@@ -7,6 +7,8 @@ export {
   resolveInterfaceModel,
   resolveJevBackend,
   resolveLlmFallbackModel,
+  resolveReasonLlmModel,
+  isJevEnabled,
   isJevProvider,
   type InterfaceProvider,
 } from "./model.js";
@@ -15,6 +17,7 @@ export type {
   JevQuestion,
   JevQuestions,
   ResolvedJevBackend,
+  ScoreRange,
 } from "./jev/types.js";
 export {
   mapExampleToQuestions,

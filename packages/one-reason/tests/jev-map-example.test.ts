@@ -3,17 +3,20 @@ import {
   classifyExampleForJev,
   isJevDecisionExample,
   mapExampleToQuestions,
-  mapExplicitQuestions,
   toGatewayQuestions,
   toTypesafeQuestions,
 } from "../src/jev/map-example.js";
 
 describe("mapExampleToQuestions", () => {
-  it("maps booleans to noul, numbers to score, and pipe strings to choice", () => {
+  it("maps booleans and numbers, while choice stays explicit", () => {
     const mapped = mapExampleToQuestions({
       urgent: false,
       severity: 2,
-      route: "billing|technical|other",
+      route: {
+        $jev: "choice",
+        options: ["billing", "technical", "other"],
+        value: "billing",
+      },
     });
 
     expect(mapped.questions.urgent).toMatchObject({ type: "noul" });
@@ -75,13 +78,41 @@ describe("mapExampleToQuestions", () => {
     });
   });
 
-  it("maps string arrays to choice questions", () => {
+  it("maps explicit score ranges back to the declared numeric range", () => {
     const mapped = mapExampleToQuestions({
-      category: ["bug", "feature", "other"],
+      risk: {
+        $jev: "score",
+        range: [0, 100],
+        value: 0,
+      },
     });
-    expect(mapped.questions.category).toMatchObject({
-      type: "choice",
-      criteria: { bug: null, feature: null, other: null },
+
+    expect(mapped.questions.risk).toMatchObject({
+      type: "score",
+      scoreRange: { min: 0, max: 100 },
+    });
+    expect(mapped.questions.risk?.type === "score" && mapped.questions.risk.criteria).toHaveLength(10);
+    expect(
+      mapped.applyAnswers({ risk: { type: "score", score: 4.5 } }),
+    ).toEqual({ risk: 50 });
+  });
+
+  it("does not reinterpret example arrays or strings as choice options", () => {
+    const mapped = mapExampleToQuestions({
+      approved: false,
+      category: ["bug", "feature", "other"],
+      route: "billing|technical|other",
+    });
+
+    expect(mapped.questions).toEqual({
+      approved: expect.objectContaining({ type: "noul" }),
+    });
+    expect(
+      mapped.applyAnswers({ approved: { type: "noul", noul: 0.9 } }),
+    ).toEqual({
+      approved: true,
+      category: ["bug", "feature", "other"],
+      route: "billing|technical|other",
     });
   });
 
@@ -92,7 +123,13 @@ describe("mapExampleToQuestions", () => {
 
 describe("classifyExampleForJev", () => {
   it("marks pure decision examples as jev-decision", () => {
-    expect(isJevDecisionExample({ retry: false, route: "a|b|c", score: 2 })).toBe(true);
+    expect(
+      isJevDecisionExample({
+        retry: false,
+        route: { $jev: "choice", options: ["a", "b", "c"] },
+        score: 2,
+      }),
+    ).toBe(true);
     const classified = classifyExampleForJev({ retry: false });
     expect(classified.kind).toBe("jev-decision");
   });
@@ -120,16 +157,6 @@ describe("classifyExampleForJev", () => {
       expect(classified.freeTextPaths).toContain("note");
       expect(classified.questions.urgent).toMatchObject({ type: "noul" });
     }
-  });
-});
-
-describe("mapExplicitQuestions", () => {
-  it("applies answers onto the example skeleton using provided questions", () => {
-    const mapped = mapExplicitQuestions(
-      { ok: false },
-      { ok: { type: "noul", instructions: "Did it succeed?" } },
-    );
-    expect(mapped.applyAnswers({ ok: { type: "noul", noul: 0.9 } })).toEqual({ ok: true });
   });
 });
 

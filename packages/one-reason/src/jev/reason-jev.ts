@@ -3,7 +3,6 @@ import { evaluateJev, JevHttpError } from "./client.js";
 import {
   classifyExampleForJev,
   mapExampleToQuestions,
-  mapExplicitQuestions,
 } from "./map-example.js";
 import type { ReasonOptions, ResolvedJevBackend } from "./types.js";
 
@@ -17,9 +16,9 @@ function formatState(state: ReasonOptions["state"], prompt: string): string {
  * Run `reason(prompt, example)` through TypeSafe Jev / AI Gateway evaluation
  * instead of streamText + submit_result.
  *
- * `prompt` (or `options.state`) becomes the evaluation `state`. Questions come
- * from `options.questions` when provided, otherwise from `example`
- * (see map-example.ts). Answers are mapped back into an example-shaped `data`.
+ * `prompt` (or `options.state`) becomes the evaluation `state`. Questions are
+ * derived from `example` (see map-example.ts). Answers are mapped back into an
+ * example-shaped `data`.
  */
 export async function reasonWithJev<T = unknown>(
   prompt: string,
@@ -28,18 +27,13 @@ export async function reasonWithJev<T = unknown>(
   options: ReasonOptions = {},
 ): Promise<AIResult<T>> {
   try {
-    const mapped = options.questions
-      ? mapExplicitQuestions(example, options.questions)
-      : mapExampleToQuestions(example);
-
-    if (!options.questions) {
-      const classified = classifyExampleForJev(example);
-      if (classified.kind === "llm-synthesis") {
-        throw new Error(
-          `Jev cannot synthesize free-text / summary fields (${classified.reason}). ` +
-            `Use mode: "llm" (or auto-fallback), or pass explicit options.questions for decision fields only.`,
-        );
-      }
+    const mapped = mapExampleToQuestions(example);
+    const classified = classifyExampleForJev(example);
+    if (classified.kind === "llm-synthesis") {
+      throw new Error(
+        `Jev cannot synthesize free-text / summary fields (${classified.reason}). ` +
+          `Use mode: "llm" or make the example decision-shaped.`,
+      );
     }
 
     const answers = await evaluateJev({

@@ -127,7 +127,14 @@ describe("reasonWithJev", () => {
 
     const result = await reasonWithJev(
       "goal: detect failure\nobservation: request timed out",
-      { failed: false, reason: "timeout|network|other" },
+      {
+        failed: false,
+        reason: {
+          $jev: "choice",
+          options: ["timeout", "network", "other"],
+          value: "timeout",
+        },
+      },
       {
         kind: "jev",
         provider: "typesafe",
@@ -169,9 +176,38 @@ describe("resolveJevBackend", () => {
     expect(backend?.modelId).toBe("typesafe-ai/jev");
   });
 
-  it("returns null for LLM providers", () => {
+  it("returns null for LLM providers when no Jev keys are set", () => {
     vi.stubEnv("ONE_REASON_PROVIDER", "openai-compatible");
     expect(resolveJevBackend("reason")).toBeNull();
+  });
+
+  it("respects ONE_REASON_JEV_ENABLED=0 toggle", () => {
+    vi.stubEnv("ONE_REASON_JEV_ENABLED", "0");
+    vi.stubEnv("TYPESAFE_API_KEY", "ts-key");
+
+    expect(resolveJevBackend("reason")).toBeNull();
+    expect(resolveJevBackend("reason", { jevEnabled: false })).toBeNull();
+  });
+
+  it("resolves standalone ONE_REASON_JEV_PROVIDER alongside LLM provider", () => {
+    vi.stubEnv("ONE_REASON_PROVIDER", "openai-compatible");
+    vi.stubEnv("ONE_REASON_JEV_PROVIDER", "typesafe");
+    vi.stubEnv("TYPESAFE_API_KEY", "ts-key");
+
+    const backend = resolveJevBackend("reason");
+    expect(backend?.provider).toBe("typesafe");
+    expect(backend?.apiKey).toBe("ts-key");
+    expect(backend?.baseURL).toBe("https://api.typesafe.ai/v1");
+  });
+
+  it("auto-detects Jev provider from API keys when PROVIDER is LLM", () => {
+    vi.stubEnv("ONE_REASON_PROVIDER", "openai-compatible");
+    vi.stubEnv("AI_GATEWAY_API_KEY", "gw-auto");
+
+    const backend = resolveJevBackend("reason");
+    expect(backend?.provider).toBe("gateway");
+    expect(backend?.apiKey).toBe("gw-auto");
+    expect(backend?.baseURL).toBe("https://ai-gateway.vercel.sh/v4/ai");
   });
 });
 

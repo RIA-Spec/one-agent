@@ -1,6 +1,12 @@
-import type { JevAnswers, JevQuestion, JevQuestions, MappedQuestions } from "./types.js";
+import type {
+  JevAnswers,
+  JevQuestion,
+  JevQuestions,
+  MappedQuestions,
+  ScoreRange,
+} from "./types.js";
 
-const CHOICE_SEP = "|";
+const CHOICE_CRITERIA_SEPARATOR = "|";
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -37,7 +43,7 @@ function parseChoiceCriteria(raw: unknown): Record<string, string | null> {
   }
   if (typeof raw === "string") {
     const criteria: Record<string, string | null> = {};
-    for (const part of raw.split(CHOICE_SEP)) {
+    for (const part of raw.split(CHOICE_CRITERIA_SEPARATOR)) {
       const option = part.trim();
       if (option) criteria[option] = null;
     }
@@ -52,6 +58,29 @@ function parseScoreCriteria(raw: unknown, fallbackLevels: number): string[] {
   }
   const levels = Math.min(10, Math.max(2, fallbackLevels));
   return Array.from({ length: levels }, (_, i) => `level ${i}`);
+}
+
+function parseScoreRange(raw: unknown): ScoreRange | undefined {
+  if (!Array.isArray(raw) || raw.length !== 2) return undefined;
+  const [min, max] = raw;
+  if (
+    typeof min !== "number" ||
+    !Number.isFinite(min) ||
+    typeof max !== "number" ||
+    !Number.isFinite(max) ||
+    max <= min
+  ) {
+    throw new Error(`Invalid score range ${JSON.stringify(raw)}: expected [min, max] with max > min.`);
+  }
+  return { min, max };
+}
+
+function criteriaForScoreRange(range: ScoreRange, levels: number): string[] {
+  const count = Math.min(10, Math.max(2, Math.floor(levels)));
+  return Array.from({ length: count }, (_, index) => {
+    const value = range.min + ((range.max - range.min) * index) / (count - 1);
+    return String(Number(value.toFixed(6)));
+  });
 }
 
 function questionFromExplicit(
@@ -95,13 +124,21 @@ function questionFromExplicit(
   }
 
   if (kind === "score") {
+    const scoreRange = parseScoreRange(marker.range);
     const fallback =
       typeof exampleValue === "number" && Number.isFinite(exampleValue)
         ? Math.ceil(Math.abs(exampleValue)) + 1
         : 3;
-    const criteria = parseScoreCriteria(marker.criteria, fallback);
+    const levels =
+      typeof marker.levels === "number" && Number.isFinite(marker.levels)
+        ? marker.levels
+        : 10;
+    const criteria =
+      marker.criteria == null && scoreRange
+        ? criteriaForScoreRange(scoreRange, levels)
+        : parseScoreCriteria(marker.criteria, fallback);
     return {
-      question: { type: "score", instructions, criteria },
+      question: { type: "score", instructions, criteria, ...(scoreRange ? { scoreRange } : {}) },
       exampleValue: typeof exampleValue === "number" ? exampleValue : 0,
     };
   }
@@ -135,37 +172,9 @@ function questionFromInferred(
   }
 
   if (typeof value === "string") {
-    if (value.includes(CHOICE_SEP)) {
-      const criteria = parseChoiceCriteria(value);
-      if (Object.keys(criteria).length >= 2) {
-        return {
-          question: {
-            type: "choice",
-            instructions: fieldInstructions(path),
-            criteria,
-          },
-          passthrough: Object.keys(criteria)[0],
-        };
-      }
-    }
-    // Free-text string: not Jev-mappable (classifyExampleForJev → llm-synthesis).
+    // A plain example string does not contain enough information to infer a
+    // finite choice set. Use an explicit $jev marker for choices.
     return { question: null, passthrough: value };
-  }
-
-  if (
-    Array.isArray(value) &&
-    value.length >= 2 &&
-    value.every((item) => typeof item === "string")
-  ) {
-    const criteria = parseChoiceCriteria(value);
-    return {
-      question: {
-        type: "choice",
-        instructions: fieldInstructions(path),
-        criteria,
-      },
-      passthrough: value[0],
-    };
   }
 
   return { question: null, passthrough: value };
@@ -282,7 +291,15 @@ function answerToValue(
   }
 
   if (question.type === "score") {
-    if (answer.type === "score") return answer.score;
+    if (answer.type === "score") {
+      if (!question.scoreRange) return answer.score;
+      const maxIndex = Math.max(1, question.criteria.length - 1);
+      const normalized = Math.min(1, Math.max(0, answer.score / maxIndex));
+      return (
+        question.scoreRange.min +
+        normalized * (question.scoreRange.max - question.scoreRange.min)
+      );
+    }
     return fallback;
   }
 
@@ -402,50 +419,17 @@ export function isJevDecisionExample(example: unknown): boolean {
 }
 
 /**
- * Build MappedQuestions from an explicit questions map + example skeleton.
- * Used when `reason(..., { questions })` is provided.
- */
-export function mapExplicitQuestions(
-  example: unknown,
-  questions: JevQuestions,
-): MappedQuestions {
-  if (Object.keys(questions).length === 0) {
-    throw new Error("Explicit Jev `questions` must contain at least one question.");
-  }
-
-  return {
-    questions,
-    applyAnswers(answers: JevAnswers, booleanThreshold = 0.5) {
-      let data: unknown = structuredClone(example);
-      for (const [path, question] of Object.entries(questions)) {
-        const fallback =
-          question.type === "noul" || question.type === "boolean"
-            ? false
-            : question.type === "choice"
-              ? Object.keys(question.criteria)[0]
-              : 0;
-        const value = answerToValue(question, answers[path], fallback, booleanThreshold);
-        if (path === "$" || path === "") {
-          data = value;
-        } else {
-          data = setAtPath(data, path, value);
-        }
-      }
-      return data;
-    },
-  };
-}
-
-/**
  * Derive Jev questions from a `reason(prompt, example)` example value.
  *
  * Mapping rules:
  * - `boolean` → noul/boolean
  * - `number` → score (criteria auto-generated as `level 0` .. `level N`)
- * - `string` with `|` separators, or `string[]` → choice
  * - plain `string` → not Jev-mappable (see classifyExampleForJev → LLM synthesis)
+ * - choice → explicit `$jev: "choice"` marker (an example value alone cannot
+ *   infer the finite set of allowed options)
  * - explicit marker:
  *   `{ "$jev": "noul"|"choice"|"score", "instructions"?, "criteria"?, "value"? }`
+ *   Score markers may also declare `range: [min, max]` and optional `levels`.
  *
  * Nested objects are flattened to dotted question ids and rebuilt into the
  * example shape when answers are applied.
@@ -455,10 +439,10 @@ export function mapExampleToQuestions(example: unknown): MappedQuestions {
   if (classified.kind === "llm-synthesis" && Object.keys(classified.questions).length === 0) {
     throw new Error(
       "TypeSafe/Gateway Jev provider could not derive any questions from the example. " +
-        "Use booleans, numbers, pipe-separated choice strings (a|b|c), string arrays, " +
+      "Use booleans, numbers, or explicit $jev choice markers, " +
         'or explicit { "$jev": "noul"|"choice"|"score", ... } markers. ' +
         "Summary/free-text examples should use the LLM reason path " +
-        '(mode: "llm" or auto-fallback when PROVIDER is typesafe|gateway).',
+        '(mode: "llm" or the Jev mode fallback when PROVIDER is typesafe|gateway).',
     );
   }
 
@@ -475,7 +459,7 @@ export function mapExampleToQuestions(example: unknown): MappedQuestions {
   if (Object.keys(questions).length === 0) {
     throw new Error(
       "TypeSafe/Gateway Jev provider could not derive any questions from the example. " +
-        "Use booleans, numbers, pipe-separated choice strings (a|b|c), string arrays, " +
+        "Use booleans, numbers, or explicit $jev choice markers, " +
         'or explicit { "$jev": "noul"|"choice"|"score", ... } markers.',
     );
   }
