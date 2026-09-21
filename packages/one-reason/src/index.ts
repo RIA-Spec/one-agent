@@ -13,11 +13,17 @@ export {
   type InterfaceProvider,
 } from "./model.js";
 export type {
+  JevChoiceCriteria,
+  JevChoiceMarker,
+  JevChoiceOption,
+  JevExampleMarker,
+  JevNoulMarker,
   JevProvider,
   JevQuestion,
   JevQuestions,
   ResolvedJevBackend,
   ScoreRange,
+  JevScoreMarker,
 } from "./jev/types.js";
 export {
   mapExampleToQuestions,

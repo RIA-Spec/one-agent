@@ -11,6 +11,48 @@ export type ScoreRange = {
   max: number;
 };
 
+/** A choice option accepted by the `$jev: "choice"` example marker. */
+export type JevChoiceOption = string | { id: string; description?: string };
+
+/** Choice criteria can be written as a list, map, or `a|b|c` shorthand. */
+export type JevChoiceCriteria =
+  | string
+  | readonly JevChoiceOption[]
+  | Record<string, string | null | undefined>;
+
+/** Explicit Jev schema marker for boolean / noul questions. */
+export type JevNoulMarker = {
+  $jev: "noul" | "boolean";
+  instructions?: string;
+  criteria?: { true?: string; false?: string };
+  value?: boolean;
+  example?: boolean;
+};
+
+/** Explicit Jev schema marker for finite choices. */
+export type JevChoiceMarker = {
+  $jev: "choice";
+  instructions?: string;
+  options?: JevChoiceCriteria;
+  criteria?: JevChoiceCriteria;
+  value?: string;
+  example?: string;
+};
+
+/** Explicit Jev schema marker for score questions and optional numeric ranges. */
+export type JevScoreMarker = {
+  $jev: "score";
+  instructions?: string;
+  range?: readonly [number, number];
+  levels?: number;
+  criteria?: readonly string[];
+  value?: number;
+  example?: number;
+};
+
+/** Union of explicit `$jev` markers accepted inside a reason example. */
+export type JevExampleMarker = JevNoulMarker | JevChoiceMarker | JevScoreMarker;
+
 export type JevQuestion =
   | {
       type: "noul" | "boolean";

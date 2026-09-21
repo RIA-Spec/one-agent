@@ -220,8 +220,6 @@ await reason(prompt, { ok: false }, {
 | --- | --- |
 | omitted / `llm` | Always use the LLM path (backward-compatible default) |
 | `jev` | Decision-shaped example → Jev; free-text example or unavailable Jev → LLM fallback |
-| `jev` | Always Jev; clear error if example contains free-text |
-| `llm` | Always LLM streamText path (needs FALLBACK_* or `one auth` when PROVIDER is Jev) |
 
 ### Example → question mapping (decision-shaped)
 
