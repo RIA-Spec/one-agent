@@ -20,6 +20,11 @@ const HELP_ARGUMENTS = [
   "observation     Optional positional observation text. Use '-' to read observation text from stdin.",
   "structure       Required JSON example for structured output when --structure is not used.",
 ];
+const HELP_STRUCTURE = [
+  'Jev schema: `$jev` is optional. Booleans infer noul/boolean and numbers infer score.',
+  'Use `{ "$jev": "choice", "options": ["a", "b"] }` when a field has explicit choices; arrays otherwise remain arrays.',
+  'Use `{ "$jev": "score", "range": [0, 100] }` to declare a score range explicitly.',
+];
 const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
@@ -582,6 +587,10 @@ export async function runReasonCli(args = process.argv.slice(2)) {
     sections.push({
       title: "Arguments",
       body: HELP_ARGUMENTS.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Structure",
+      body: HELP_STRUCTURE.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Options",
