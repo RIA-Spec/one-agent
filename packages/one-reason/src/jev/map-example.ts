@@ -52,7 +52,12 @@ function parseChoiceCriteria(raw: unknown): Record<string, string | null> {
   throw new Error(`Invalid choice criteria for Jev mapping: ${JSON.stringify(raw)}`);
 }
 
-function parseScoreCriteria(raw: unknown, fallbackLevels: number): string[] {
+function parseScoreCriteria(raw: unknown, fallbackLevels: number, path?: string): string[] {
+  if (Array.isArray(raw) && raw.length > 10) {
+    throw new Error(
+      `Jev score criteria${path ? ` at \`${path}\`` : ""} supports at most 10 levels; received ${raw.length}.`,
+    );
+  }
   if (Array.isArray(raw) && raw.length >= 2) {
     return raw.map((item) => String(item));
   }
@@ -61,7 +66,10 @@ function parseScoreCriteria(raw: unknown, fallbackLevels: number): string[] {
 }
 
 function parseScoreRange(raw: unknown): ScoreRange | undefined {
-  if (!Array.isArray(raw) || raw.length !== 2) return undefined;
+  if (raw === undefined) return undefined;
+  if (!Array.isArray(raw) || raw.length !== 2) {
+    throw new Error(`Invalid score range ${JSON.stringify(raw)}: expected [min, max].`);
+  }
   const [min, max] = raw;
   if (
     typeof min !== "number" ||
@@ -136,7 +144,7 @@ function questionFromExplicit(
     const criteria =
       marker.criteria == null && scoreRange
         ? criteriaForScoreRange(scoreRange, levels)
-        : parseScoreCriteria(marker.criteria, fallback);
+        : parseScoreCriteria(marker.criteria, fallback, path);
     return {
       question: { type: "score", instructions, criteria, ...(scoreRange ? { scoreRange } : {}) },
       exampleValue: typeof exampleValue === "number" ? exampleValue : 0,

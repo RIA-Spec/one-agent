@@ -97,6 +97,28 @@ describe("mapExampleToQuestions", () => {
     ).toEqual({ risk: 50 });
   });
 
+  it("rejects score criteria with more than 10 levels locally", () => {
+    expect(() =>
+      mapExampleToQuestions({
+        risk: {
+          $jev: "score",
+          criteria: Array.from({ length: 11 }, (_, index) => String(index)),
+        },
+      }),
+    ).toThrow(/at most 10 levels/);
+  });
+
+  it("rejects malformed explicit score ranges locally", () => {
+    expect(() =>
+      mapExampleToQuestions({
+        risk: {
+          $jev: "score",
+          range: { min: 0, max: 100 },
+        },
+      }),
+    ).toThrow(/expected \[min, max\]/);
+  });
+
   it("does not reinterpret example arrays or strings as choice options", () => {
     const mapped = mapExampleToQuestions({
       approved: false,
