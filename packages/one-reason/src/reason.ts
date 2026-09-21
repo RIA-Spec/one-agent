@@ -1,5 +1,12 @@
 import * as ai from "ai";
-import { resolveInterfaceModel } from "./model.js";
+import {
+  resolveInterfaceModel,
+  resolveJevBackend,
+  resolveLlmFallbackModel,
+} from "./model.js";
+import { reasonWithJev } from "./jev/reason-jev.js";
+import { classifyExampleForJev } from "./jev/map-example.js";
+import type { ReasonMode, ReasonOptions } from "./jev/types.js";
 import {
   type AIResult,
   buildPrompt,
@@ -9,6 +16,8 @@ import {
 } from "./utils/schema.js";
 import { getTracer } from "./tracing.js";
 import { processStream } from "./utils/stream.js";
+
+export type { ReasonMode, ReasonOptions } from "./jev/types.js";
 
 type SubmitToolResult = {
   toolName?: string;
@@ -31,7 +40,17 @@ function hasSubmittedResult(steps: StreamStep[] | undefined): boolean {
   );
 }
 
-export async function reason<T = any>(prompt: string, example: T): Promise<AIResult<T>> {
+function debugLog(message: string): void {
+  if (process.env.ONE_REASON_VERBOSE === "1" || process.env.ONE_AGENT_DEBUG === "1") {
+    console.error(`[one-reason] ${message}`);
+  }
+}
+
+async function reasonWithLlm<T = any>(
+  prompt: string,
+  example: T,
+  resolveModel: () => ReturnType<typeof resolveInterfaceModel>,
+): Promise<AIResult<T>> {
   const { jsonSchema, stepCountIs, streamText, tool } = ai;
   const { validate, outputSchema } = compileAiResultValidator(example);
   const dataSchema = exampleToJsonSchema(example);
@@ -66,7 +85,7 @@ export async function reason<T = any>(prompt: string, example: T): Promise<AIRes
     return hasSubmittedResult(steps);
   };
 
-  const resolved = await resolveInterfaceModel("reason", "gemini-3.1-flash-lite");
+  const resolved = await resolveModel();
   const result = streamText({
     model: resolved.model,
     providerOptions: resolved.providerOptions,
@@ -117,4 +136,57 @@ Rules:
   } finally {
     await resolved.cleanup?.();
   }
+}
+
+/**
+ * Bounded local judgment: turn prompt text + a required JSON example shape into
+ * structured output.
+ *
+ * In `jev` mode, a configured Jev backend handles decision-shaped examples
+ * (boolean / choice / score / `$jev`), while summary / free-text examples use
+ * the LLM `streamText` path. The default `llm` mode preserves historical behavior.
+ */
+export async function reason<T = any>(
+  prompt: string,
+  example: T,
+  options: ReasonOptions = {},
+): Promise<AIResult<T>> {
+  const envMode = (
+    process.env.ONE_REASON_MODE ??
+    process.env.ONE_MODE
+  )?.toLowerCase() as ReasonMode | undefined;
+  // Preserve the historical LLM behavior unless callers opt into Jev routing.
+  const mode: ReasonMode = options.mode ?? envMode ?? "llm";
+  const jevBackend =
+    mode === "jev"
+      ? resolveJevBackend("reason", { jevEnabled: options.jevEnabled })
+      : null;
+
+  if (mode === "llm") {
+    return reasonWithLlm(prompt, example, () =>
+      resolveInterfaceModel("reason", "gemini-3.1-flash-lite"),
+    );
+  }
+
+  if (mode === "jev") {
+    if (!jevBackend) {
+      debugLog('mode=jev: Jev unavailable → LLM fallback');
+      return reasonWithLlm(prompt, example, () =>
+        resolveInterfaceModel("reason", "gemini-3.1-flash-lite"),
+      );
+    }
+    const classified = classifyExampleForJev(example);
+    if (classified.kind === "llm-synthesis") {
+      debugLog(`mode=jev: ${classified.reason} → LLM fallback`);
+      return reasonWithLlm(prompt, example, () =>
+        resolveLlmFallbackModel("reason", "gemini-3.1-flash-lite"),
+      );
+    }
+    debugLog(`mode=jev: decision-shaped example → Jev (${jevBackend.provider})`);
+    return reasonWithJev(prompt, example, jevBackend, options);
+  }
+
+  return reasonWithLlm(prompt, example, () =>
+    resolveInterfaceModel("reason", "gemini-3.1-flash-lite"),
+  );
 }

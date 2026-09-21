@@ -76,3 +76,196 @@ cat build.log | reason --prompt "goal: detect failures" - '{"failed":false,"reas
 ```
 
 The structure argument is required and must be valid JSON.
+
+## TypeSafe Jev providers
+
+Jev is for **control-node judgments** (route / retry / boolean / score). It returns
+noul/choice/score probabilities only — it **cannot** generate free-form summaries or
+arbitrary structured prose.
+
+Summary / synthesis `reason()` calls (e.g. `{ summary, findings, next }`) stay on the
+LLM `streamText` + `submit_result` path. When a Jev backend is configured, `reason()`
+**falls back** to the LLM for free-text examples in `mode: "jev"` (see `mode` below).
+
+### Standalone Jev backend (recommended)
+
+You can keep your primary LLM (`ONE_REASON_PROVIDER=openai-compatible`, `anthropic`, etc.)
+intact and configure Jev alongside it as an independent fast-decision engine. These
+variables only make Jev available; `ONE_REASON_MODE` controls the routing policy:
+
+```bash
+# Toggle Jev decision backend on or off (default: 1 if configured)
+export ONE_REASON_JEV_ENABLED=1
+
+# Execution mode: llm (default, backward-compatible), or jev
+export ONE_REASON_MODE=jev
+
+# TypeSafe official:
+export TYPESAFE_API_KEY=apikey_...
+
+# Or Vercel AI Gateway:
+export AI_GATEWAY_API_KEY=vck_...
+```
+
+`llm` is the default for backward compatibility. `jev` enables automatic routing:
+decision-shaped examples go to the configured Jev backend and free-text/synthesis
+examples fall back to the LLM. Having Jev credentials present does not itself
+change the mode.
+
+When `TYPESAFE_API_KEY` or `AI_GATEWAY_API_KEY` is present, `reason()` auto-detects the Jev
+provider. You can also explicitly specify `ONE_REASON_JEV_PROVIDER=typesafe` or `gateway`.
+
+### CLI mode & switches
+
+In the CLI, control behavior via flags:
+
+```bash
+# Force Jev evaluation
+reason --mode jev "The user wants a refund" '{"is_refund":false}'
+
+# Force LLM generation
+reason --mode llm "Summarize findings" '{"summary":""}'
+
+# Explicitly use Jev routing for decision-shaped examples
+reason --mode jev "Check status" '{"ok":false,"route":{"$jev":"choice","options":["approve","manual","deny"]}}'
+```
+
+### TypeSafe official API details
+
+```bash
+export ONE_REASON_JEV_PROVIDER=typesafe
+export TYPESAFE_API_KEY=apikey_...
+export ONE_REASON_JEV_BASE_URL=https://api.typesafe.ai/v1   # optional default
+export ONE_REASON_JEV_MODEL=jev-latest                     # optional default
+```
+
+Calls `POST {baseURL}/systemone` with Bearer auth. Question types on the wire are
+`noul` | `choice` | `score`.
+
+### Vercel AI Gateway details
+
+```bash
+export ONE_REASON_JEV_PROVIDER=gateway
+export AI_GATEWAY_API_KEY=vck_...
+export ONE_REASON_GATEWAY_BASE_URL=https://ai-gateway.vercel.sh/v4/ai   # optional default
+export ONE_REASON_GATEWAY_MODEL=typesafe-ai/jev                        # optional default
+```
+
+Gateway evaluation calls:
+
+`POST {baseURL}/evaluation-model`
+
+with headers:
+
+- `ai-evaluation-model-specification-version: 4`
+- `ai-model-id: <model>`
+- `ai-gateway-protocol-version: 0.0.1`
+- `Authorization: Bearer <key>`
+
+Question types on the wire are `boolean` | `choice` | `score` (Gateway uses
+`boolean` instead of TypeSafe's `noul`). No `ai@7` dependency is required.
+
+### Legacy Jev provider configuration
+
+If you explicitly set `ONE_REASON_PROVIDER=typesafe` or `gateway`, `reason()` continues
+to support this. When free-text synthesis is needed in `mode: "jev"`, it falls back to
+`ONE_REASON_FALLBACK_*` or `~/.config/one/one.json`:
+
+```bash
+export ONE_REASON_PROVIDER=typesafe
+export ONE_REASON_OPENAI_API_KEY=...
+export ONE_REASON_FALLBACK_PROVIDER=openai-compatible
+export ONE_REASON_FALLBACK_OPENAI_API_KEY=...
+export ONE_REASON_FALLBACK_MODEL=gpt-4.1-mini
+```
+
+### `reason(prompt, example, options?)`
+
+The third argument is optional and backward compatible:
+
+```ts
+import { reason } from "@one-agent/reason";
+
+// Decision / control node → Jev (when PROVIDER=typesafe|gateway)
+await reason("goal: should we retry?", {
+  retry: false,
+  route: {
+    $jev: "choice",
+    options: ["a", "b", "c"],
+  },
+});
+
+// Summary / synthesis → LLM fallback under Jev mode
+await reason("goal: summarize the log", {
+  summary: "",
+  findings: "",
+  next: "",
+});
+
+// Force LLM even if PROVIDER is typesafe
+await reason(prompt, example, { mode: "llm" });
+
+// Force Jev (errors if example has free-text)
+await reason(prompt, { retry: false }, { mode: "jev" });
+
+// Optional state / threshold overrides
+await reason(prompt, { ok: false }, {
+  mode: "jev",
+  state: { goal: "...", observation: "..." },
+  booleanThreshold: 0.6,
+});
+```
+
+| `mode` | Behavior |
+| --- | --- |
+| omitted / `llm` | Always use the LLM path (backward-compatible default) |
+| `jev` | Decision-shaped example → Jev; free-text example or unavailable Jev → LLM fallback |
+
+### Example → question mapping (decision-shaped)
+
+For Jev, `prompt` (or `options.state`) becomes evaluation `state`, and questions
+are always derived from `example`:
+
+| Example field | Jev question |
+| --- | --- |
+| `boolean` | noul / boolean |
+| `number` | score (auto `level 0` .. `level N` criteria) |
+| plain `string` | **not Jev** → LLM synthesis / Jev-mode fallback |
+| `{ "$jev": "noul"\|"choice"\|"score", ... }` | explicit question |
+
+Choice options must be declared explicitly in the example; a string value or string
+array is not reinterpreted as a choice set:
+
+```ts
+{
+  route: {
+    $jev: "choice",
+    options: ["approve", "manual", "deny"],
+  },
+}
+```
+
+This keeps `reason(prompt, example)` aligned with the example's JSON shape: an array
+remains an array, and a string remains a string.
+
+Score ranges can be declared explicitly without parsing prompt text:
+
+```ts
+{
+  risk: {
+    $jev: "score",
+    range: [0, 100],
+    instructions: "评估退款风险",
+  },
+}
+```
+
+The Jev backend still receives at most 10 score levels; the returned level is
+mapped back into the declared range. Use `levels` (2–10) or custom `criteria` when
+you need different score granularity.
+
+Nested objects are flattened to dotted question ids and rebuilt into the example
+shape when answers are applied.
+
+Errors `401` / `422` / `429` / `529` return clear messages; `429` and `529` are
+retried lightly with backoff.

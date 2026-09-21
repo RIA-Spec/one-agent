@@ -5,6 +5,7 @@ import { cancel, intro, isCancel, outro, password, select, text } from "@clack/p
 import { cac } from "cac";
 import pc from "picocolors";
 import { getOneConfigPath } from "./config-path.js";
+import type { ReasonMode } from "./jev/types.js";
 import { reason } from "./reason.js";
 
 const REASON_CONFIG_PATH = getOneConfigPath("reason.json");
@@ -19,15 +20,24 @@ const HELP_ARGUMENTS = [
   "observation     Optional positional observation text. Use '-' to read observation text from stdin.",
   "structure       Required JSON example for structured output when --structure is not used.",
 ];
+const HELP_STRUCTURE = [
+  'Jev schema: `$jev` is optional. Booleans infer noul/boolean and numbers infer score.',
+  'Use `{ "$jev": "choice", "options": ["a", "b"] }` when a field has explicit choices; arrays otherwise remain arrays.',
+  'Use `{ "$jev": "score", "range": [0, 100] }` to declare a score range explicitly.',
+];
 const HELP_OPTIONS = [
   "--prompt <text>          Repeatable. Appends goal/system text in order. Use '-' to splice stdin into the final prompt.",
   "--structure <json>       Required JSON structure example. Equivalent to the second positional argument.",
+  "--mode <jev|llm>         Jev routing (decision -> Jev, free text -> LLM) or force LLM.",
   "-h, --help               Display this message.",
 ];
 const HELP_CONFIGURATION = [
   `Default config file: ${REASON_CONFIG_PATH}`,
   "Interactive setup: reason auth",
   "Environment variables override file config.",
+  "ONE_REASON_MODE / ONE_MODE                          Execution policy (llm default; or jev routing). Also readable from MODE in reason.json.",
+  "ONE_REASON_JEV_ENABLED / ONE_JEV_ENABLED            Enable Jev availability (1/0, true/false); does not select mode. Also readable from JEV_ENABLED in reason.json.",
+  "ONE_REASON_JEV_PROVIDER / JEV_PROVIDER              Jev provider (typesafe/gateway; auto-detected if keys are present).",
   "ONE_REASON_CONTEXT_WINDOW / ONE_CONTEXT_WINDOW  Token budget for truncation (default: 65536). Also readable from CONTEXT_WINDOW in reason.json.",
   "ONE_REASON_INPUT_RATIO / ONE_INPUT_RATIO        Fraction of context window used for input (default: 0.8, reserves 20% for model output). Also readable from INPUT_RATIO in reason.json.",
   'ONE_REASON_REASONING_EFFORT / ONE_REASONING_EFFORT  Model thinking effort for OpenAI / OpenAI-compatible / Anthropic (off/low/medium/high; provider default when unset). Best-effort: off sends reasoning_effort "none" on OpenAI-compatible, "minimal" on OpenAI, and disabled thinking on Anthropic (adaptive thinking + effort on Claude 4.6+/Claude 5, enabled + budget on older Claude models); not all models honor it. Also readable from REASONING_EFFORT in reason.json.',
@@ -37,12 +47,13 @@ const HELP_EXAMPLES = [
   "cat build.log | reason --prompt 'goal: decide whether to deploy; observation: latest build log from CI; constraints: return deploy=false unless the log is clean; if deploy=true, provide the exact command' - '{\"deploy\":false,\"cmd\":\"\"}' | jq -e '.deploy' >/dev/null && jq -r '.cmd' | sh",
 ];
 
-type ProviderChoice = "openai-compatible" | "openai" | "anthropic";
+type ProviderChoice = "openai-compatible" | "openai" | "anthropic" | "typesafe" | "gateway";
 type ParsedReasonRequestArgs = {
   promptValues: string[];
   positionalPrompt?: string;
   positionalStructure?: string;
   structureOption?: string;
+  mode?: ReasonMode;
 };
 
 type TruncationMeta = {
@@ -134,12 +145,14 @@ async function runReasonAuthCli() {
 
   const readProvider = async () => {
     const value = await select<ProviderChoice>({
-      message: "Select provider (openai-compatible/openai/anthropic)",
+      message: "Select provider (openai-compatible/openai/anthropic/typesafe/gateway)",
       initialValue: "openai-compatible",
       options: [
         { label: "openai-compatible", value: "openai-compatible" },
         { label: "openai", value: "openai" },
         { label: "anthropic", value: "anthropic" },
+        { label: "typesafe (TypeSafe Jev)", value: "typesafe" },
+        { label: "gateway (Vercel AI Gateway Jev)", value: "gateway" },
       ],
     });
 
@@ -210,21 +223,77 @@ async function runReasonAuthCli() {
     if (baseURL) nextConfig.ANTHROPIC_BASE_URL = baseURL;
   }
 
-  const model = await readOptionalText("MODEL (optional)");
+  if (provider === "typesafe") {
+    const baseURL = await readOptionalText(
+      "TYPESAFE_BASE_URL / OPENAI_BASE_URL (optional, default https://api.typesafe.ai/v1)",
+    );
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    const apiKey = await readRequiredSecret("TYPESAFE_API_KEY / OPENAI_API_KEY");
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    nextConfig.OPENAI_API_KEY = apiKey;
+    nextConfig.TYPESAFE_API_KEY = apiKey;
+    if (baseURL) {
+      nextConfig.OPENAI_BASE_URL = baseURL;
+      nextConfig.TYPESAFE_BASE_URL = baseURL;
+    }
+  }
+
+  if (provider === "gateway") {
+    const baseURL = await readOptionalText(
+      "GATEWAY_BASE_URL / OPENAI_BASE_URL (optional, default https://ai-gateway.vercel.sh/v4/ai)",
+    );
+    if (baseURL == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    const apiKey = await readRequiredSecret(
+      "GATEWAY_API_KEY / OPENAI_API_KEY / AI_GATEWAY_API_KEY",
+    );
+    if (apiKey == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+
+    nextConfig.OPENAI_API_KEY = apiKey;
+    nextConfig.GATEWAY_API_KEY = apiKey;
+    if (baseURL) {
+      nextConfig.OPENAI_BASE_URL = baseURL;
+      nextConfig.GATEWAY_BASE_URL = baseURL;
+    }
+  }
+
+  const modelPlaceholder =
+    provider === "typesafe"
+      ? "MODEL (optional, default jev-latest)"
+      : provider === "gateway"
+        ? "MODEL (optional, default typesafe-ai/jev)"
+        : "MODEL (optional)";
+  const model = await readOptionalText(modelPlaceholder);
   if (model == null) {
     cancel("Operation cancelled.");
     return;
   }
   if (model) nextConfig.MODEL = model;
 
-  const reasoningEffort = await readOptionalReasoningEffort(
-    "REASONING_EFFORT (optional: off/low/medium/high)",
-  );
-  if (reasoningEffort == null) {
-    cancel("Operation cancelled.");
-    return;
+  if (provider !== "typesafe" && provider !== "gateway") {
+    const reasoningEffort = await readOptionalReasoningEffort(
+      "REASONING_EFFORT (optional: off/low/medium/high)",
+    );
+    if (reasoningEffort == null) {
+      cancel("Operation cancelled.");
+      return;
+    }
+    if (reasoningEffort) nextConfig.REASONING_EFFORT = reasoningEffort.toLowerCase();
   }
-  if (reasoningEffort) nextConfig.REASONING_EFFORT = reasoningEffort.toLowerCase();
 
   writeReasonConfig(nextConfig);
   outro(pc.green(`Saved config to ${REASON_CONFIG_PATH}`));
@@ -282,6 +351,7 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
   const promptValues: string[] = [];
   const positionals: string[] = [];
   let structureOption: string | undefined;
+  let mode: ReasonMode | undefined;
 
   for (let index = 0; index < args.length; index += 1) {
     const arg = args[index];
@@ -312,6 +382,27 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
       continue;
     }
 
+    if (arg === "--mode") {
+      const value = args[index + 1];
+      if (value == null) throw new Error("--mode requires a value (jev|llm)");
+      const normalized = value.toLowerCase();
+      if (normalized !== "jev" && normalized !== "llm") {
+        throw new Error(`Invalid --mode "${value}". Expected one of: jev, llm`);
+      }
+      mode = normalized as ReasonMode;
+      index += 1;
+      continue;
+    }
+
+    if (arg.startsWith("--mode=")) {
+      const value = arg.slice("--mode=".length).toLowerCase();
+      if (value !== "jev" && value !== "llm") {
+        throw new Error(`Invalid --mode "${value}". Expected one of: jev, llm`);
+      }
+      mode = value as ReasonMode;
+      continue;
+    }
+
     if (arg.startsWith("-") && arg !== "-") {
       throw new Error(`Unknown option: ${arg}`);
     }
@@ -328,6 +419,7 @@ export function parseReasonRequestArgs(args: string[]): ParsedReasonRequestArgs 
     positionalPrompt: positionals[0],
     positionalStructure: positionals[1],
     structureOption,
+    mode,
   };
 }
 
@@ -464,7 +556,9 @@ async function runReasonRequest(request: ParsedReasonRequestArgs) {
     );
   }
 
-  const result = await reason(prompt, example);
+  const result = await reason(prompt, example, {
+    mode: request.mode,
+  });
 
   if (result.error) {
     process.exitCode = 1;
@@ -493,6 +587,10 @@ export async function runReasonCli(args = process.argv.slice(2)) {
     sections.push({
       title: "Arguments",
       body: HELP_ARGUMENTS.map((line) => `  ${line}`).join("\n"),
+    });
+    sections.push({
+      title: "Structure",
+      body: HELP_STRUCTURE.map((line) => `  ${line}`).join("\n"),
     });
     sections.push({
       title: "Options",
