@@ -121,10 +121,10 @@ agent --prompt "Investigate and summarize failures in one paragraph" --config '{
 cat a.txt`;
 
 const JEV_MODE_GUIDANCE =
-  'For a 快速有界判断 (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
+  'For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
 
 const BASH_JEV_MODE_GUIDANCE =
-  'For a 快速有界判断 (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
+  'For a fast bounded judgment (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
 
 /** Same availability check as reason(): configured typesafe/gateway backend, not a process default. */
 function jevDecisionBackendAvailable(): boolean {

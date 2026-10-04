@@ -81,7 +81,7 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
 
   it("does not mention Jev unless a Jev backend is configured", () => {
     expect(prompt).not.toMatch(/jev/i);
-    expect(prompt).not.toContain("快速有界判断");
+    expect(prompt).not.toContain("fast bounded judgment");
   });
 });
 
@@ -90,12 +90,12 @@ describe("Jev prompt guidance", () => {
     vi.unstubAllEnvs();
   });
 
-  it("adds 快速有界判断 when a TypeSafe key is configured", () => {
+  it("adds fast bounded judgment guidance when a TypeSafe key is configured", () => {
     vi.stubEnv("TYPESAFE_API_KEY", "apikey_test");
     const pyTsGuidance =
-      'For a 快速有界判断 (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
+      'For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
     const bashGuidance =
-      'For a 快速有界判断 (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
+      'For a fast bounded judgment (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
     for (const mode of ["python", "typescript", "bash"] as const) {
       const prompt = buildAgentSystemPrompt(mode);
       expect(prompt.length).toBeLessThanOrEqual(RESIDENT_CHAR_BUDGET);
@@ -116,7 +116,7 @@ describe("Jev prompt guidance", () => {
     vi.stubEnv("ONE_REASON_JEV_ENABLED", "0");
     const prompt = buildAgentSystemPrompt("bash");
     expect(prompt).not.toMatch(/jev/i);
-    expect(prompt).not.toContain("快速有界判断");
+    expect(prompt).not.toContain("fast bounded judgment");
   });
 
   it("does not mention Jev when the provider is selected without credentials", () => {
