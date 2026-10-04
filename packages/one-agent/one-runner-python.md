@@ -22,7 +22,7 @@ Do not manually rewrite or hand-type tool output into a new `reason()` prompt. P
 
 - `prompt` (str): Include the goal, observation, relevant context, and constraints
 - `example`: Expected output shape - reason() returns data matching this structure
-- `options` (optional): Use `{ mode: "jev" }` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.
+- `options` (optional, third positional): For a 快速有界判断 (boolean, number, or `$jev` choice/score), pass `{"mode": "jev"}` as the third argument — example stays second. Do not use `mode=` keyword arguments. Omit the third argument for free text or synthesis.
 
 **Returns:**
 

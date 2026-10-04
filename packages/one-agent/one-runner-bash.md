@@ -79,8 +79,8 @@ reason --prompt "text" --prompt - --structure '{"key": ""}'
 
 - `--prompt "text"`: Add a prompt (can be used multiple times)
 - `--prompt -`: Read prompt from stdin
-- `--structure '{"json": ""}'`: Expected output structure (optional)
-- `--mode jev|llm`: Use `--mode jev` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit it for free text or synthesis.
+- `--structure '{"json": ""}'`: Expected output structure (**required**)
+- `--mode jev|llm`: For a 快速有界判断 (boolean, number, or `$jev` choice/score), add `--mode jev`. Omit `--mode` for free text or synthesis.
 
 **Output:** JSON data to stdout matching the requested structure
 
@@ -92,6 +92,9 @@ echo "Python is awesome" | reason --prompt "Summarize:" --prompt - --structure '
 
 # Extract structured data
 cat api_docs.md | reason --prompt "Extract API endpoints" --structure '{"endpoints": []}'
+
+# 快速有界判断 (boolean)
+echo "log excerpt" | reason --prompt "Goal: retry?" --prompt - --structure 'true' --mode jev
 ```
 
 Do not use `reason` when the exact output or exact next edit is already clear.

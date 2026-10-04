@@ -121,10 +121,10 @@ agent --prompt "Investigate and summarize failures in one paragraph" --config '{
 cat a.txt`;
 
 const JEV_MODE_GUIDANCE =
-  'Use `{ mode: "jev" }` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.';
+  'For a 快速有界判断 (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
 
 const BASH_JEV_MODE_GUIDANCE =
-  "Use `reason --mode jev` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `--mode` for free text or synthesis.";
+  'For a 快速有界判断 (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
 
 /** Same availability check as reason(): configured typesafe/gateway backend, not a process default. */
 function jevDecisionBackendAvailable(): boolean {
@@ -149,12 +149,13 @@ export function buildAgentSystemPrompt(
   options: { agentExtensionEnabled?: boolean } = {},
 ): string {
   const jevAvailable = jevDecisionBackendAvailable();
-  const core = jevAvailable
-    ? CORE_AGENT_PROMPT.replace(
-        "- Pass raw observations into `reason()`",
-        `- ${JEV_MODE_GUIDANCE}\n- Pass raw observations into \`reason()\``,
-      )
-    : CORE_AGENT_PROMPT;
+  const core =
+    jevAvailable && mode !== "bash"
+      ? CORE_AGENT_PROMPT.replace(
+          "- Pass raw observations into `reason()`",
+          `- ${JEV_MODE_GUIDANCE}\n- Pass raw observations into \`reason()\``,
+        )
+      : CORE_AGENT_PROMPT;
   const modePrompt =
     jevAvailable && mode === "bash"
       ? MODE_PROMPTS.bash.replace(

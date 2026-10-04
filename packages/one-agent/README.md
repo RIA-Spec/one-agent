@@ -132,7 +132,7 @@ cat build.log | \
   jq -r '.reason'
 ```
 
-Use `{ mode: "jev" }` (bash: `reason --mode jev`) for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.
+Python/TypeScript: `reason(prompt, example, {"mode": "jev"})` (third positional; no `mode=` kwargs). Bash: `reason --prompt "…" --structure '…' --mode jev` (`--structure` required). Omit Jev mode for free text or synthesis.
 
 Select the runtime via `RAS_MODE`:
 

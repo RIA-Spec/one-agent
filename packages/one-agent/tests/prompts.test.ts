@@ -92,18 +92,21 @@ describe("Jev prompt guidance", () => {
 
   it("adds 快速有界判断 when a TypeSafe key is configured", () => {
     vi.stubEnv("TYPESAFE_API_KEY", "apikey_test");
+    const pyTsGuidance =
+      'For a 快速有界判断 (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
+    const bashGuidance =
+      'For a 快速有界判断 (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
     for (const mode of ["python", "typescript", "bash"] as const) {
       const prompt = buildAgentSystemPrompt(mode);
-      expect(prompt).toContain(
-        'Use `{ mode: "jev" }` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.',
-      );
       expect(prompt.length).toBeLessThanOrEqual(RESIDENT_CHAR_BUDGET);
       if (mode === "bash") {
-        expect(prompt).toContain(
-          "Use `reason --mode jev` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `--mode` for free text or synthesis.",
-        );
+        expect(prompt).toContain(bashGuidance);
+        expect(prompt).not.toContain(pyTsGuidance);
+        expect(prompt).not.toMatch(/\{ mode: "jev" \}/);
       } else {
-        expect(prompt).not.toContain("--mode jev");
+        expect(prompt).toContain(pyTsGuidance);
+        expect(prompt).not.toContain(bashGuidance);
+        expect(prompt).not.toContain("--structure");
       }
     }
   });
