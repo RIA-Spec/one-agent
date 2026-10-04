@@ -8,7 +8,7 @@ import type {
   AiyoPlugin,
   OpenAIChatCompletionRequest,
 } from "@mcpc-tech/aiyo";
-import { reason as defaultReason } from "@one-agent/reason";
+import { reason as defaultReason, type ReasonOptions } from "@one-agent/reason";
 import { agent as defaultAgent } from "@one-agent/agent-extension";
 import type { AgentResult } from "@one-agent/agent-extension";
 import type { ChatCompletionToolChoiceOption } from "openai/resources/chat/completions";
@@ -56,7 +56,11 @@ export interface ReInActPluginConfig {
   maxLogs?: number;
   match?: (toolCall: ProgrammaticToolCall, context: ReInActMatchContext) => boolean;
   getCode?: (toolCall: ProgrammaticToolCall) => string | undefined;
-  reason?: (prompt: string, example: unknown) => Promise<ReInActReasonResult>;
+  reason?: (
+    prompt: string,
+    example: unknown,
+    options?: ReasonOptions,
+  ) => Promise<ReInActReasonResult>;
   agent?: (prompt: string, config?: unknown) => Promise<AgentResult>;
   mapExecutionResult?: (result: ReInActExecutionResult) => Promise<unknown> | unknown;
   sandbox?: () => Record<string, unknown> | undefined;
@@ -395,7 +399,8 @@ Use this rule:
 </code_rules>
 
 <interfaces>
-reason(prompt, example) -> { data, error }
+reason(prompt, example, options?) -> { data, error }
+Decision nodes may pass { mode: "jev" } with a boolean, number, or $jev example. Omit mode to stay on the LLM path.
 act(name, args) -> tool result
 agent(prompt, config?) -> { data: { text, trajectory } } | { error }
 </interfaces>
@@ -484,7 +489,7 @@ function buildWrappedSource(
     `const input = ${JSON.stringify(toolCallInput)};`,
     ...globals,
     `const act = async (name, args = {}) => await __ria_act(String(name), args ?? {});`,
-    `const reason = async (prompt, example) => await __ria_reason(String(prompt), example);`,
+    `const reason = async (prompt, example, options) => await __ria_reason(String(prompt), example, options);`,
     `const agent = async (prompt, config = {}) => await __ria_agent(String(prompt), config ?? {});`,
     source,
   ].join("\n\n");
@@ -524,7 +529,11 @@ class DenoReInActExecutionHandle implements ReInActRuntimeHandle {
       maxLogs: number;
       sandboxGlobals?: () => Record<string, unknown> | undefined;
       denoSandbox?: SandboxConfig;
-      reason: (prompt: string, example: unknown) => Promise<ReInActReasonResult>;
+      reason: (
+        prompt: string,
+        example: unknown,
+        options?: ReasonOptions,
+      ) => Promise<ReInActReasonResult>;
       agent: (prompt: string, config?: unknown) => Promise<AgentResult>;
     },
   ) {
@@ -557,15 +566,22 @@ class DenoReInActExecutionHandle implements ReInActRuntimeHandle {
       });
     });
 
-    this.sandbox.registerHandler("__ria_reason", async (prompt: unknown, example: unknown) => {
-      const result = await config.reason(String(prompt ?? ""), cloneValueIfPossible(example));
-      this.reasonHistory.push({
-        prompt: String(prompt ?? ""),
-        example: cloneValueIfPossible(example),
-        output: cloneValueIfPossible(result),
-      });
-      return result;
-    });
+    this.sandbox.registerHandler(
+      "__ria_reason",
+      async (prompt: unknown, example: unknown, options: unknown) => {
+        const result = await config.reason(
+          String(prompt ?? ""),
+          cloneValueIfPossible(example),
+          isRecord(options) ? (cloneValueIfPossible(options) as ReasonOptions) : undefined,
+        );
+        this.reasonHistory.push({
+          prompt: String(prompt ?? ""),
+          example: cloneValueIfPossible(example),
+          output: cloneValueIfPossible(result),
+        });
+        return result;
+      },
+    );
 
     this.sandbox.registerHandler("__ria_agent", async (prompt: unknown, runtimeConfig: unknown) => {
       const result = await config.agent(String(prompt ?? ""), cloneValueIfPossible(runtimeConfig));

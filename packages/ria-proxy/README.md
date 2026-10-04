@@ -59,7 +59,7 @@ await launchWithRiaProxy("opencode", {
 
 1. Rewrites matching function tools into one top-level wrapper tool.
 2. Teaches the model to write code in Re in Act style.
-3. Injects `reason(prompt, example)`, `act(name, args)`, and `agent(prompt, config?)` into the runtime.
+3. Injects `reason(prompt, example, options?)`, `act(name, args)`, and `agent(prompt, config?)` into the runtime. Decision nodes may pass `{ mode: "jev" }`; omit `mode` to stay on the LLM path.
 4. Suspends execution only when `act()` needs a real external tool result.
 5. Resumes the same execution session when the next tool result arrives.
 

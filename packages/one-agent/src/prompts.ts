@@ -40,7 +40,8 @@ So one job = one \`one\` call: batch all currently known related work into one b
 
 Inside \`one\`:
 - \`act(name, args)\` gathers evidence; code/shell handles deterministic control (loops, retries, stop conditions).
-- \`reason(prompt, example)\` is for genuinely uncertain judgments where evidence must be compressed into one bounded decision — targeting, branching, retry-vs-escalate, classification, synthesis. When multiple evidence streams converge inside one call and the verdict is not a fixed rule, that convergence is where \`reason()\` belongs; otherwise answer directly or use deterministic code. Keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic instead.
+- \`reason(prompt, example, options?)\` is for genuinely uncertain judgments where evidence must be compressed into one bounded decision — targeting, branching, retry-vs-escalate, classification, synthesis. When multiple evidence streams converge inside one call and the verdict is not a fixed rule, that convergence is where \`reason()\` belongs; otherwise answer directly or use deterministic code. Keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic instead.
+- Decision nodes may pass \`{ mode: "jev" }\` with a boolean, number, or \`$jev\` example. Omit \`mode\` to stay on the LLM path.
 - Pass raw observations into \`reason()\` from \`one.inputs\` or runtime variables — never restate them by hand. Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
 Tool discovery:
@@ -93,7 +94,7 @@ console.log(JSON.stringify(d.data));
 - Use \`one-input <key> | act <tool> -\` for structured tool arguments.
 - Pass values with \`one-input\`, never magic tokens.
 - Only \`inputs\` values piped into \`act <tool> -\` must be JSON objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.
-- \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict.
+- \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict. Decision nodes may use \`reason --mode jev\` with a boolean, number, or \`$jev\` structure; omit \`--mode\` to stay on the LLM path.
 
 Control-node example (batch evidence, judge once at the merge point):
 \`\`\`bash

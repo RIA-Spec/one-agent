@@ -17,6 +17,7 @@ import {
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
 import { prepareOneInputs, type OneInputs } from "./inputs.js";
+import type { ReasonMode, ReasonOptions } from "@one-agent/reason";
 
 type ActTextContent = { type?: string; text?: unknown };
 type ActAttachment = {
@@ -56,7 +57,7 @@ type BashAgentResult = {
   error?: string;
 };
 
-type ParsedReasonArgs = { prompt: string; example: unknown };
+type ParsedReasonArgs = { prompt: string; example: unknown; options?: ReasonOptions };
 type ParsedActArgs =
   | { kind: "help" }
   | { kind: "manual"; toolName?: string }
@@ -67,7 +68,11 @@ const HOST_BASH_TOOL_NAME = "bash";
 
 export interface BashRASConfig {
   cwd: string;
-  reasonHandler: (prompt: string, example: unknown) => Promise<BashReasonResult>;
+  reasonHandler: (
+    prompt: string,
+    example: unknown,
+    options?: ReasonOptions,
+  ) => Promise<BashReasonResult>;
   actHandler: (server: unknown) => (name: string, args: unknown) => Promise<ActResultLike>;
   agentHandler: (server: unknown) => (prompt: string, config?: unknown) => Promise<BashAgentResult>;
 }
@@ -194,13 +199,31 @@ function parseJson(text: string, label: string): { value?: unknown; error?: Exec
   }
 }
 
+function readReasonMode(value: string | undefined): ReasonMode | ExecResult {
+  if (value !== "jev" && value !== "llm") return fail("--mode must be jev or llm");
+  return value;
+}
+
 function parseReasonArgs(args: string[], stdin: string): ParsedReasonArgs | ExecResult {
   const prompts: string[] = [];
   const positionals: string[] = [];
   let structure = "";
+  let mode: ReasonMode | undefined;
 
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
+    if (arg === "--mode") {
+      const parsedMode = readReasonMode(args[++index]);
+      if (typeof parsedMode !== "string") return parsedMode;
+      mode = parsedMode;
+      continue;
+    }
+    if (arg.startsWith("--mode=")) {
+      const parsedMode = readReasonMode(arg.slice("--mode=".length));
+      if (typeof parsedMode !== "string") return parsedMode;
+      mode = parsedMode;
+      continue;
+    }
     if (arg === "--prompt") {
       const value = args[++index];
       if (value == null) return fail("--prompt requires a value");
@@ -243,6 +266,7 @@ function parseReasonArgs(args: string[], stdin: string): ParsedReasonArgs | Exec
   return {
     prompt: prompts.join("\n"),
     example: parsed.value,
+    ...(mode ? { options: { mode } } : {}),
   };
 }
 
@@ -381,7 +405,9 @@ function createReasonCommand(reasonHandler: BashRASConfig["reasonHandler"]): Com
       if (isExecResult(parsed)) return parsed;
 
       try {
-        const result = await reasonHandler(parsed.prompt, parsed.example);
+        const result = parsed.options
+          ? await reasonHandler(parsed.prompt, parsed.example, parsed.options)
+          : await reasonHandler(parsed.prompt, parsed.example);
         if (result.error) {
           return {
             stdout: JSON.stringify({ data: result.data, error: result.error }, null, 2),
