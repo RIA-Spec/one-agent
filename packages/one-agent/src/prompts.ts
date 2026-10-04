@@ -120,8 +120,11 @@ Minimal pattern:
 agent --prompt "Investigate and summarize failures in one paragraph" --config '{"on_error":"return_error","budget":{"maxSteps":20,"maxMinutes":10}}' > a.txt || { cat a.txt; exit 1; }
 cat a.txt`;
 
-const JEV_MODE_GUIDANCE =
-  'For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {"mode": "jev"})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
+const PYTHON_JEV_MODE_GUIDANCE =
+  "For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {'mode': 'jev'})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.";
+
+const TYPESCRIPT_JEV_MODE_GUIDANCE =
+  'For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, { mode: "jev" })` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
 
 const BASH_JEV_MODE_GUIDANCE =
   'For a fast bounded judgment (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
@@ -149,11 +152,13 @@ export function buildAgentSystemPrompt(
   options: { agentExtensionEnabled?: boolean } = {},
 ): string {
   const jevAvailable = jevDecisionBackendAvailable();
+  const jevGuidance =
+    mode === "typescript" ? TYPESCRIPT_JEV_MODE_GUIDANCE : PYTHON_JEV_MODE_GUIDANCE;
   const core =
     jevAvailable && mode !== "bash"
       ? CORE_AGENT_PROMPT.replace(
           "- Pass raw observations into `reason()`",
-          `- ${JEV_MODE_GUIDANCE}\n- Pass raw observations into \`reason()\``,
+          `- ${jevGuidance}\n- Pass raw observations into \`reason()\``,
         )
       : CORE_AGENT_PROMPT;
   const modePrompt =
