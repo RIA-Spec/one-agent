@@ -80,7 +80,7 @@ reason --prompt "text" --prompt - --structure '{"key": ""}'
 - `--prompt "text"`: Add a prompt (can be used multiple times)
 - `--prompt -`: Read prompt from stdin
 - `--structure '{"json": ""}'`: Expected output structure (optional)
-- `--mode jev|llm`: Decision nodes may pass `--mode jev` with a boolean, number, or `$jev` structure. Omit `--mode` to stay on the LLM path.
+- `--mode jev|llm`: Use `--mode jev` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit it for free text or synthesis.
 
 **Output:** JSON data to stdout matching the requested structure
 

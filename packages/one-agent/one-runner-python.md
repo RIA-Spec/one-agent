@@ -22,7 +22,7 @@ Do not manually rewrite or hand-type tool output into a new `reason()` prompt. P
 
 - `prompt` (str): Include the goal, observation, relevant context, and constraints
 - `example`: Expected output shape - reason() returns data matching this structure
-- `options` (optional): Decision nodes may pass `{ mode: "jev" }` with a boolean, number, or `$jev` example. Omit `mode` to stay on the LLM path.
+- `options` (optional): Use `{ mode: "jev" }` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.
 
 **Returns:**
 
@@ -32,7 +32,7 @@ Do not manually rewrite or hand-type tool output into a new `reason()` prompt. P
 **Use Cases:**
 
 - Boolean decisions: `await reason('Goal: decide if we should alert. Observation: ... Constraints: return true/false.', True)`
-- Jev decision node: `await reason('Goal: should we retry? Observation: ...', True, {'mode': 'jev'})`
+- 快速有界判断: `await reason('Goal: should we retry? Observation: ...', True, {'mode': 'jev'})`
 - Array extraction: `await reason('Goal: list the top 3 items. Observation: ... Constraints: return only strings.', ['item1'])`
 - Object structuring: `await reason('Goal: categorize the local data. Observation: ... Constraints: use these keys only.', {'cat1': [], 'cat2': []})`
 - Batch analysis: `await reason('Goal: analyze all items. Observation: ... Constraints: return one record per item.', [{'item': '', 'summary': ''}])`

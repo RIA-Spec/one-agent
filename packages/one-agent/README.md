@@ -132,7 +132,7 @@ cat build.log | \
   jq -r '.reason'
 ```
 
-`reason(prompt, example, options?)` stays on the LLM path unless a call opts in. Decision nodes may pass `{ mode: "jev" }` (bash: `reason --mode jev`) with a boolean, number, or `$jev` example.
+Use `{ mode: "jev" }` (bash: `reason --mode jev`) for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.
 
 Select the runtime via `RAS_MODE`:
 

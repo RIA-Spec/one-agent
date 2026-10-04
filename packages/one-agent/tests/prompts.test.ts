@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildAgentSystemPrompt, CORE_AGENT_PROMPT } from "../src/prompts.js";
 import { BUILTIN_RAS_TOOLS } from "../src/ras/tool-catalog.js";
 
@@ -77,5 +77,48 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     const withExtension = buildAgentSystemPrompt(mode, { agentExtensionEnabled: true });
     const extensionPart = withExtension.length - prompt.length;
     expect(extensionPart).toBeLessThanOrEqual(EXTENSION_CHAR_BUDGET);
+  });
+
+  it("does not mention Jev unless a Jev backend is configured", () => {
+    expect(prompt).not.toMatch(/jev/i);
+    expect(prompt).not.toContain("快速有界判断");
+  });
+});
+
+describe("Jev prompt guidance", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("adds 快速有界判断 when a TypeSafe key is configured", () => {
+    vi.stubEnv("TYPESAFE_API_KEY", "apikey_test");
+    for (const mode of ["python", "typescript", "bash"] as const) {
+      const prompt = buildAgentSystemPrompt(mode);
+      expect(prompt).toContain(
+        'Use `{ mode: "jev" }` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.',
+      );
+      expect(prompt.length).toBeLessThanOrEqual(RESIDENT_CHAR_BUDGET);
+      if (mode === "bash") {
+        expect(prompt).toContain(
+          "Use `reason --mode jev` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `--mode` for free text or synthesis.",
+        );
+      } else {
+        expect(prompt).not.toContain("--mode jev");
+      }
+    }
+  });
+
+  it("stays on the main prompt when Jev is switched off", () => {
+    vi.stubEnv("TYPESAFE_API_KEY", "apikey_test");
+    vi.stubEnv("ONE_REASON_JEV_ENABLED", "0");
+    const prompt = buildAgentSystemPrompt("bash");
+    expect(prompt).not.toMatch(/jev/i);
+    expect(prompt).not.toContain("快速有界判断");
+  });
+
+  it("does not mention Jev when the provider is selected without credentials", () => {
+    vi.stubEnv("ONE_REASON_PROVIDER", "typesafe");
+    const prompt = buildAgentSystemPrompt("python");
+    expect(prompt).not.toMatch(/jev/i);
   });
 });

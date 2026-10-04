@@ -9,6 +9,7 @@
  * on demand (see theory 10/11/15).
  */
 
+import { resolveJevBackend } from "@one-agent/reason";
 import { renderBuiltinToolCatalog, type RASMode } from "./ras/tool-catalog.js";
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -40,8 +41,7 @@ So one job = one \`one\` call: batch all currently known related work into one b
 
 Inside \`one\`:
 - \`act(name, args)\` gathers evidence; code/shell handles deterministic control (loops, retries, stop conditions).
-- \`reason(prompt, example, options?)\` is for genuinely uncertain judgments where evidence must be compressed into one bounded decision — targeting, branching, retry-vs-escalate, classification, synthesis. When multiple evidence streams converge inside one call and the verdict is not a fixed rule, that convergence is where \`reason()\` belongs; otherwise answer directly or use deterministic code. Keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic instead.
-- Decision nodes may pass \`{ mode: "jev" }\` with a boolean, number, or \`$jev\` example. Omit \`mode\` to stay on the LLM path.
+- \`reason(prompt, example)\` is for genuinely uncertain judgments where evidence must be compressed into one bounded decision — targeting, branching, retry-vs-escalate, classification, synthesis. When multiple evidence streams converge inside one call and the verdict is not a fixed rule, that convergence is where \`reason()\` belongs; otherwise answer directly or use deterministic code. Keep explicit policies, thresholds, exit-code handling, and rule-based transformations deterministic instead.
 - Pass raw observations into \`reason()\` from \`one.inputs\` or runtime variables — never restate them by hand. Put multiline source, regexes, prompts, and tool arguments in \`one.inputs\` rather than embedding them in generated code or shell JSON literals.
 
 Tool discovery:
@@ -94,7 +94,7 @@ console.log(JSON.stringify(d.data));
 - Use \`one-input <key> | act <tool> -\` for structured tool arguments.
 - Pass values with \`one-input\`, never magic tokens.
 - Only \`inputs\` values piped into \`act <tool> -\` must be JSON objects matching that tool's argument schema; other values may be strings, arrays, objects, or primitives. Do not pre-serialize an object into a JSON string.
-- \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict. Decision nodes may use \`reason --mode jev\` with a boolean, number, or \`$jev\` structure; omit \`--mode\` to stay on the LLM path.
+- \`reason\` is a judgment command, not a general parser: keep rule-based transformations (extension/keyword checks, grep/sed/awk/jq, case) in plain shell; call \`reason\` when evidence must be compressed into a decision — including synthesizing multiple evidence streams into one verdict.
 
 Control-node example (batch evidence, judge once at the merge point):
 \`\`\`bash
@@ -120,6 +120,21 @@ Minimal pattern:
 agent --prompt "Investigate and summarize failures in one paragraph" --config '{"on_error":"return_error","budget":{"maxSteps":20,"maxMinutes":10}}' > a.txt || { cat a.txt; exit 1; }
 cat a.txt`;
 
+const JEV_MODE_GUIDANCE =
+  'Use `{ mode: "jev" }` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `mode` for free text or synthesis.';
+
+const BASH_JEV_MODE_GUIDANCE =
+  "Use `reason --mode jev` for a 快速有界判断 (boolean, number, or `$jev` choice/score). Omit `--mode` for free text or synthesis.";
+
+/** Same availability check as reason(): configured typesafe/gateway backend, not a process default. */
+function jevDecisionBackendAvailable(): boolean {
+  try {
+    return resolveJevBackend("reason") != null;
+  } catch {
+    return false;
+  }
+}
+
 function resolveRASMode(): RASMode {
   const raw = (process.env.RAS_MODE || "bash").toLowerCase();
   if (raw === "bash") return "bash";
@@ -133,11 +148,21 @@ export function buildAgentSystemPrompt(
   mode: RASMode,
   options: { agentExtensionEnabled?: boolean } = {},
 ): string {
-  const parts = [
-    CORE_AGENT_PROMPT,
-    `Built-in tool catalog:\n${renderBuiltinToolCatalog()}`,
-    MODE_PROMPTS[mode],
-  ];
+  const jevAvailable = jevDecisionBackendAvailable();
+  const core = jevAvailable
+    ? CORE_AGENT_PROMPT.replace(
+        "- Pass raw observations into `reason()`",
+        `- ${JEV_MODE_GUIDANCE}\n- Pass raw observations into \`reason()\``,
+      )
+    : CORE_AGENT_PROMPT;
+  const modePrompt =
+    jevAvailable && mode === "bash"
+      ? MODE_PROMPTS.bash.replace(
+          "including synthesizing multiple evidence streams into one verdict.",
+          `including synthesizing multiple evidence streams into one verdict. ${BASH_JEV_MODE_GUIDANCE}`,
+        )
+      : MODE_PROMPTS[mode];
+  const parts = [core, `Built-in tool catalog:\n${renderBuiltinToolCatalog()}`, modePrompt];
   if (options.agentExtensionEnabled) {
     parts.push(mode === "bash" ? BASH_AGENT_EXTENSION_PROMPT : AGENT_EXTENSION_PROMPT);
   }
