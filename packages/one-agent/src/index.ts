@@ -2,6 +2,17 @@
 export { agent, agentStream, type AgentStreamOptions } from "./agent";
 
 export { reason } from "./interfaces/reason";
+export type {
+  AIResult,
+  JevChoiceCriteria,
+  JevChoiceMarker,
+  JevChoiceOption,
+  JevExampleMarker,
+  JevNoulMarker,
+  JevScoreMarker,
+  ReasonMode,
+  ReasonOptions,
+} from "./interfaces/reason";
 export { getToolFn } from "./interfaces/act";
 
 // Progress tracking

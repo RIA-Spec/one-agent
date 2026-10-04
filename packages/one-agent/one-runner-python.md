@@ -12,7 +12,7 @@ refs: []
 
 ## API Reference
 
-### reason(prompt, example) -> {data, error}
+### reason(prompt, example, options?) -> {data, error}
 
 Use `reason()` only when local evidence inside the RAS must be denoised into a judgment, a smaller structured result, or the next-step decision.
 
@@ -22,6 +22,7 @@ Do not manually rewrite or hand-type tool output into a new `reason()` prompt. P
 
 - `prompt` (str): Include the goal, observation, relevant context, and constraints
 - `example`: Expected output shape - reason() returns data matching this structure
+- `options` (optional, third positional): For a fast bounded judgment (boolean, number, or `$jev` choice/score), pass `{"mode": "jev"}` as the third argument — example stays second. Do not use `mode=` keyword arguments. Omit the third argument for free text or synthesis.
 
 **Returns:**
 
@@ -31,6 +32,7 @@ Do not manually rewrite or hand-type tool output into a new `reason()` prompt. P
 **Use Cases:**
 
 - Boolean decisions: `await reason('Goal: decide if we should alert. Observation: ... Constraints: return true/false.', True)`
+- Fast bounded judgment: `await reason('Goal: should we retry? Observation: ...', True, {'mode': 'jev'})`
 - Array extraction: `await reason('Goal: list the top 3 items. Observation: ... Constraints: return only strings.', ['item1'])`
 - Object structuring: `await reason('Goal: categorize the local data. Observation: ... Constraints: use these keys only.', {'cat1': [], 'cat2': []})`
 - Batch analysis: `await reason('Goal: analyze all items. Observation: ... Constraints: return one record per item.', [{'item': '', 'summary': ''}])`

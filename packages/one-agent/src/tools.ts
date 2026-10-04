@@ -2,7 +2,7 @@ import { mcpc } from "@mcpc-tech/core";
 import { markdownLoaderPlugin } from "@mcpc-tech/plugin-markdown-loader";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
-import { reason } from "./interfaces/reason";
+import { reason, type ReasonOptions } from "./interfaces/reason";
 import { getToolFn } from "./interfaces/act";
 import { agent as delegatedAgent } from "./interfaces/agent";
 import type { AgentConfig, AgentResult } from "./interfaces/agent";
@@ -63,8 +63,12 @@ const AGENT_EXTENSION_INJECT_SYSTEM_PROMPT = parseBooleanEnv(
  */
 const AGENT_EXTENSION_BASE_SYSTEM_PROMPT = `You are a bounded delegated worker. Complete only the delegated subtask using tools actually available in your own session. Base claims on observed evidence. Return a concise result with what was verified and what remains unknown. Stop on budget, permission, or runtime boundaries; do not claim unavailable capabilities.`;
 
-const adaptedReasonHandler = async (prompt: string, example: unknown): Promise<RASReasonResult> => {
-  const result = await reason(prompt, example);
+const adaptedReasonHandler = async (
+  prompt: string,
+  example: unknown,
+  options?: ReasonOptions,
+): Promise<RASReasonResult> => {
+  const result = await reason(prompt, example, options);
   return {
     data: result.data,
     error: result.error ?? undefined,

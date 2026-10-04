@@ -70,6 +70,37 @@ describe("createBashRAS", () => {
     expect(reasonImpl).toHaveBeenCalledWith("Summarize:\nraw input", { summary: "" });
   });
 
+  it("forwards --mode jev and rejects unknown modes", async () => {
+    const reasonImpl = vi.fn().mockResolvedValue({
+      data: true,
+      error: undefined,
+    });
+    const ras = createBashRAS(
+      makeConfig({
+        cwd: tempRoot,
+        reasonHandler: reasonImpl,
+      }),
+    );
+
+    const jev = await ras.execute({
+      command: `reason --mode jev --prompt "retry?" --structure 'true'`,
+    });
+    expect(jev.isError).not.toBe(true);
+    expect(reasonImpl).toHaveBeenCalledWith("retry?", true, { mode: "jev" });
+
+    const llm = await ras.execute({
+      command: `reason --mode=llm --prompt "retry?" --structure 'false'`,
+    });
+    expect(llm.isError).not.toBe(true);
+    expect(reasonImpl).toHaveBeenLastCalledWith("retry?", false, { mode: "llm" });
+
+    const bad = await ras.execute({
+      command: `reason --mode auto --prompt "retry?" --structure 'true'`,
+    });
+    expect(bad.isError).toBe(true);
+    expect(getText(bad)).toContain("--mode must be jev or llm");
+  });
+
   it("rejects mixing positional JSON with stdin dash and shows correct usage", async () => {
     const ras = createBashRAS(makeConfig({ cwd: tempRoot }));
     const result = await ras.execute({

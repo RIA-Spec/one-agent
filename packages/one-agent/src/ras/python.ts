@@ -14,11 +14,12 @@ import { writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { emitProgress } from "../progress.js";
 import { codeToAST } from "./code-to-ast.js";
 import { prepareOneInputs, type OneInputs } from "./inputs.js";
+import type { ReasonOptions } from "@one-agent/reason";
 
 export interface PythonRASConfig {
   nodeFSRoot: string;
   nodeFSMountPoint: string;
-  reasonHandler: (prompt: string, example: any) => Promise<any>;
+  reasonHandler: (prompt: string, example: any, options?: ReasonOptions) => Promise<any>;
   actHandler: (server: any) => (name: string, args: unknown) => Promise<any>;
   agentHandler: (server: any) => (prompt: string, config?: unknown) => Promise<any>;
 }

@@ -9,6 +9,7 @@
  * on demand (see theory 10/11/15).
  */
 
+import { resolveJevBackend } from "@one-agent/reason";
 import { renderBuiltinToolCatalog, type RASMode } from "./ras/tool-catalog.js";
 
 function parseBooleanEnv(name: string, fallback: boolean): boolean {
@@ -119,6 +120,24 @@ Minimal pattern:
 agent --prompt "Investigate and summarize failures in one paragraph" --config '{"on_error":"return_error","budget":{"maxSteps":20,"maxMinutes":10}}' > a.txt || { cat a.txt; exit 1; }
 cat a.txt`;
 
+const PYTHON_JEV_MODE_GUIDANCE =
+  "For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {'mode': 'jev'})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.";
+
+const TYPESCRIPT_JEV_MODE_GUIDANCE =
+  'For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, { mode: "jev" })` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
+
+const BASH_JEV_MODE_GUIDANCE =
+  'For a fast bounded judgment (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
+
+/** Same availability check as reason(): configured typesafe/gateway backend, not a process default. */
+function jevDecisionBackendAvailable(): boolean {
+  try {
+    return resolveJevBackend("reason") != null;
+  } catch {
+    return false;
+  }
+}
+
 function resolveRASMode(): RASMode {
   const raw = (process.env.RAS_MODE || "bash").toLowerCase();
   if (raw === "bash") return "bash";
@@ -132,11 +151,24 @@ export function buildAgentSystemPrompt(
   mode: RASMode,
   options: { agentExtensionEnabled?: boolean } = {},
 ): string {
-  const parts = [
-    CORE_AGENT_PROMPT,
-    `Built-in tool catalog:\n${renderBuiltinToolCatalog()}`,
-    MODE_PROMPTS[mode],
-  ];
+  const jevAvailable = jevDecisionBackendAvailable();
+  const jevGuidance =
+    mode === "typescript" ? TYPESCRIPT_JEV_MODE_GUIDANCE : PYTHON_JEV_MODE_GUIDANCE;
+  const core =
+    jevAvailable && mode !== "bash"
+      ? CORE_AGENT_PROMPT.replace(
+          "- Pass raw observations into `reason()`",
+          `- ${jevGuidance}\n- Pass raw observations into \`reason()\``,
+        )
+      : CORE_AGENT_PROMPT;
+  const modePrompt =
+    jevAvailable && mode === "bash"
+      ? MODE_PROMPTS.bash.replace(
+          "including synthesizing multiple evidence streams into one verdict.",
+          `including synthesizing multiple evidence streams into one verdict. ${BASH_JEV_MODE_GUIDANCE}`,
+        )
+      : MODE_PROMPTS[mode];
+  const parts = [core, `Built-in tool catalog:\n${renderBuiltinToolCatalog()}`, modePrompt];
   if (options.agentExtensionEnabled) {
     parts.push(mode === "bash" ? BASH_AGENT_EXTENSION_PROMPT : AGENT_EXTENSION_PROMPT);
   }

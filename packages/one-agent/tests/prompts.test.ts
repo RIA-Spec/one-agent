@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { buildAgentSystemPrompt, CORE_AGENT_PROMPT } from "../src/prompts.js";
 import { BUILTIN_RAS_TOOLS } from "../src/ras/tool-catalog.js";
 
@@ -77,5 +77,60 @@ describe.each(["python", "typescript", "bash"] as const)("%s system prompt", (mo
     const withExtension = buildAgentSystemPrompt(mode, { agentExtensionEnabled: true });
     const extensionPart = withExtension.length - prompt.length;
     expect(extensionPart).toBeLessThanOrEqual(EXTENSION_CHAR_BUDGET);
+  });
+
+  it("does not mention Jev unless a Jev backend is configured", () => {
+    expect(prompt).not.toMatch(/jev/i);
+    expect(prompt).not.toContain("fast bounded judgment");
+  });
+});
+
+describe("Jev prompt guidance", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("adds fast bounded judgment guidance when a TypeSafe key is configured", () => {
+    vi.stubEnv("TYPESAFE_API_KEY", "apikey_test");
+    const pythonGuidance =
+      "For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, {'mode': 'jev'})` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.";
+    const typescriptGuidance =
+      'For a fast bounded judgment (boolean, number, or `$jev` choice/score), call `reason(prompt, example, { mode: "jev" })` — example second, options third. Do not pass `mode=` keyword arguments; `reason()` accepts positional args only. Omit the third argument for free text or synthesis.';
+    const bashGuidance =
+      'For a fast bounded judgment (boolean, number, or `$jev` choice/score), use `reason --prompt "…" --structure \'…\' --mode jev` (`--structure` is required). Omit `--mode` for free text or synthesis.';
+    for (const mode of ["python", "typescript", "bash"] as const) {
+      const prompt = buildAgentSystemPrompt(mode);
+      expect(prompt.length).toBeLessThanOrEqual(RESIDENT_CHAR_BUDGET);
+      if (mode === "bash") {
+        expect(prompt).toContain(bashGuidance);
+        expect(prompt).not.toContain(pythonGuidance);
+        expect(prompt).not.toContain(typescriptGuidance);
+        expect(prompt).not.toMatch(/\{ mode: "jev" \}/);
+      } else if (mode === "python") {
+        expect(prompt).toContain(pythonGuidance);
+        expect(prompt).not.toContain(typescriptGuidance);
+        expect(prompt).not.toContain(bashGuidance);
+        expect(prompt).not.toContain("--structure");
+      } else {
+        expect(prompt).toContain(typescriptGuidance);
+        expect(prompt).not.toContain(pythonGuidance);
+        expect(prompt).not.toContain(bashGuidance);
+        expect(prompt).not.toContain("--structure");
+      }
+    }
+  });
+
+  it("stays on the main prompt when Jev is switched off", () => {
+    vi.stubEnv("TYPESAFE_API_KEY", "apikey_test");
+    vi.stubEnv("ONE_REASON_JEV_ENABLED", "0");
+    const prompt = buildAgentSystemPrompt("bash");
+    expect(prompt).not.toMatch(/jev/i);
+    expect(prompt).not.toContain("fast bounded judgment");
+  });
+
+  it("does not mention Jev when the provider is selected without credentials", () => {
+    vi.stubEnv("ONE_REASON_PROVIDER", "typesafe");
+    const prompt = buildAgentSystemPrompt("python");
+    expect(prompt).not.toMatch(/jev/i);
   });
 });
